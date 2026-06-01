@@ -1,0 +1,439 @@
+"use client";
+
+import Link from "next/link";
+import { useMemo, useState } from "react";
+import { AlertTriangle, CalendarPlus, ShipWheel } from "lucide-react";
+import { AppShell } from "@/components/app-shell";
+import { Badge, Card, Section } from "@/components/ui";
+import { getInitialAppData } from "@/lib/data-source";
+import { targetFishLabels } from "@/lib/labels";
+import { createReservation } from "@/lib/mock-data";
+import {
+  formatDate,
+  formatTime,
+  hasTimeOverlap,
+} from "@/lib/reservations";
+import type { Reservation, TargetFish } from "@/types/domain";
+
+const targetFishOptions: TargetFish[] = [
+  "seabass",
+  "chinning",
+  "tairubber",
+  "yellowtail",
+  "other",
+];
+
+const toDateKey = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+export default function ReservationsPage() {
+  const data = getInitialAppData();
+  const [reservations, setReservations] = useState<Reservation[]>(
+    data.reservations,
+  );
+  const [form, setForm] = useState({
+    date: "2026-06-08",
+    startTime: "07:00",
+    endTime: "11:00",
+    userId: data.currentUser.id,
+    targetFish: "seabass" as TargetFish,
+    destinationArea: "大阪湾",
+    passengerCount: 2,
+    availableSeats: 1,
+    joinAllowed: true,
+    comment: "",
+  });
+
+  const draftReservation = useMemo(
+    () => ({
+      id: "draft",
+      startAt: `${form.date}T${form.startTime}:00.000+09:00`,
+      endAt: `${form.date}T${form.endTime}:00.000+09:00`,
+    }),
+    [form.date, form.endTime, form.startTime],
+  );
+  const hasOverlap = hasTimeOverlap(draftReservation, reservations);
+  const calendarMonth = useMemo(() => {
+    const base = new Date(reservations[0]?.startAt ?? "2026-06-01T00:00:00.000+09:00");
+    const firstDay = new Date(base.getFullYear(), base.getMonth(), 1);
+    const lastDay = new Date(base.getFullYear(), base.getMonth() + 1, 0);
+    const leadingBlankCount = firstDay.getDay();
+    const days = Array.from({ length: lastDay.getDate() }, (_, index) => {
+      const date = new Date(base.getFullYear(), base.getMonth(), index + 1);
+      const dateKey = toDateKey(date);
+      const dayReservations = reservations.filter(
+        (reservation) => reservation.startAt.slice(0, 10) === dateKey,
+      );
+
+      return {
+        date,
+        dateKey,
+        reservations: dayReservations,
+      };
+    });
+
+    return {
+      label: new Intl.DateTimeFormat("ja-JP", {
+        year: "numeric",
+        month: "long",
+      }).format(firstDay),
+      leadingBlankCount,
+      days,
+    };
+  }, [reservations]);
+
+  function updateForm<T extends keyof typeof form>(
+    key: T,
+    value: (typeof form)[T],
+  ) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const reservation = createReservation({
+      organizationId: data.organization.id,
+      boatId: data.boat.id,
+      userId: form.userId,
+      startAt: `${form.date}T${form.startTime}:00.000+09:00`,
+      endAt: `${form.date}T${form.endTime}:00.000+09:00`,
+      targetFish: form.targetFish,
+      destinationArea: form.destinationArea,
+      passengerCount: form.passengerCount,
+      availableSeats: form.availableSeats,
+      joinAllowed: form.joinAllowed,
+      comment: form.comment,
+    });
+
+    setReservations((current) =>
+      [...current, reservation].sort(
+        (a, b) =>
+          new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
+      ),
+    );
+  }
+
+  return (
+    <AppShell>
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <p className="text-sm font-bold text-blue-700">予約カレンダー</p>
+          <h1 className="text-3xl font-black tracking-normal text-blue-950">
+            釣行予定と空き席
+          </h1>
+          <p className="text-sm leading-6 text-slate-600">
+            メンバー以上が先着順で予約できます。重複は警告表示のみです。
+          </p>
+        </div>
+
+        <Section title={`${calendarMonth.label}の予約`}>
+          <div className="rounded-lg border border-sky-100 bg-white p-3 shadow-sm">
+            <div className="grid grid-cols-7 gap-1 text-center text-xs font-black text-slate-500">
+              {["日", "月", "火", "水", "木", "金", "土"].map((day) => (
+                <div key={day} className="py-2">
+                  {day}
+                </div>
+              ))}
+            </div>
+            <div className="mt-1 grid grid-cols-7 gap-1">
+              {Array.from({ length: calendarMonth.leadingBlankCount }).map(
+                (_, index) => (
+                  <div
+                    key={`blank-${index}`}
+                    className="min-h-24 rounded-lg bg-slate-50"
+                  />
+                ),
+              )}
+              {calendarMonth.days.map((day) => (
+                <div
+                  key={day.dateKey}
+                  className={`min-h-24 rounded-lg border p-2 ${
+                    day.reservations.length > 0
+                      ? "border-blue-200 bg-sky-50"
+                      : "border-slate-100 bg-white"
+                  }`}
+                >
+                  <p className="text-sm font-black text-slate-800">
+                    {day.date.getDate()}
+                  </p>
+                  <div className="mt-1 space-y-1">
+                    {day.reservations.slice(0, 2).map((reservation) => {
+                      const user = data.users.find(
+                        (item) => item.id === reservation.userId,
+                      );
+
+                      return (
+                        <Link
+                          key={reservation.id}
+                          href={`#reservation-${reservation.id}`}
+                          className="block rounded-md bg-blue-800 px-1.5 py-1 text-[10px] font-black leading-4 text-white"
+                        >
+                          {formatTime(reservation.startAt)} {user?.name}
+                        </Link>
+                      );
+                    })}
+                    {day.reservations.length > 2 ? (
+                      <p className="text-[10px] font-bold text-blue-800">
+                        +{day.reservations.length - 2}件
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Section>
+
+        <Section title="予約登録">
+          <form
+            id="new"
+            onSubmit={handleSubmit}
+            className="space-y-4 rounded-lg border border-sky-100 bg-white p-4 shadow-sm"
+          >
+            <div className="grid gap-3 sm:grid-cols-3">
+              <label className="block">
+                <span className="text-sm font-bold text-slate-700">利用日</span>
+                <input
+                  type="date"
+                  value={form.date}
+                  onChange={(event) => updateForm("date", event.target.value)}
+                  className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
+                  required
+                />
+              </label>
+              <label className="block">
+                <span className="text-sm font-bold text-slate-700">開始</span>
+                <input
+                  type="time"
+                  value={form.startTime}
+                  onChange={(event) =>
+                    updateForm("startTime", event.target.value)
+                  }
+                  className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
+                  required
+                />
+              </label>
+              <label className="block">
+                <span className="text-sm font-bold text-slate-700">終了</span>
+                <input
+                  type="time"
+                  value={form.endTime}
+                  onChange={(event) =>
+                    updateForm("endTime", event.target.value)
+                  }
+                  className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
+                  required
+                />
+              </label>
+            </div>
+
+            {hasOverlap ? (
+              <div className="flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm font-bold leading-6 text-amber-900">
+                <AlertTriangle
+                  className="mt-0.5 shrink-0"
+                  size={18}
+                  aria-hidden="true"
+                />
+                同日同時間帯に重複する予約があります。今回は登録はブロックしません。
+              </div>
+            ) : null}
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="text-sm font-bold text-slate-700">予約者</span>
+                <select
+                  value={form.userId}
+                  onChange={(event) => updateForm("userId", event.target.value)}
+                  className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
+                >
+                  {data.users.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-sm font-bold text-slate-700">釣りもの</span>
+                <select
+                  value={form.targetFish}
+                  onChange={(event) =>
+                    updateForm("targetFish", event.target.value as TargetFish)
+                  }
+                  className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
+                >
+                  {targetFishOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {targetFishLabels[option]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <label className="block">
+              <span className="text-sm font-bold text-slate-700">
+                行き先エリア
+              </span>
+              <input
+                value={form.destinationArea}
+                onChange={(event) =>
+                  updateForm("destinationArea", event.target.value)
+                }
+                className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
+              />
+            </label>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className="text-sm font-bold text-slate-700">
+                  同乗予定人数
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  value={form.passengerCount}
+                  onChange={(event) =>
+                    updateForm("passengerCount", Number(event.target.value))
+                  }
+                  className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
+                />
+              </label>
+              <label className="block">
+                <span className="text-sm font-bold text-slate-700">空き席数</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={form.availableSeats}
+                  onChange={(event) =>
+                    updateForm("availableSeats", Number(event.target.value))
+                  }
+                  className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
+                />
+              </label>
+            </div>
+
+            <label className="flex min-h-12 items-center gap-3 rounded-lg bg-sky-50 px-3 text-sm font-bold text-blue-950">
+              <input
+                type="checkbox"
+                checked={form.joinAllowed}
+                onChange={(event) =>
+                  updateForm("joinAllowed", event.target.checked)
+                }
+                className="size-5 accent-blue-800"
+              />
+              便乗歓迎
+            </label>
+
+            <label className="block">
+              <span className="text-sm font-bold text-slate-700">コメント</span>
+              <textarea
+                value={form.comment}
+                onChange={(event) => updateForm("comment", event.target.value)}
+                className="mt-2 min-h-24 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-base outline-none ring-blue-600 focus:ring-2"
+              />
+            </label>
+
+            <button
+              type="submit"
+              className="flex h-14 w-full items-center justify-center gap-2 rounded-lg bg-blue-800 px-5 text-base font-black text-white shadow-lg shadow-blue-900/20"
+            >
+              <CalendarPlus size={22} aria-hidden="true" />
+              予約を登録
+            </button>
+          </form>
+        </Section>
+
+        <Section title="予約一覧">
+          <div className="space-y-3">
+            {reservations.map((reservation) => {
+              const user = data.users.find((item) => item.id === reservation.userId);
+              const overlap = hasTimeOverlap(reservation, reservations);
+
+              return (
+                <div id={`reservation-${reservation.id}`} key={reservation.id}>
+                  <Card>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-lg font-black text-blue-950">
+                          {formatDate(reservation.startAt)}
+                        </p>
+                        <p className="mt-1 text-base font-black text-slate-950">
+                          {formatTime(reservation.startAt)} -{" "}
+                          {formatTime(reservation.endAt)}
+                        </p>
+                      </div>
+                      <Badge
+                        className={
+                          reservation.availableSeats > 0
+                            ? "bg-emerald-100 text-emerald-800 ring-emerald-200"
+                            : "bg-slate-100 text-slate-700 ring-slate-200"
+                        }
+                      >
+                        {reservation.availableSeats > 0 ? "空き席あり" : "満席"}
+                      </Badge>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <Badge className="bg-sky-100 text-blue-800 ring-sky-200">
+                        {targetFishLabels[reservation.targetFish]}
+                      </Badge>
+                      <Badge className="bg-white text-slate-700 ring-slate-200">
+                        {reservation.joinAllowed ? "便乗歓迎" : "便乗なし"}
+                      </Badge>
+                      {overlap ? (
+                        <Badge className="bg-amber-100 text-amber-900 ring-amber-200">
+                          時間重複あり
+                        </Badge>
+                      ) : null}
+                    </div>
+
+                    <div className="mt-4 grid gap-2 text-sm text-slate-600">
+                      <p className="flex items-center gap-2">
+                        <ShipWheel size={17} aria-hidden="true" />
+                        予約者: {user?.name}
+                      </p>
+                      <p>行き先: {reservation.destinationArea}</p>
+                      <p>
+                        同乗予定: {reservation.passengerCount}名 / 空き席:{" "}
+                        {reservation.availableSeats}席
+                      </p>
+                      {reservation.comment ? <p>{reservation.comment}</p> : null}
+                    </div>
+
+                    <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                      <Link
+                        href={`/checks/pre-departure?reservationId=${reservation.id}`}
+                        className="flex min-h-11 items-center justify-center rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
+                      >
+                        出船前チェック
+                      </Link>
+                      <Link
+                        href={`/checks/post-return?reservationId=${reservation.id}`}
+                        className="flex min-h-11 items-center justify-center rounded-lg border border-sky-200 px-4 text-sm font-black text-blue-900"
+                      >
+                        帰港後チェック
+                      </Link>
+                      <Link
+                        href={`/support?reservationId=${reservation.id}#new`}
+                        className="flex min-h-11 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-black text-rose-800"
+                      >
+                        サポート要請
+                      </Link>
+                    </div>
+                  </Card>
+                </div>
+              );
+            })}
+          </div>
+        </Section>
+      </div>
+    </AppShell>
+  );
+}

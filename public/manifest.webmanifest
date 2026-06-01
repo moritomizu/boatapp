@@ -1,0 +1,18 @@
+{
+  "name": "TaPiYoTa Grand Boat Club",
+  "short_name": "TaPiYoTa GBC",
+  "description": "共同保有艇を安全に運用するボートオーナー運営PWA",
+  "start_url": "/login",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#1d4ed8",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

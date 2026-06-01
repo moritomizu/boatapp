@@ -1,0 +1,452 @@
+import type {
+  AppData,
+  HandoverNote,
+  PostReturnCheck,
+  PreDepartureCheck,
+  Reservation,
+  SupportMessage,
+  SupportRequest,
+} from "@/types/domain";
+
+export const mockData: AppData = {
+  organization: {
+    id: "org-osaka-tapiyota",
+    name: "TaPiYoTa Boat Owners",
+    createdAt: "2026-05-01T00:00:00.000+09:00",
+  },
+  boat: {
+    id: "boat-tapiyota",
+    organizationId: "org-osaka-tapiyota",
+    name: "TaPiYoTa号",
+    status: "available",
+    mooringLocation: "大阪市内マリーナ",
+    capacity: 6,
+    fuelType: "ガソリン",
+    engineInfo: "船外機 150HP / 定期点検済み",
+    imageUrl:
+      "https://images.unsplash.com/photo-1500622944204-b135684e99fd?auto=format&fit=crop&w=1200&q=80",
+    notes:
+      "共同オーナー4名とメンバーで運用。出船前後チェック、申し送り、整備ログを順次追加予定。",
+    updatedAt: "2026-05-28T17:30:00.000+09:00",
+  },
+  users: [
+    {
+      id: "user-admin",
+      organizationId: "org-osaka-tapiyota",
+      name: "田中 航",
+      email: "admin@example.com",
+      role: "admin",
+      canSolo: true,
+      canNightUse: true,
+      notes: "船所有名義人。整備判断と権限管理を担当。",
+      createdAt: "2026-05-01T09:00:00.000+09:00",
+    },
+    {
+      id: "user-owner-1",
+      organizationId: "org-osaka-tapiyota",
+      name: "佐藤 湊",
+      email: "owner@example.com",
+      role: "owner",
+      canSolo: true,
+      canNightUse: false,
+      notes: "タイラバ、青物メイン。",
+      createdAt: "2026-05-02T09:00:00.000+09:00",
+    },
+    {
+      id: "user-owner-2",
+      organizationId: "org-osaka-tapiyota",
+      name: "山本 海斗",
+      email: "kaito@example.com",
+      role: "owner",
+      canSolo: true,
+      canNightUse: true,
+      notes: "夜間シーバス経験あり。",
+      createdAt: "2026-05-03T09:00:00.000+09:00",
+    },
+    {
+      id: "user-member-1",
+      organizationId: "org-osaka-tapiyota",
+      name: "鈴木 凪",
+      email: "member@example.com",
+      role: "member",
+      canSolo: false,
+      canNightUse: false,
+      notes: "便乗利用中心。単独出船は承認待ち。",
+      createdAt: "2026-05-04T09:00:00.000+09:00",
+    },
+  ],
+  currentUser: {
+    id: "user-admin",
+    organizationId: "org-osaka-tapiyota",
+    name: "田中 航",
+    email: "admin@example.com",
+    role: "admin",
+    canSolo: true,
+    canNightUse: true,
+    notes: "船所有名義人。整備判断と権限管理を担当。",
+    createdAt: "2026-05-01T09:00:00.000+09:00",
+  },
+  reservations: [
+    {
+      id: "res-001",
+      organizationId: "org-osaka-tapiyota",
+      boatId: "boat-tapiyota",
+      userId: "user-owner-1",
+      startAt: "2026-06-01T07:00:00.000+09:00",
+      endAt: "2026-06-01T11:00:00.000+09:00",
+      targetFish: "tairubber",
+      destinationArea: "明石方面",
+      passengerCount: 2,
+      availableSeats: 2,
+      joinAllowed: true,
+      comment: "潮止まり前後で短時間予定。",
+      createdAt: "2026-05-25T08:00:00.000+09:00",
+      updatedAt: "2026-05-25T08:00:00.000+09:00",
+    },
+    {
+      id: "res-002",
+      organizationId: "org-osaka-tapiyota",
+      boatId: "boat-tapiyota",
+      userId: "user-admin",
+      startAt: "2026-06-04T18:00:00.000+09:00",
+      endAt: "2026-06-04T22:00:00.000+09:00",
+      targetFish: "seabass",
+      destinationArea: "大阪湾奥",
+      passengerCount: 1,
+      availableSeats: 3,
+      joinAllowed: true,
+      comment: "夜間のため経験者優先。",
+      createdAt: "2026-05-26T12:00:00.000+09:00",
+      updatedAt: "2026-05-26T12:00:00.000+09:00",
+    },
+    {
+      id: "res-003",
+      organizationId: "org-osaka-tapiyota",
+      boatId: "boat-tapiyota",
+      userId: "user-owner-2",
+      startAt: "2026-06-04T20:00:00.000+09:00",
+      endAt: "2026-06-04T23:00:00.000+09:00",
+      targetFish: "chinning",
+      destinationArea: "淀川河口",
+      passengerCount: 2,
+      availableSeats: 0,
+      joinAllowed: false,
+      comment: "時間帯重複の警告確認用。",
+      createdAt: "2026-05-27T12:00:00.000+09:00",
+      updatedAt: "2026-05-27T12:00:00.000+09:00",
+    },
+  ],
+  preDepartureChecks: [
+    {
+      id: "pre-001",
+      organizationId: "org-osaka-tapiyota",
+      boatId: "boat-tapiyota",
+      reservationId: "res-001",
+      userId: "user-owner-1",
+      checkedAt: "2026-06-01T06:42:00.000+09:00",
+      items: {
+        fuelOk: true,
+        batterySwitchOn: true,
+        engineStarted: true,
+        navigationLightsOk: true,
+        bilgeOk: true,
+        mooringRopesOk: true,
+        lifeJacketsOk: true,
+        safetyEquipmentOk: true,
+        weatherChecked: true,
+        phoneCharged: true,
+        hullDamageOk: true,
+        handoverChecked: true,
+      },
+      hasIssue: false,
+      comment: "風は弱め。前回申し送り確認済み。",
+      createdAt: "2026-06-01T06:42:00.000+09:00",
+      updatedAt: "2026-06-01T06:42:00.000+09:00",
+    },
+  ],
+  postReturnChecks: [
+    {
+      id: "post-001",
+      organizationId: "org-osaka-tapiyota",
+      boatId: "boat-tapiyota",
+      reservationId: "res-001",
+      userId: "user-owner-1",
+      checkedAt: "2026-06-01T11:24:00.000+09:00",
+      items: {
+        refueled: true,
+        washed: true,
+        tiltedUp: true,
+        batterySwitchOff: true,
+        trashRemoved: true,
+        mooringRopesOk: true,
+        hullAndPropellerOk: true,
+        lightsOk: true,
+        equipmentReturned: true,
+        noHandoverNeeded: false,
+      },
+      hasIssue: true,
+      comment: "右舷ロッドホルダーに軽い緩みあり。申し送り済み。",
+      createdAt: "2026-06-01T11:24:00.000+09:00",
+      updatedAt: "2026-06-01T11:24:00.000+09:00",
+    },
+  ],
+  handoverNotes: [
+    {
+      id: "note-001",
+      organizationId: "org-osaka-tapiyota",
+      boatId: "boat-tapiyota",
+      reservationId: "res-001",
+      title: "右舷ロッドホルダー確認",
+      body: "少し緩みあり。次回工具で増し締め予定。",
+      category: "equipment",
+      priority: "medium",
+      status: "unconfirmed",
+      createdBy: "user-owner-1",
+      createdAt: "2026-05-30T12:00:00.000+09:00",
+      updatedAt: "2026-05-30T12:00:00.000+09:00",
+    },
+    {
+      id: "note-002",
+      organizationId: "org-osaka-tapiyota",
+      boatId: "boat-tapiyota",
+      title: "航行灯スイッチの反応が少し遅い",
+      body: "点灯はしますが、ONにしてから一拍遅れることがあります。夜間利用前は必ず点灯確認してください。",
+      category: "lights",
+      priority: "high",
+      status: "in_progress",
+      createdBy: "user-owner-2",
+      createdAt: "2026-05-31T18:15:00.000+09:00",
+      updatedAt: "2026-05-31T18:15:00.000+09:00",
+    },
+    {
+      id: "note-003",
+      organizationId: "org-osaka-tapiyota",
+      boatId: "boat-tapiyota",
+      title: "次回洗艇ホース交換予定",
+      body: "ホース先端の水漏れがあるため、次回マリーナ立ち寄り時に交換予定です。",
+      category: "construction",
+      priority: "low",
+      status: "resolved",
+      createdBy: "user-admin",
+      createdAt: "2026-05-27T09:20:00.000+09:00",
+      updatedAt: "2026-05-29T13:00:00.000+09:00",
+      resolvedAt: "2026-05-29T13:00:00.000+09:00",
+    },
+  ],
+  supportRequests: [
+    {
+      id: "support-001",
+      organizationId: "org-osaka-tapiyota",
+      boatId: "boat-tapiyota",
+      reservationId: "res-001",
+      title: "燃料残量が少し不安です",
+      category: "fuel",
+      urgency: "high",
+      body: "明石方面から帰港予定です。燃料残量表示が半分を切っていて、向かい風もあります。回転数を落として戻るべきか相談したいです。",
+      status: "open",
+      createdBy: "user-member-1",
+      location: {
+        latitude: 34.6162,
+        longitude: 135.0813,
+        accuracy: 38,
+        capturedAt: "2026-06-01T09:40:00.000+09:00",
+      },
+      createdAt: "2026-06-01T09:40:00.000+09:00",
+      updatedAt: "2026-06-01T09:40:00.000+09:00",
+    },
+    {
+      id: "support-002",
+      organizationId: "org-osaka-tapiyota",
+      boatId: "boat-tapiyota",
+      reservationId: "res-002",
+      title: "充電器の場所を確認したい",
+      category: "equipment",
+      urgency: "low",
+      body: "スマホ充電器の場所がわかりません。右舷側収納を見ましたが見つけられていません。",
+      status: "in_progress",
+      createdBy: "user-member-1",
+      assignedTo: "user-owner-1",
+      createdAt: "2026-06-01T08:15:00.000+09:00",
+      updatedAt: "2026-06-01T08:24:00.000+09:00",
+    },
+    {
+      id: "support-003",
+      organizationId: "org-osaka-tapiyota",
+      boatId: "boat-tapiyota",
+      title: "着岸時の風向き相談",
+      category: "docking",
+      urgency: "medium",
+      body: "横風が少し強く、いつもの向きで着岸するか迷いました。次回の参考として残します。",
+      status: "resolved",
+      createdBy: "user-owner-2",
+      assignedTo: "user-admin",
+      createdAt: "2026-05-28T17:40:00.000+09:00",
+      updatedAt: "2026-05-28T18:10:00.000+09:00",
+      resolvedAt: "2026-05-28T18:10:00.000+09:00",
+    },
+  ],
+  supportMessages: [
+    {
+      id: "support-msg-001",
+      organizationId: "org-osaka-tapiyota",
+      supportRequestId: "support-001",
+      body: "その残量なら一旦回転数を落として帰港してください。無理に遠回りせず、必要ならマリーナにも連絡しましょう。",
+      createdBy: "user-admin",
+      createdAt: "2026-06-01T09:46:00.000+09:00",
+    },
+    {
+      id: "support-msg-002",
+      organizationId: "org-osaka-tapiyota",
+      supportRequestId: "support-002",
+      body: "充電器は右舷側収納の奥、黒いポーチの中です。",
+      createdBy: "user-owner-1",
+      createdAt: "2026-06-01T08:24:00.000+09:00",
+    },
+    {
+      id: "support-msg-003",
+      organizationId: "org-osaka-tapiyota",
+      supportRequestId: "support-003",
+      body: "この風向きなら無理せず一度流して、船首を風上に向け直してから入るのがよさそうです。",
+      createdBy: "user-admin",
+      createdAt: "2026-05-28T18:02:00.000+09:00",
+    },
+  ],
+  maintenanceLogs: [
+    {
+      id: "maint-001",
+      organizationId: "org-osaka-tapiyota",
+      boatId: "boat-tapiyota",
+      category: "engine",
+      title: "エンジンオイル交換",
+      body: "定期交換。次回は稼働時間を見て判断。",
+      cost: 18000,
+      performedAt: "2026-05-20T10:00:00.000+09:00",
+      createdBy: "user-admin",
+      createdAt: "2026-05-20T12:00:00.000+09:00",
+    },
+  ],
+  notifications: [
+    {
+      id: "notif-001",
+      organizationId: "org-osaka-tapiyota",
+      boatId: "boat-tapiyota",
+      category: "weather",
+      priority: "urgent",
+      title: "午後から風が強まる予報です",
+      body: "大阪湾周辺で午後から風速が上がる見込みです。出船前に海況を再確認してください。",
+      relatedPath: "/home",
+      readBy: [],
+      createdAt: "2026-06-01T06:00:00.000+09:00",
+    },
+    {
+      id: "notif-002",
+      organizationId: "org-osaka-tapiyota",
+      boatId: "boat-tapiyota",
+      category: "check",
+      priority: "important",
+      title: "帰港後チェックが未完了です",
+      body: "本日の予約に紐づく帰港後チェックを忘れずに記録してください。",
+      relatedPath: "/checks/post-return?reservationId=res-001",
+      readBy: [],
+      createdAt: "2026-06-01T11:05:00.000+09:00",
+    },
+    {
+      id: "notif-003",
+      organizationId: "org-osaka-tapiyota",
+      boatId: "boat-tapiyota",
+      category: "handover",
+      priority: "important",
+      title: "重要度高の申し送りがあります",
+      body: "航行灯スイッチの反応について、夜間利用前に確認してください。",
+      relatedPath: "/handovers",
+      readBy: ["user-owner-1"],
+      createdAt: "2026-05-31T18:20:00.000+09:00",
+    },
+  ],
+  notificationPreferences: [
+    {
+      userId: "user-admin",
+      channels: ["in_app", "push"],
+      weatherAlerts: true,
+      reservationReminders: true,
+      checkReminders: true,
+      handoverAlerts: true,
+      supportAlerts: true,
+    },
+  ],
+};
+
+export const createPreDepartureCheck = (
+  check: Omit<PreDepartureCheck, "id" | "createdAt" | "updatedAt">,
+): PreDepartureCheck => {
+  const now = new Date().toISOString();
+
+  return {
+    ...check,
+    id: `pre-${crypto.randomUUID()}`,
+    createdAt: now,
+    updatedAt: now,
+  };
+};
+
+export const createPostReturnCheck = (
+  check: Omit<PostReturnCheck, "id" | "createdAt" | "updatedAt">,
+): PostReturnCheck => {
+  const now = new Date().toISOString();
+
+  return {
+    ...check,
+    id: `post-${crypto.randomUUID()}`,
+    createdAt: now,
+    updatedAt: now,
+  };
+};
+
+export const createHandoverNote = (
+  note: Omit<HandoverNote, "id" | "createdAt" | "updatedAt">,
+): HandoverNote => {
+  const now = new Date().toISOString();
+
+  return {
+    ...note,
+    id: `note-${crypto.randomUUID()}`,
+    createdAt: now,
+    updatedAt: now,
+  };
+};
+
+export const createSupportRequest = (
+  request: Omit<SupportRequest, "id" | "createdAt" | "updatedAt">,
+): SupportRequest => {
+  const now = new Date().toISOString();
+
+  return {
+    ...request,
+    id: `support-${crypto.randomUUID()}`,
+    createdAt: now,
+    updatedAt: now,
+  };
+};
+
+export const createSupportMessage = (
+  message: Omit<SupportMessage, "id" | "createdAt">,
+): SupportMessage => {
+  return {
+    ...message,
+    id: `support-msg-${crypto.randomUUID()}`,
+    createdAt: new Date().toISOString(),
+  };
+};
+
+export const createReservation = (
+  reservation: Omit<Reservation, "id" | "createdAt" | "updatedAt">,
+): Reservation => {
+  const now = new Date().toISOString();
+
+  return {
+    ...reservation,
+    id: `res-${crypto.randomUUID()}`,
+    createdAt: now,
+    updatedAt: now,
+  };
+};
