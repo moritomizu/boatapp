@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { AlertTriangle, CalendarPlus, ShipWheel } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Badge, Card, Section } from "@/components/ui";
+import { updateClientAppData, useClientAppData } from "@/lib/client-store";
 import { getInitialAppData } from "@/lib/data-source";
 import { targetFishLabels } from "@/lib/labels";
 import { createReservation } from "@/lib/mock-data";
@@ -13,7 +14,7 @@ import {
   formatTime,
   hasTimeOverlap,
 } from "@/lib/reservations";
-import type { Reservation, TargetFish } from "@/types/domain";
+import type { TargetFish } from "@/types/domain";
 
 const targetFishOptions: TargetFish[] = [
   "seabass",
@@ -32,15 +33,14 @@ const toDateKey = (date: Date) => {
 };
 
 export default function ReservationsPage() {
-  const data = getInitialAppData();
-  const [reservations, setReservations] = useState<Reservation[]>(
-    data.reservations,
-  );
+  const initialData = getInitialAppData();
+  const data = useClientAppData(initialData);
+  const reservations = data.reservations;
   const [form, setForm] = useState({
     date: "2026-06-08",
     startTime: "07:00",
     endTime: "11:00",
-    userId: data.currentUser.id,
+    userId: initialData.currentUser.id,
     targetFish: "seabass" as TargetFish,
     destinationArea: "大阪湾",
     passengerCount: 2,
@@ -111,11 +111,14 @@ export default function ReservationsPage() {
       comment: form.comment,
     });
 
-    setReservations((current) =>
-      [...current, reservation].sort(
-        (a, b) =>
-          new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
-      ),
+    const nextReservations = [...reservations, reservation].sort(
+      (a, b) =>
+        new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
+    );
+
+    updateClientAppData(
+      (current) => ({ ...current, reservations: nextReservations }),
+      data,
     );
   }
 

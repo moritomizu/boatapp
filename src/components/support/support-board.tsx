@@ -11,6 +11,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { Badge, Card, Section } from "@/components/ui";
+import { updateClientAppData, useClientAppData } from "@/lib/client-store";
 import {
   supportCategoryLabels,
   supportStatusLabels,
@@ -25,7 +26,6 @@ import type {
   AppData,
   SupportCategory,
   SupportLocation,
-  SupportMessage,
   SupportRequest,
   SupportStatus,
   SupportUrgency,
@@ -51,12 +51,9 @@ export function SupportBoard({
   data: AppData;
   initialDraft: InitialDraft;
 }) {
-  const [requests, setRequests] = useState<SupportRequest[]>(
-    data.supportRequests,
-  );
-  const [messages, setMessages] = useState<SupportMessage[]>(
-    data.supportMessages,
-  );
+  const appData = useClientAppData(data);
+  const requests = appData.supportRequests;
+  const messages = appData.supportMessages;
   const [selectedId, setSelectedId] = useState(data.supportRequests[0]?.id ?? "");
   const [categoryFilter, setCategoryFilter] = useState<"all" | SupportCategory>(
     "all",
@@ -77,9 +74,9 @@ export function SupportBoard({
 
   const selectedRequest = requests.find((request) => request.id === selectedId);
   const canChangeAllStatuses =
-    data.currentUser.role === "admin" || data.currentUser.role === "owner";
+    appData.currentUser.role === "admin" || appData.currentUser.role === "owner";
   const canResolveSelected =
-    canChangeAllStatuses || selectedRequest?.createdBy === data.currentUser.id;
+    canChangeAllStatuses || selectedRequest?.createdBy === appData.currentUser.id;
   const selectedMessages = messages
     .filter((message) => message.supportRequestId === selectedId)
     .sort(
@@ -147,7 +144,7 @@ export function SupportBoard({
 
     const request = createSupportRequest({
       organizationId: data.organization.id,
-      boatId: data.boat.id,
+      boatId: appData.boat.id,
       reservationId: form.reservationId || undefined,
       title: form.title,
       category: form.category,
@@ -158,8 +155,13 @@ export function SupportBoard({
       location: form.location,
     });
 
-    setRequests((current) => [request, ...current]);
+    const nextRequests = [request, ...requests];
+
     setSelectedId(request.id);
+    updateClientAppData(
+      (current) => ({ ...current, supportRequests: nextRequests }),
+      appData,
+    );
     setForm((current) => ({
       ...current,
       title: "",
@@ -179,16 +181,22 @@ export function SupportBoard({
       organizationId: data.organization.id,
       supportRequestId: selectedRequest.id,
       body: comment,
-      createdBy: data.currentUser.id,
+      createdBy: appData.currentUser.id,
     });
+    const nextMessages = [...messages, message];
+    const nextRequests = requests.map((request) =>
+      request.id === selectedRequest.id
+        ? { ...request, updatedAt: message.createdAt }
+        : request,
+    );
 
-    setMessages((current) => [...current, message]);
-    setRequests((current) =>
-      current.map((request) =>
-        request.id === selectedRequest.id
-          ? { ...request, updatedAt: message.createdAt }
-          : request,
-      ),
+    updateClientAppData(
+      (current) => ({
+        ...current,
+        supportMessages: nextMessages,
+        supportRequests: nextRequests,
+      }),
+      appData,
     );
     setComment("");
   }
@@ -197,41 +205,49 @@ export function SupportBoard({
     if (!selectedRequest) return;
     const now = new Date().toISOString();
 
-    setRequests((current) =>
-      current.map((request) =>
+    const nextRequests = requests.map((request) =>
         request.id === selectedRequest.id
           ? {
               ...request,
               status,
               assignedTo:
                 status === "in_progress"
-                  ? data.currentUser.id
+                  ? appData.currentUser.id
                   : request.assignedTo,
               updatedAt: now,
               resolvedAt: status === "resolved" ? now : request.resolvedAt,
               closedAt: status === "closed" ? now : request.closedAt,
             }
           : request,
-      ),
-    );
+      );
+    let nextMessages = messages;
 
     if (resolution?.trim()) {
-      setMessages((current) => [
-        ...current,
+      nextMessages = [
+        ...messages,
         createSupportMessage({
           organizationId: data.organization.id,
           supportRequestId: selectedRequest.id,
           body: `解決コメント: ${resolution}`,
-          createdBy: data.currentUser.id,
+          createdBy: appData.currentUser.id,
         }),
-      ]);
+      ];
       setResolveComment("");
     }
+
+    updateClientAppData(
+      (current) => ({
+        ...current,
+        supportRequests: nextRequests,
+        supportMessages: nextMessages,
+      }),
+      appData,
+    );
   }
 
   function requestMeta(request: SupportRequest) {
-    const author = data.users.find((user) => user.id === request.createdBy);
-    const reservation = data.reservations.find(
+    const author = appData.users.find((user) => user.id === request.createdBy);
+    const reservation = appData.reservations.find(
       (item) => item.id === request.reservationId,
     );
 
@@ -348,7 +364,7 @@ export function SupportBoard({
                 className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
               >
                 <option value="">予約に紐付けない</option>
-                {data.reservations.map((reservation) => (
+                {appData.reservations.map((reservation) => (
                   <option key={reservation.id} value={reservation.id}>
                     {formatDate(reservation.startAt)}{" "}
                     {formatTime(reservation.startAt)} /{" "}
@@ -364,7 +380,7 @@ export function SupportBoard({
                 onChange={(event) => updateForm("createdBy", event.target.value)}
                 className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
               >
-                {data.users.map((user) => (
+                {appData.users.map((user) => (
                   <option key={user.id} value={user.id}>
                     {user.name}
                   </option>
@@ -505,7 +521,7 @@ export function SupportBoard({
           <Card>
             {(() => {
               const { author, reservation } = requestMeta(selectedRequest);
-              const assigned = data.users.find(
+              const assigned = appData.users.find(
                 (user) => user.id === selectedRequest.assignedTo,
               );
               const mapUrl = selectedRequest.location
@@ -558,7 +574,7 @@ export function SupportBoard({
                     <div className="rounded-lg bg-slate-50 p-3">
                       <dt className="font-bold text-slate-500">対象船舶</dt>
                       <dd className="mt-1 font-black text-slate-900">
-                        {data.boat.name}
+                        {appData.boat.name}
                       </dd>
                     </div>
                     <div className="rounded-lg bg-slate-50 p-3">
@@ -643,7 +659,9 @@ export function SupportBoard({
         <Section title="サポートスレッド">
           <div className="space-y-3">
             {selectedMessages.map((message) => {
-              const author = data.users.find((user) => user.id === message.createdBy);
+              const author = appData.users.find(
+                (user) => user.id === message.createdBy,
+              );
               return (
                 <Card key={message.id}>
                   <p className="text-sm leading-7 text-slate-700">{message.body}</p>

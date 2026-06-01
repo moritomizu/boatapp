@@ -9,6 +9,7 @@ import {
   X,
 } from "lucide-react";
 import { Badge, Card, Section } from "@/components/ui";
+import { updateClientAppData, useClientAppData } from "@/lib/client-store";
 import {
   handoverCategoryLabels,
   handoverPriorityLabels,
@@ -42,7 +43,8 @@ export function HandoverBoard({
   data: AppData;
   initialDraft: InitialDraft;
 }) {
-  const [notes, setNotes] = useState<HandoverNote[]>(data.handoverNotes);
+  const appData = useClientAppData(data);
+  const notes = appData.handoverNotes;
   const [selectedId, setSelectedId] = useState("");
   const [form, setForm] = useState({
     title: initialDraft.title ?? "",
@@ -67,7 +69,9 @@ export function HandoverBoard({
   );
   const resolvedNotes = notes.filter((note) => note.status === "resolved");
   const selectedNote = notes.find((note) => note.id === selectedId);
-  const canResolve = data.currentUser.role === "admin" || data.currentUser.role === "owner";
+  const canResolve =
+    appData.currentUser.role === "admin" ||
+    appData.currentUser.role === "owner";
 
   function updateForm<T extends keyof typeof form>(
     key: T,
@@ -81,7 +85,7 @@ export function HandoverBoard({
 
     const note = createHandoverNote({
       organizationId: data.organization.id,
-      boatId: data.boat.id,
+      boatId: appData.boat.id,
       reservationId: form.reservationId || undefined,
       title: form.title,
       body: form.body,
@@ -92,8 +96,13 @@ export function HandoverBoard({
       resolvedAt: form.status === "resolved" ? new Date().toISOString() : undefined,
     });
 
-    setNotes((current) => [note, ...current]);
+    const nextNotes = [note, ...notes];
+
     setSelectedId(note.id);
+    updateClientAppData(
+      (current) => ({ ...current, handoverNotes: nextNotes }),
+      appData,
+    );
     setForm((current) => ({
       ...current,
       title: "",
@@ -107,22 +116,25 @@ export function HandoverBoard({
   function resolveNote(noteId: string) {
     const now = new Date().toISOString();
 
-    setNotes((current) =>
-      current.map((note) =>
+    const nextNotes = notes.map((note) =>
         note.id === noteId
           ? {
               ...note,
-              status: "resolved",
+              status: "resolved" as HandoverStatus,
               updatedAt: now,
               resolvedAt: now,
             }
           : note,
-      ),
+      );
+
+    updateClientAppData(
+      (current) => ({ ...current, handoverNotes: nextNotes }),
+      appData,
     );
   }
 
   function renderNote(note: HandoverNote) {
-    const author = data.users.find((user) => user.id === note.createdBy);
+    const author = appData.users.find((user) => user.id === note.createdBy);
 
     return (
       <button
@@ -288,7 +300,7 @@ export function HandoverBoard({
                 className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
               >
                 <option value="">予約に紐付けない</option>
-                {data.reservations.map((reservation) => (
+                {appData.reservations.map((reservation) => (
                   <option key={reservation.id} value={reservation.id}>
                     {new Intl.DateTimeFormat("ja-JP", {
                       month: "numeric",
@@ -308,7 +320,7 @@ export function HandoverBoard({
                 onChange={(event) => updateForm("createdBy", event.target.value)}
                 className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
               >
-                {data.users.map((user) => (
+                {appData.users.map((user) => (
                   <option key={user.id} value={user.id}>
                     {user.name}
                   </option>

@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -11,6 +13,7 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Badge, Card, Section } from "@/components/ui";
+import { useClientAppData } from "@/lib/client-store";
 import { getInitialAppData, useMockData } from "@/lib/data-source";
 import {
   boatStatusLabels,
@@ -28,7 +31,9 @@ import {
 import { findNextReservation, formatDate, formatTime, isSameDay } from "@/lib/reservations";
 
 export default function HomePage() {
-  const data = getInitialAppData();
+  const initialData = getInitialAppData();
+  const data = useClientAppData(initialData);
+
   const todayIso = "2026-06-01T00:00:00.000+09:00";
   const todaysReservations = data.reservations.filter((reservation) =>
     isSameDay(reservation.startAt, todayIso),
@@ -345,12 +350,15 @@ export default function HomePage() {
           </div>
         </Section>
 
-        <Section title="今後追加予定の運用機能">
+        <Section title="今後追加・本接続予定の運用機能">
           <div className="grid gap-3 sm:grid-cols-2">
             {[
-              ["サポート要請", LifeBuoy],
               ["メンテナンス台帳", Ship],
-              ["プッシュ通知", CalendarDays],
+              ["船舶カルテ", Ship],
+              ["操船スキル管理", Users],
+              ["メンバー利用制限", Users],
+              ["通知のFirebase本接続", Bell],
+              ["写真添付", CalendarDays],
             ].map(([label, Icon]) => {
               const TypedIcon = Icon as typeof ClipboardCheck;
               return (

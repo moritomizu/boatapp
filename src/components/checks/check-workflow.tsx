@@ -10,6 +10,7 @@ import {
   Save,
 } from "lucide-react";
 import { Badge, Card, Section } from "@/components/ui";
+import { updateClientAppData, useClientAppData } from "@/lib/client-store";
 import { targetFishLabels } from "@/lib/labels";
 import {
   createPostReturnCheck,
@@ -52,9 +53,13 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
   data,
   initialReservationId,
   items,
-  initialHistory,
 }: CheckWorkflowProps<Key, RecordType>) {
-  const [history, setHistory] = useState<RecordType[]>(initialHistory);
+  const appData = useClientAppData(data);
+  const history = (
+    mode === "pre-departure"
+      ? appData.preDepartureChecks
+      : appData.postReturnChecks
+  ) as RecordType[];
   const [reservationId, setReservationId] = useState(
     initialReservationId ?? data.reservations[0]?.id ?? "",
   );
@@ -72,7 +77,7 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
 
   const checkedCount = items.filter((item) => checks[item.key]).length;
   const uncheckedCount = items.length - checkedCount;
-  const selectedReservation = data.reservations.find(
+  const selectedReservation = appData.reservations.find(
     (reservation) => reservation.id === reservationId,
   );
 
@@ -99,7 +104,7 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
 
     const baseInput = {
       organizationId: data.organization.id,
-      boatId: data.boat.id,
+      boatId: appData.boat.id,
       reservationId,
       userId,
       checkedAt: new Date(checkedAt).toISOString(),
@@ -117,8 +122,20 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
             items: checks as PostReturnCheck["items"],
           });
 
-    setHistory((current) => [record as RecordType, ...current]);
+    const nextHistory = [record as RecordType, ...history];
+
     setSavedRecord(record as RecordType);
+    const nextData =
+      mode === "pre-departure"
+        ? {
+            ...appData,
+            preDepartureChecks: nextHistory as PreDepartureCheck[],
+          }
+        : {
+            ...appData,
+            postReturnChecks: nextHistory as PostReturnCheck[],
+          };
+    updateClientAppData(() => nextData, appData);
   }
 
   return (
@@ -143,8 +160,8 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
                 onChange={(event) => setReservationId(event.target.value)}
                 className="mt-2 h-13 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
               >
-                {data.reservations.map((reservation) => {
-                  const user = data.users.find(
+                {appData.reservations.map((reservation) => {
+                  const user = appData.users.find(
                     (item) => item.id === reservation.userId,
                   );
 
@@ -168,7 +185,7 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
                 onChange={(event) => setUserId(event.target.value)}
                 className="mt-2 h-13 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
               >
-                {data.users.map((user) => (
+                {appData.users.map((user) => (
                   <option key={user.id} value={user.id}>
                     {user.name}
                   </option>
@@ -342,10 +359,10 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
       <Section title="チェック履歴">
         <div className="space-y-3">
           {history.map((record) => {
-            const reservation = data.reservations.find(
+            const reservation = appData.reservations.find(
               (item) => item.id === record.reservationId,
             );
-            const user = data.users.find((item) => item.id === record.userId);
+            const user = appData.users.find((item) => item.id === record.userId);
 
             return (
               <Card key={record.id}>
