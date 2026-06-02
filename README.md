@@ -263,6 +263,8 @@ NEXT_PUBLIC_USE_MOCK_DATA=false
 
 このモードでは、予約登録、出船前チェック、帰港後チェック、申し送り作成、サポート要請作成、サポートコメント、ステータス変更がFirestoreへ保存されます。
 
+Firestoreは `undefined` の保存に対応していないため、アプリ側では保存前に未定義の任意項目を取り除いてから書き込みます。
+
 ## ログイン
 
 現時点ではメール/パスワードログインとGoogleログインのUIに対応しています。
@@ -301,8 +303,25 @@ GoogleログインではFirebase Authの `GoogleAuthProvider` と `signInWithPop
 - 解決済み/クローズ操作
 - 予約との紐付け
 - Geolocation APIによる現在地取得
+- Firebase Storageによる写真添付
 
 Geolocation APIはブラウザの位置情報許可が必要です。取得できた場合は緯度、経度、精度、取得時刻を保存する想定です。取得できない場合でもサポート要請は作成できます。
+
+写真添付を使う場合は、Firebase ConsoleでStorageを有効化し、テスト段階では以下のようにログイン済みユーザーだけ読み書きできるRulesを設定します。
+
+```js
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
+```
+
+実運用では、組織IDやユーザー権限に応じたStorage Rulesへ絞り込む予定です。
 
 今後はサポート要請作成時やステータス変更時にFirebase Cloud Messagingで通知する設計へ拡張します。
 

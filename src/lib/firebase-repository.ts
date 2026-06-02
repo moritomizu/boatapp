@@ -51,6 +51,35 @@ const collections = [
 export const canUseFirestore =
   isFirebaseConfigured && Boolean(firestore);
 
+type FirestoreValue =
+  | string
+  | number
+  | boolean
+  | null
+  | FirestoreValue[]
+  | { [key: string]: FirestoreValue };
+
+function removeUndefinedValues(value: unknown): FirestoreValue | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => removeUndefinedValues(item))
+      .filter((item): item is FirestoreValue => item !== undefined);
+  }
+  if (typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .map(([key, item]) => [key, removeUndefinedValues(item)] as const)
+        .filter((entry): entry is readonly [string, FirestoreValue] => {
+          return entry[1] !== undefined;
+        }),
+    ) as { [key: string]: FirestoreValue };
+  }
+
+  return value as FirestoreValue;
+}
+
 async function readCollection<K extends keyof CollectionMap>(name: K) {
   if (!firestore) return [];
 
@@ -58,6 +87,25 @@ async function readCollection<K extends keyof CollectionMap>(name: K) {
   const snapshot = await getDocs(collection(firestore, name));
 
   return snapshot.docs.map((document) => document.data() as CollectionMap[K]);
+}
+
+async function getCurrentAuthEmail() {
+  const auth = firebaseAuth;
+  if (!auth) return undefined;
+  if (auth.currentUser?.email) return auth.currentUser.email;
+
+  const { onAuthStateChanged } = await import("firebase/auth");
+
+  return new Promise<string | undefined>((resolve) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      unsubscribe();
+      resolve(user?.email ?? undefined);
+    });
+    window.setTimeout(() => {
+      unsubscribe();
+      resolve(undefined);
+    }, 1200);
+  });
 }
 
 async function writeCollection<K extends keyof CollectionMap>(
@@ -75,10 +123,23 @@ async function writeCollection<K extends keyof CollectionMap>(
       name === "notificationPreferences"
         ? (row as NotificationPreference).userId
         : (row as { id: string }).id;
-    batch.set(doc(db, name, id), row);
+    batch.set(
+      doc(db, name, id),
+      (removeUndefinedValues(row) ?? {}) as { [key: string]: FirestoreValue },
+    );
   });
 
   await batch.commit();
+}
+
+export async function deleteFirestoreDocument(
+  name: keyof CollectionMap,
+  id: string,
+) {
+  if (!firestore) return;
+
+  const { deleteDoc, doc } = await import("firebase/firestore");
+  await deleteDoc(doc(firestore, name, id));
 }
 
 export async function getFirestoreAppData(fallback: AppData = mockData) {
@@ -111,7 +172,7 @@ export async function getFirestoreAppData(fallback: AppData = mockData) {
     fallback.boat;
   const resolvedUsers =
     (users as AppUser[]).length > 0 ? (users as AppUser[]) : fallback.users;
-  const authEmail = firebaseAuth?.currentUser?.email;
+  const authEmail = await getCurrentAuthEmail();
   const currentUser =
     resolvedUsers.find((user) => user.email === authEmail) ??
     resolvedUsers.find((user) => user.role === "admin") ??

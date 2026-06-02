@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useMemo, useState } from "react";
 import {
   Camera,
@@ -22,8 +23,10 @@ import {
 } from "@/lib/labels";
 import { createSupportMessage, createSupportRequest } from "@/lib/mock-data";
 import { formatDate, formatTime } from "@/lib/reservations";
+import { uploadSupportAttachment } from "@/lib/storage";
 import type {
   AppData,
+  SupportAttachment,
   SupportCategory,
   SupportLocation,
   SupportRequest,
@@ -62,6 +65,7 @@ export function SupportBoard({
   const [locationMessage, setLocationMessage] = useState("");
   const [comment, setComment] = useState("");
   const [resolveComment, setResolveComment] = useState("");
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [createState, setCreateState] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
@@ -163,29 +167,45 @@ export function SupportBoard({
       status: "open",
       createdBy: form.createdBy,
       location: form.location,
+      attachments: [],
     });
 
-    const nextRequests = [request, ...requests];
-
-    setSelectedId(request.id);
     try {
+      let attachments: SupportAttachment[] = [];
+      if (selectedFiles.length > 0) {
+        attachments = await Promise.all(
+          selectedFiles.map((file) =>
+            uploadSupportAttachment({
+              file,
+              supportRequestId: request.id,
+              userId: form.createdBy,
+            }),
+          ),
+        );
+      }
+
+      const requestWithAttachments = { ...request, attachments };
+      const nextRequests = [requestWithAttachments, ...requests];
+
+      setSelectedId(requestWithAttachments.id);
       await updateClientAppData(
         (current) => ({ ...current, supportRequests: nextRequests }),
         appData,
       );
       setCreateState("saved");
+      setForm((current) => ({
+        ...current,
+        title: "",
+        body: "",
+        category: "other",
+        urgency: "medium",
+        location: undefined,
+      }));
+      setSelectedFiles([]);
+      setLocationMessage("");
     } catch {
       setCreateState("error");
     }
-    setForm((current) => ({
-      ...current,
-      title: "",
-      body: "",
-      category: "other",
-      urgency: "medium",
-      location: undefined,
-    }));
-    setLocationMessage("");
   }
 
   async function addMessage(event: React.FormEvent<HTMLFormElement>) {
@@ -437,15 +457,29 @@ export function SupportBoard({
             ) : null}
           </div>
 
-          <div className="rounded-lg border border-dashed border-sky-200 bg-sky-50 p-4">
+          <label className="block rounded-lg border border-dashed border-sky-200 bg-sky-50 p-4">
             <div className="flex items-center gap-2 text-sm font-black text-blue-900">
               <Camera size={20} aria-hidden="true" />
               写真添付
             </div>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(event) =>
+                setSelectedFiles(Array.from(event.target.files ?? []))
+              }
+              className="mt-3 w-full text-sm font-semibold text-blue-900 file:mr-3 file:h-10 file:rounded-lg file:border-0 file:bg-blue-800 file:px-4 file:text-sm file:font-black file:text-white"
+            />
             <p className="mt-2 text-sm leading-6 text-blue-800">
-              Firebase Storage接続後に利用予定です。
+              状況写真を添付できます。電波が弱い場合は送信に時間がかかることがあります。
             </p>
-          </div>
+            {selectedFiles.length > 0 ? (
+              <p className="mt-2 text-sm font-black text-blue-900">
+                選択中: {selectedFiles.length}枚
+              </p>
+            ) : null}
+          </label>
 
           <button
             type="submit"
@@ -634,6 +668,33 @@ export function SupportBoard({
                       >
                         Google Mapsで開く
                       </Link>
+                    </div>
+                  ) : null}
+
+                  {selectedRequest.attachments &&
+                  selectedRequest.attachments.length > 0 ? (
+                    <div className="rounded-lg bg-slate-50 p-3">
+                      <p className="text-sm font-black text-slate-900">
+                        添付写真
+                      </p>
+                      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        {selectedRequest.attachments.map((attachment) => (
+                          <Link
+                            key={attachment.url}
+                            href={attachment.url}
+                            target="_blank"
+                            className="block overflow-hidden rounded-lg border border-slate-200 bg-white"
+                          >
+                            <Image
+                              src={attachment.url}
+                              alt={attachment.name}
+                              width={240}
+                              height={240}
+                              className="aspect-square w-full object-cover"
+                            />
+                          </Link>
+                        ))}
+                      </div>
                     </div>
                   ) : null}
 

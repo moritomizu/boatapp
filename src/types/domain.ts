@@ -57,6 +57,14 @@ export type SupportLocation = {
   capturedAt: string;
 };
 
+export type SupportAttachment = {
+  url: string;
+  name: string;
+  contentType: string;
+  uploadedAt: string;
+  uploadedBy: string;
+};
+
 export type TargetFish =
   | "seabass"
   | "chinning"
@@ -198,6 +206,7 @@ export type SupportRequest = {
   createdBy: string;
   assignedTo?: string;
   location?: SupportLocation;
+  attachments?: SupportAttachment[];
   createdAt: string;
   updatedAt: string;
   resolvedAt?: string;

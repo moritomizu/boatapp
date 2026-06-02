@@ -112,17 +112,17 @@ export function HandoverBoard({
         appData,
       );
       setSaveState("saved");
+      setForm((current) => ({
+        ...current,
+        title: "",
+        body: "",
+        priority: "medium",
+        status: "unconfirmed",
+        category: "other",
+      }));
     } catch {
       setSaveState("error");
     }
-    setForm((current) => ({
-      ...current,
-      title: "",
-      body: "",
-      priority: "medium",
-      status: "unconfirmed",
-      category: "other",
-    }));
   }
 
   async function resolveNote(noteId: string) {

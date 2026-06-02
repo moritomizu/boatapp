@@ -12,6 +12,10 @@ import {
   MessageSquareWarning,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { Badge } from "@/components/ui";
+import { useClientAppData } from "@/lib/client-store";
+import { getInitialAppData } from "@/lib/data-source";
+import { roleLabels } from "@/lib/labels";
 
 const navItems = [
   { href: "/home", label: "ホーム", icon: Home },
@@ -23,6 +27,7 @@ const navItems = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const data = useClientAppData(getInitialAppData());
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950">
@@ -58,10 +63,24 @@ export function AppShell({ children }: { children: ReactNode }) {
               <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-rose-500" />
             </Link>
             <Link
-              href="/login"
-              className="rounded-full border border-sky-200 px-3 py-2 text-xs font-semibold text-blue-900"
+              href="/members"
+              className="hidden rounded-full border border-sky-200 px-3 py-2 text-left text-xs font-semibold text-blue-900 sm:block"
             >
-              ログイン
+              <span className="block max-w-32 truncate">
+                {data.currentUser.name}
+              </span>
+              <span className="block text-[10px] text-slate-500">
+                {roleLabels[data.currentUser.role]}
+              </span>
+            </Link>
+            <Link
+              href="/members"
+              className="sm:hidden"
+              aria-label={`現在の利用者: ${data.currentUser.name}`}
+            >
+              <Badge className="bg-sky-100 text-blue-800 ring-sky-200">
+                {data.currentUser.name.slice(0, 2)}
+              </Badge>
             </Link>
           </div>
         </div>
