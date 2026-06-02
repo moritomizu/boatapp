@@ -18,6 +18,8 @@ const shouldUseFirestore = () => !useMockData && canUseFirestore;
 
 let cachedRaw: string | null | undefined;
 let cachedSnapshot: AppData | undefined;
+let firestoreLoaded = false;
+let firestoreRefreshPromise: Promise<AppData> | undefined;
 
 export function loadClientAppData(fallback: AppData = getInitialAppData()) {
   if (shouldUseFirestore()) return cachedSnapshot ?? fallback;
@@ -43,10 +45,10 @@ export function loadClientAppData(fallback: AppData = getInitialAppData()) {
 
 export async function saveClientAppData(data: AppData) {
   if (shouldUseFirestore()) {
+    const previousSnapshot = cachedSnapshot;
     cachedSnapshot = data;
     if (isBrowser()) window.dispatchEvent(new Event(STORE_EVENT));
-    await saveFirestoreAppData(data);
-    await refreshClientAppData(data);
+    await saveFirestoreAppData(data, previousSnapshot);
     return;
   }
 
@@ -70,11 +72,30 @@ export async function refreshClientAppData(
   fallback: AppData = getInitialAppData(),
 ) {
   if (!shouldUseFirestore()) return loadClientAppData(fallback);
+  if (firestoreLoaded && cachedSnapshot) return cachedSnapshot;
+  if (firestoreRefreshPromise) return firestoreRefreshPromise;
 
-  cachedSnapshot = await getFirestoreAppData(fallback);
-  if (isBrowser()) window.dispatchEvent(new Event(STORE_EVENT));
+  firestoreRefreshPromise = getFirestoreAppData(fallback)
+    .then((data) => {
+      cachedSnapshot = data;
+      firestoreLoaded = true;
+      if (isBrowser()) window.dispatchEvent(new Event(STORE_EVENT));
 
-  return cachedSnapshot;
+      return data;
+    })
+    .catch((error) => {
+      console.error("Failed to load Firestore app data", error);
+      cachedSnapshot = cachedSnapshot ?? fallback;
+      firestoreLoaded = true;
+      if (isBrowser()) window.dispatchEvent(new Event(STORE_EVENT));
+
+      return cachedSnapshot;
+    })
+    .finally(() => {
+      firestoreRefreshPromise = undefined;
+    });
+
+  return firestoreRefreshPromise;
 }
 
 export function resetClientAppData() {
@@ -82,6 +103,8 @@ export function resetClientAppData() {
   window.localStorage.removeItem(STORAGE_KEY);
   cachedRaw = null;
   cachedSnapshot = undefined;
+  firestoreLoaded = false;
+  firestoreRefreshPromise = undefined;
   window.dispatchEvent(new Event(STORE_EVENT));
 }
 
@@ -90,7 +113,12 @@ export function useClientAppData(fallback: AppData = getInitialAppData()) {
     (onStoreChange) => {
       window.addEventListener(STORE_EVENT, onStoreChange);
       window.addEventListener("storage", onStoreChange);
-      void refreshClientAppData(fallback).then(onStoreChange);
+      void refreshClientAppData(fallback)
+        .then(onStoreChange)
+        .catch((error) => {
+          console.error("Failed to refresh app data", error);
+          onStoreChange();
+        });
 
       return () => {
         window.removeEventListener(STORE_EVENT, onStoreChange);

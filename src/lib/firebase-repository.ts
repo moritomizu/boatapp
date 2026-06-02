@@ -113,6 +113,7 @@ async function writeCollection<K extends keyof CollectionMap>(
   rows: CollectionMap[K][],
 ) {
   if (!firestore) return;
+  if (rows.length === 0) return;
   const db = firestore;
 
   const { doc, writeBatch } = await import("firebase/firestore");
@@ -130,6 +131,34 @@ async function writeCollection<K extends keyof CollectionMap>(
   });
 
   await batch.commit();
+}
+
+function documentIdFor<K extends keyof CollectionMap>(
+  name: K,
+  row: CollectionMap[K],
+) {
+  return name === "notificationPreferences"
+    ? (row as NotificationPreference).userId
+    : (row as { id: string }).id;
+}
+
+function serialized(value: unknown) {
+  return JSON.stringify(removeUndefinedValues(value) ?? {});
+}
+
+function changedRows<K extends keyof CollectionMap>(
+  name: K,
+  nextRows: CollectionMap[K][],
+  previousRows: CollectionMap[K][] = [],
+) {
+  const previousById = new Map(
+    previousRows.map((row) => [documentIdFor(name, row), serialized(row)]),
+  );
+
+  return nextRows.filter((row) => {
+    const id = documentIdFor(name, row);
+    return previousById.get(id) !== serialized(row);
+  });
 }
 
 export async function deleteFirestoreDocument(
@@ -199,21 +228,81 @@ export async function getFirestoreAppData(fallback: AppData = mockData) {
   };
 }
 
-export async function saveFirestoreAppData(data: AppData) {
+export async function saveFirestoreAppData(
+  data: AppData,
+  previousData?: AppData,
+) {
   if (!canUseFirestore) return;
 
   await Promise.all([
-    writeCollection("organizations", [data.organization]),
-    writeCollection("boats", [data.boat]),
-    writeCollection("users", data.users),
-    writeCollection("reservations", data.reservations),
-    writeCollection("preDepartureChecks", data.preDepartureChecks),
-    writeCollection("postReturnChecks", data.postReturnChecks),
-    writeCollection("handoverNotes", data.handoverNotes),
-    writeCollection("supportRequests", data.supportRequests),
-    writeCollection("supportMessages", data.supportMessages),
-    writeCollection("maintenanceLogs", data.maintenanceLogs),
-    writeCollection("notifications", data.notifications),
-    writeCollection("notificationPreferences", data.notificationPreferences),
+    writeCollection(
+      "organizations",
+      changedRows("organizations", [data.organization], previousData ? [previousData.organization] : []),
+    ),
+    writeCollection(
+      "boats",
+      changedRows("boats", [data.boat], previousData ? [previousData.boat] : []),
+    ),
+    writeCollection("users", changedRows("users", data.users, previousData?.users)),
+    writeCollection(
+      "reservations",
+      changedRows("reservations", data.reservations, previousData?.reservations),
+    ),
+    writeCollection(
+      "preDepartureChecks",
+      changedRows(
+        "preDepartureChecks",
+        data.preDepartureChecks,
+        previousData?.preDepartureChecks,
+      ),
+    ),
+    writeCollection(
+      "postReturnChecks",
+      changedRows(
+        "postReturnChecks",
+        data.postReturnChecks,
+        previousData?.postReturnChecks,
+      ),
+    ),
+    writeCollection(
+      "handoverNotes",
+      changedRows("handoverNotes", data.handoverNotes, previousData?.handoverNotes),
+    ),
+    writeCollection(
+      "supportRequests",
+      changedRows(
+        "supportRequests",
+        data.supportRequests,
+        previousData?.supportRequests,
+      ),
+    ),
+    writeCollection(
+      "supportMessages",
+      changedRows(
+        "supportMessages",
+        data.supportMessages,
+        previousData?.supportMessages,
+      ),
+    ),
+    writeCollection(
+      "maintenanceLogs",
+      changedRows(
+        "maintenanceLogs",
+        data.maintenanceLogs,
+        previousData?.maintenanceLogs,
+      ),
+    ),
+    writeCollection(
+      "notifications",
+      changedRows("notifications", data.notifications, previousData?.notifications),
+    ),
+    writeCollection(
+      "notificationPreferences",
+      changedRows(
+        "notificationPreferences",
+        data.notificationPreferences,
+        previousData?.notificationPreferences,
+      ),
+    ),
   ]);
 }
