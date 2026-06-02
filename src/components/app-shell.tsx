@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
-  Anchor,
   Bell,
   CalendarDays,
   ClipboardCheck,
@@ -29,8 +29,15 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-20 border-b border-sky-100 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           <Link href="/home" className="flex items-center gap-2">
-            <span className="grid size-10 place-items-center rounded-2xl bg-blue-700 text-white">
-              <Anchor size={22} aria-hidden="true" />
+            <span className="grid size-10 place-items-center overflow-hidden rounded-2xl bg-blue-700 p-1 text-white">
+              <Image
+                src="/tapoyota_logo.png"
+                alt=""
+                width={40}
+                height={40}
+                className="h-full w-full object-contain"
+                aria-hidden="true"
+              />
             </span>
             <span>
               <span className="block text-sm font-semibold text-blue-950">

@@ -48,6 +48,9 @@ export default function ReservationsPage() {
     joinAllowed: true,
     comment: "",
   });
+  const [saveState, setSaveState] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
 
   const draftReservation = useMemo(
     () => ({
@@ -91,11 +94,14 @@ export default function ReservationsPage() {
     key: T,
     value: (typeof form)[T],
   ) {
+    if (saveState === "saved" || saveState === "error") setSaveState("idle");
     setForm((current) => ({ ...current, [key]: value }));
   }
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (saveState === "saving") return;
+    setSaveState("saving");
 
     const reservation = createReservation({
       organizationId: data.organization.id,
@@ -116,10 +122,15 @@ export default function ReservationsPage() {
         new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
     );
 
-    updateClientAppData(
-      (current) => ({ ...current, reservations: nextReservations }),
-      data,
-    );
+    try {
+      await updateClientAppData(
+        (current) => ({ ...current, reservations: nextReservations }),
+        data,
+      );
+      setSaveState("saved");
+    } catch {
+      setSaveState("error");
+    }
   }
 
   return (
@@ -345,10 +356,17 @@ export default function ReservationsPage() {
 
             <button
               type="submit"
-              className="flex h-14 w-full items-center justify-center gap-2 rounded-lg bg-blue-800 px-5 text-base font-black text-white shadow-lg shadow-blue-900/20"
+              disabled={saveState === "saving"}
+              className="flex h-14 w-full items-center justify-center gap-2 rounded-lg bg-blue-800 px-5 text-base font-black text-white shadow-lg shadow-blue-900/20 disabled:bg-slate-300 disabled:shadow-none"
             >
               <CalendarPlus size={22} aria-hidden="true" />
-              予約を登録
+              {saveState === "saving"
+                ? "登録中..."
+                : saveState === "saved"
+                  ? "登録しました"
+                  : saveState === "error"
+                    ? "登録に失敗しました"
+                  : "予約を登録"}
             </button>
           </form>
         </Section>

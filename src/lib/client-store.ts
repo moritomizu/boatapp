@@ -41,11 +41,12 @@ export function loadClientAppData(fallback: AppData = getInitialAppData()) {
   }
 }
 
-export function saveClientAppData(data: AppData) {
+export async function saveClientAppData(data: AppData) {
   if (shouldUseFirestore()) {
     cachedSnapshot = data;
     if (isBrowser()) window.dispatchEvent(new Event(STORE_EVENT));
-    void saveFirestoreAppData(data).then(() => refreshClientAppData(data));
+    await saveFirestoreAppData(data);
+    await refreshClientAppData(data);
     return;
   }
 
@@ -56,12 +57,12 @@ export function saveClientAppData(data: AppData) {
   window.dispatchEvent(new Event(STORE_EVENT));
 }
 
-export function updateClientAppData(
+export async function updateClientAppData(
   updater: (current: AppData) => AppData,
   fallback: AppData = getInitialAppData(),
 ) {
   const next = updater(loadClientAppData(fallback));
-  saveClientAppData(next);
+  await saveClientAppData(next);
   return next;
 }
 

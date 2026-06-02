@@ -74,6 +74,9 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
   const [hasIssue, setHasIssue] = useState(false);
   const [comment, setComment] = useState("");
   const [savedRecord, setSavedRecord] = useState<RecordType | null>(null);
+  const [saveState, setSaveState] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
 
   const checkedCount = items.filter((item) => checks[item.key]).length;
   const uncheckedCount = items.length - checkedCount;
@@ -96,11 +99,14 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
   }, [comment, mode, reservationId]);
 
   function toggle(key: Key) {
+    if (saveState === "saved" || saveState === "error") setSaveState("idle");
     setChecks((current) => ({ ...current, [key]: !current[key] }));
   }
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (saveState === "saving") return;
+    setSaveState("saving");
 
     const baseInput = {
       organizationId: data.organization.id,
@@ -135,7 +141,12 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
             ...appData,
             postReturnChecks: nextHistory as PostReturnCheck[],
           };
-    updateClientAppData(() => nextData, appData);
+    try {
+      await updateClientAppData(() => nextData, appData);
+      setSaveState("saved");
+    } catch {
+      setSaveState("error");
+    }
   }
 
   return (
@@ -314,10 +325,17 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
         <div className="sticky bottom-20 z-10 rounded-lg border border-sky-100 bg-white/95 p-3 shadow-xl shadow-slate-950/10 backdrop-blur md:bottom-4">
           <button
             type="submit"
-            className="flex h-14 w-full items-center justify-center gap-2 rounded-lg bg-blue-800 px-5 text-base font-black text-white"
+            disabled={saveState === "saving"}
+            className="flex h-14 w-full items-center justify-center gap-2 rounded-lg bg-blue-800 px-5 text-base font-black text-white disabled:bg-slate-300"
           >
             <Save size={22} aria-hidden="true" />
-            チェック結果を保存
+            {saveState === "saving"
+              ? "保存中..."
+              : saveState === "saved"
+                ? "保存しました"
+                : saveState === "error"
+                  ? "保存に失敗しました"
+                : "チェック結果を保存"}
           </button>
         </div>
       </form>

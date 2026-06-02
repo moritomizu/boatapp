@@ -62,6 +62,11 @@ export function SupportBoard({
   const [locationMessage, setLocationMessage] = useState("");
   const [comment, setComment] = useState("");
   const [resolveComment, setResolveComment] = useState("");
+  const [createState, setCreateState] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const [commentState, setCommentState] = useState<"idle" | "saving">("idle");
+  const [statusState, setStatusState] = useState<SupportStatus | "">("");
   const [form, setForm] = useState({
     title: "",
     category: "other" as SupportCategory,
@@ -111,6 +116,9 @@ export function SupportBoard({
     key: T,
     value: (typeof form)[T],
   ) {
+    if (createState === "saved" || createState === "error") {
+      setCreateState("idle");
+    }
     setForm((current) => ({ ...current, [key]: value }));
   }
 
@@ -139,8 +147,10 @@ export function SupportBoard({
     );
   }
 
-  function handleCreate(event: React.FormEvent<HTMLFormElement>) {
+  async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (createState === "saving") return;
+    setCreateState("saving");
 
     const request = createSupportRequest({
       organizationId: data.organization.id,
@@ -158,10 +168,15 @@ export function SupportBoard({
     const nextRequests = [request, ...requests];
 
     setSelectedId(request.id);
-    updateClientAppData(
-      (current) => ({ ...current, supportRequests: nextRequests }),
-      appData,
-    );
+    try {
+      await updateClientAppData(
+        (current) => ({ ...current, supportRequests: nextRequests }),
+        appData,
+      );
+      setCreateState("saved");
+    } catch {
+      setCreateState("error");
+    }
     setForm((current) => ({
       ...current,
       title: "",
@@ -173,9 +188,10 @@ export function SupportBoard({
     setLocationMessage("");
   }
 
-  function addMessage(event: React.FormEvent<HTMLFormElement>) {
+  async function addMessage(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedRequest || !comment.trim()) return;
+    if (!selectedRequest || !comment.trim() || commentState === "saving") return;
+    setCommentState("saving");
 
     const message = createSupportMessage({
       organizationId: data.organization.id,
@@ -190,19 +206,25 @@ export function SupportBoard({
         : request,
     );
 
-    updateClientAppData(
-      (current) => ({
-        ...current,
-        supportMessages: nextMessages,
-        supportRequests: nextRequests,
-      }),
-      appData,
-    );
-    setComment("");
+    try {
+      await updateClientAppData(
+        (current) => ({
+          ...current,
+          supportMessages: nextMessages,
+          supportRequests: nextRequests,
+        }),
+        appData,
+      );
+      setComment("");
+    } finally {
+      setCommentState("idle");
+    }
   }
 
-  function updateStatus(status: SupportStatus, resolution?: string) {
+  async function updateStatus(status: SupportStatus, resolution?: string) {
     if (!selectedRequest) return;
+    if (statusState) return;
+    setStatusState(status);
     const now = new Date().toISOString();
 
     const nextRequests = requests.map((request) =>
@@ -235,14 +257,18 @@ export function SupportBoard({
       setResolveComment("");
     }
 
-    updateClientAppData(
-      (current) => ({
-        ...current,
-        supportRequests: nextRequests,
-        supportMessages: nextMessages,
-      }),
-      appData,
-    );
+    try {
+      await updateClientAppData(
+        (current) => ({
+          ...current,
+          supportRequests: nextRequests,
+          supportMessages: nextMessages,
+        }),
+        appData,
+      );
+    } finally {
+      setStatusState("");
+    }
   }
 
   function requestMeta(request: SupportRequest) {
@@ -423,10 +449,17 @@ export function SupportBoard({
 
           <button
             type="submit"
-            className="flex h-14 w-full items-center justify-center gap-2 rounded-lg bg-blue-800 px-5 text-base font-black text-white"
+            disabled={createState === "saving"}
+            className="flex h-14 w-full items-center justify-center gap-2 rounded-lg bg-blue-800 px-5 text-base font-black text-white disabled:bg-slate-300"
           >
             <Send size={21} aria-hidden="true" />
-            サポート要請を送信
+            {createState === "saving"
+              ? "送信中..."
+              : createState === "saved"
+                ? "送信しました"
+                : createState === "error"
+                  ? "送信に失敗しました"
+                : "サポート要請を送信"}
           </button>
         </form>
       </Section>
@@ -610,9 +643,10 @@ export function SupportBoard({
                       <button
                         type="button"
                         onClick={() => updateStatus("in_progress")}
-                        className="flex h-12 items-center justify-center rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
+                        disabled={Boolean(statusState)}
+                        className="flex h-12 items-center justify-center rounded-lg bg-blue-800 px-4 text-sm font-black text-white disabled:bg-slate-300"
                       >
-                        対応します
+                        {statusState === "in_progress" ? "変更中..." : "対応します"}
                       </button>
                     ) : null}
                     {canResolveSelected &&
@@ -621,18 +655,22 @@ export function SupportBoard({
                       <button
                         type="button"
                         onClick={() => updateStatus("resolved", resolveComment)}
-                        className="flex h-12 items-center justify-center rounded-lg bg-emerald-700 px-4 text-sm font-black text-white"
+                        disabled={Boolean(statusState)}
+                        className="flex h-12 items-center justify-center rounded-lg bg-emerald-700 px-4 text-sm font-black text-white disabled:bg-slate-300"
                       >
-                        解決済みにする
+                        {statusState === "resolved"
+                          ? "変更中..."
+                          : "解決済みにする"}
                       </button>
                     ) : null}
                     {canChangeAllStatuses ? (
                       <button
                         type="button"
                         onClick={() => updateStatus("closed")}
-                        className="flex h-12 items-center justify-center rounded-lg border border-slate-200 px-4 text-sm font-black text-slate-700"
+                        disabled={Boolean(statusState)}
+                        className="flex h-12 items-center justify-center rounded-lg border border-slate-200 px-4 text-sm font-black text-slate-700 disabled:bg-slate-100 disabled:text-slate-400"
                       >
-                        クローズ
+                        {statusState === "closed" ? "変更中..." : "クローズ"}
                       </button>
                     ) : null}
                   </div>
@@ -692,10 +730,11 @@ export function SupportBoard({
             </label>
             <button
               type="submit"
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
+              disabled={commentState === "saving" || !comment.trim()}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white disabled:bg-slate-300"
             >
               <MessageSquarePlus size={19} aria-hidden="true" />
-              コメントを追加
+              {commentState === "saving" ? "追加中..." : "コメントを追加"}
             </button>
           </form>
         </Section>

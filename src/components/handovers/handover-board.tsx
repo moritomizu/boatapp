@@ -55,6 +55,10 @@ export function HandoverBoard({
     reservationId: initialDraft.reservationId ?? "",
     createdBy: data.currentUser.id,
   });
+  const [saveState, setSaveState] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const [resolvingId, setResolvingId] = useState("");
 
   const unresolvedNotes = useMemo(
     () =>
@@ -77,11 +81,14 @@ export function HandoverBoard({
     key: T,
     value: (typeof form)[T],
   ) {
+    if (saveState === "saved" || saveState === "error") setSaveState("idle");
     setForm((current) => ({ ...current, [key]: value }));
   }
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (saveState === "saving") return;
+    setSaveState("saving");
 
     const note = createHandoverNote({
       organizationId: data.organization.id,
@@ -99,10 +106,15 @@ export function HandoverBoard({
     const nextNotes = [note, ...notes];
 
     setSelectedId(note.id);
-    updateClientAppData(
-      (current) => ({ ...current, handoverNotes: nextNotes }),
-      appData,
-    );
+    try {
+      await updateClientAppData(
+        (current) => ({ ...current, handoverNotes: nextNotes }),
+        appData,
+      );
+      setSaveState("saved");
+    } catch {
+      setSaveState("error");
+    }
     setForm((current) => ({
       ...current,
       title: "",
@@ -113,8 +125,9 @@ export function HandoverBoard({
     }));
   }
 
-  function resolveNote(noteId: string) {
+  async function resolveNote(noteId: string) {
     const now = new Date().toISOString();
+    setResolvingId(noteId);
 
     const nextNotes = notes.map((note) =>
         note.id === noteId
@@ -127,10 +140,14 @@ export function HandoverBoard({
           : note,
       );
 
-    updateClientAppData(
-      (current) => ({ ...current, handoverNotes: nextNotes }),
-      appData,
-    );
+    try {
+      await updateClientAppData(
+        (current) => ({ ...current, handoverNotes: nextNotes }),
+        appData,
+      );
+    } finally {
+      setResolvingId("");
+    }
   }
 
   function renderNote(note: HandoverNote) {
@@ -341,10 +358,17 @@ export function HandoverBoard({
 
           <button
             type="submit"
-            className="flex h-14 w-full items-center justify-center gap-2 rounded-lg bg-blue-800 px-5 text-base font-black text-white"
+            disabled={saveState === "saving"}
+            className="flex h-14 w-full items-center justify-center gap-2 rounded-lg bg-blue-800 px-5 text-base font-black text-white disabled:bg-slate-300"
           >
             <FilePlus2 size={22} aria-hidden="true" />
-            申し送りを作成
+            {saveState === "saving"
+              ? "作成中..."
+              : saveState === "saved"
+                ? "作成しました"
+                : saveState === "error"
+                  ? "作成に失敗しました"
+                : "申し送りを作成"}
           </button>
         </form>
       </Section>
@@ -415,11 +439,13 @@ export function HandoverBoard({
               <button
                 type="button"
                 onClick={() => resolveNote(selectedNote.id)}
-                disabled={!canResolve}
+                disabled={!canResolve || resolvingId === selectedNote.id}
                 className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 text-sm font-black text-white disabled:bg-slate-300"
               >
                 <CheckCircle2 size={20} aria-hidden="true" />
-                解決済みに変更
+                {resolvingId === selectedNote.id
+                  ? "変更中..."
+                  : "解決済みに変更"}
               </button>
             ) : null}
 
