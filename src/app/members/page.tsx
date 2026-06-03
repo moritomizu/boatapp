@@ -1,14 +1,31 @@
 "use client";
 
 import { useState } from "react";
-import { Edit3, Plus, Save, ShieldCheck, Trash2, X } from "lucide-react";
+import {
+  ClipboardCheck,
+  Edit3,
+  Plus,
+  Save,
+  ShieldCheck,
+  Star,
+  Trash2,
+  X,
+} from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Badge, Card, Section } from "@/components/ui";
 import { updateClientAppData, useClientAppData } from "@/lib/client-store";
 import { getInitialAppData } from "@/lib/data-source";
 import { deleteFirestoreDocument } from "@/lib/firebase-repository";
-import { roleLabels } from "@/lib/labels";
-import type { AppUser, UserRole } from "@/types/domain";
+import { roleLabels, targetFishLabels } from "@/lib/labels";
+import {
+  createMemberTripRating,
+  createSkillAssessment,
+} from "@/lib/mock-data";
+import type {
+  AppUser,
+  SkillAssessmentStatus,
+  UserRole,
+} from "@/types/domain";
 
 const roleTone = {
   admin: "bg-blue-100 text-blue-900 ring-blue-200",
@@ -28,6 +45,41 @@ const blankMember = (organizationId: string): AppUser => ({
   createdAt: new Date().toISOString(),
 });
 
+const skillStatusLabels: Record<SkillAssessmentStatus, string> = {
+  training: "練習中",
+  solo_ready: "単独出船可",
+  needs_practice: "追加練習",
+};
+
+const scoreOptions = [1, 2, 3, 4, 5];
+
+function ScoreSelect({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="text-sm font-bold text-slate-700">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
+      >
+        {scoreOptions.map((score) => (
+          <option key={score} value={score}>
+            {score}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 export default function MembersPage() {
   const initialData = getInitialAppData();
   const data = useClientAppData(initialData);
@@ -37,6 +89,140 @@ export default function MembersPage() {
     "idle",
   );
   const [deleteTargetId, setDeleteTargetId] = useState("");
+  const [ratingState, setRatingState] = useState<"idle" | "saving" | "error">(
+    "idle",
+  );
+  const [skillState, setSkillState] = useState<"idle" | "saving" | "error">(
+    "idle",
+  );
+  const [ratingForm, setRatingForm] = useState({
+    reservationId: data.reservations[0]?.id ?? "",
+    userId: data.users.find((user) => user.role === "member")?.id ?? data.users[0]?.id ?? "",
+    evaluatorId: data.currentUser.id,
+    safetyScore: 4,
+    preparationScore: 4,
+    communicationScore: 4,
+    boatCareScore: 4,
+    comment: "",
+  });
+  const [skillForm, setSkillForm] = useState({
+    userId: data.users.find((user) => !user.canSolo)?.id ?? data.users[0]?.id ?? "",
+    assessorId: data.currentUser.id,
+    dockingScore: 3,
+    departureScore: 3,
+    navigationRulesScore: 3,
+    weatherJudgmentScore: 3,
+    emergencyScore: 3,
+    equipmentScore: 3,
+    status: "training" as SkillAssessmentStatus,
+    recommendation: "",
+  });
+
+  function averageRating(userId: string) {
+    const ratings = data.memberTripRatings.filter(
+      (rating) => rating.userId === userId,
+    );
+    if (ratings.length === 0) return undefined;
+
+    return (
+      ratings.reduce((total, rating) => total + rating.overallScore, 0) /
+      ratings.length
+    );
+  }
+
+  function latestSkillAssessment(userId: string) {
+    return [...data.skillAssessments]
+      .filter((assessment) => assessment.userId === userId)
+      .sort(
+        (a, b) =>
+          new Date(b.assessedAt).getTime() - new Date(a.assessedAt).getTime(),
+      )[0];
+  }
+
+  async function saveRating(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (ratingState === "saving") return;
+    setRatingState("saving");
+
+    const overallScore =
+      (ratingForm.safetyScore +
+        ratingForm.preparationScore +
+        ratingForm.communicationScore +
+        ratingForm.boatCareScore) /
+      4;
+    const rating = createMemberTripRating({
+      organizationId: data.organization.id,
+      boatId: data.boat.id,
+      reservationId: ratingForm.reservationId,
+      userId: ratingForm.userId,
+      evaluatorId: ratingForm.evaluatorId,
+      safetyScore: ratingForm.safetyScore,
+      preparationScore: ratingForm.preparationScore,
+      communicationScore: ratingForm.communicationScore,
+      boatCareScore: ratingForm.boatCareScore,
+      overallScore,
+      comment: ratingForm.comment,
+    });
+
+    try {
+      await updateClientAppData(
+        (current) => ({
+          ...current,
+          memberTripRatings: [rating, ...current.memberTripRatings],
+        }),
+        data,
+      );
+      setRatingState("idle");
+      setRatingForm((current) => ({ ...current, comment: "" }));
+    } catch {
+      setRatingState("error");
+    }
+  }
+
+  async function saveSkillAssessment(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (skillState === "saving") return;
+    setSkillState("saving");
+
+    const now = new Date().toISOString();
+    const assessment = createSkillAssessment({
+      organizationId: data.organization.id,
+      boatId: data.boat.id,
+      userId: skillForm.userId,
+      assessorId: skillForm.assessorId,
+      dockingScore: skillForm.dockingScore,
+      departureScore: skillForm.departureScore,
+      navigationRulesScore: skillForm.navigationRulesScore,
+      weatherJudgmentScore: skillForm.weatherJudgmentScore,
+      emergencyScore: skillForm.emergencyScore,
+      equipmentScore: skillForm.equipmentScore,
+      status: skillForm.status,
+      recommendation: skillForm.recommendation,
+      assessedAt: now,
+    });
+
+    try {
+      await updateClientAppData(
+        (current) => ({
+          ...current,
+          skillAssessments: [assessment, ...current.skillAssessments],
+          users: current.users.map((user) =>
+            user.id === skillForm.userId
+              ? {
+                  ...user,
+                  canSolo: skillForm.status === "solo_ready" ? true : user.canSolo,
+                }
+              : user,
+          ),
+        }),
+        data,
+      );
+      setSkillState("idle");
+      setSkillForm((current) => ({ ...current, recommendation: "" }));
+    } catch {
+      setSkillState("error");
+    }
+  }
 
   function updateEditingMember<T extends keyof AppUser>(
     key: T,
@@ -133,7 +319,11 @@ export default function MembersPage() {
 
         <Section title="メンバー一覧">
           <div className="space-y-3">
-            {data.users.map((user) => (
+            {data.users.map((user) => {
+              const rating = averageRating(user.id);
+              const skill = latestSkillAssessment(user.id);
+
+              return (
               <Card key={user.id}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -167,6 +357,29 @@ export default function MembersPage() {
                     </p>
                   </div>
                 </div>
+
+                {canEdit ? (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <div className="rounded-lg bg-amber-50 p-3">
+                      <p className="flex items-center gap-1 text-xs font-bold text-amber-800">
+                        <Star size={14} aria-hidden="true" />
+                        平均評価
+                      </p>
+                      <p className="mt-1 text-xl font-black text-amber-900">
+                        {rating ? rating.toFixed(1) : "-"}
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-blue-50 p-3">
+                      <p className="flex items-center gap-1 text-xs font-bold text-blue-800">
+                        <ClipboardCheck size={14} aria-hidden="true" />
+                        操船スキル
+                      </p>
+                      <p className="mt-1 text-sm font-black text-blue-950">
+                        {skill ? skillStatusLabels[skill.status] : "未評価"}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
 
                 <p className="mt-4 text-sm leading-6 text-slate-600">
                   {user.notes || "備考なし"}
@@ -206,9 +419,268 @@ export default function MembersPage() {
                   </div>
                 ) : null}
               </Card>
-            ))}
+              );
+            })}
           </div>
         </Section>
+
+        {canEdit ? (
+          <Section title="釣行ごとのメンバー評価">
+            <form
+              onSubmit={saveRating}
+              className="space-y-4 rounded-lg border border-sky-100 bg-white p-4 shadow-sm"
+            >
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="block">
+                  <span className="text-sm font-bold text-slate-700">対象釣行</span>
+                  <select
+                    value={ratingForm.reservationId}
+                    onChange={(event) =>
+                      setRatingForm((current) => ({
+                        ...current,
+                        reservationId: event.target.value,
+                      }))
+                    }
+                    className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
+                  >
+                    {data.reservations.map((reservation) => (
+                      <option key={reservation.id} value={reservation.id}>
+                        {reservation.startAt.slice(0, 10)} /{" "}
+                        {targetFishLabels[reservation.targetFish]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-sm font-bold text-slate-700">評価対象</span>
+                  <select
+                    value={ratingForm.userId}
+                    onChange={(event) =>
+                      setRatingForm((current) => ({
+                        ...current,
+                        userId: event.target.value,
+                      }))
+                    }
+                    className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
+                  >
+                    {data.users.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-sm font-bold text-slate-700">評価者</span>
+                  <select
+                    value={ratingForm.evaluatorId}
+                    onChange={(event) =>
+                      setRatingForm((current) => ({
+                        ...current,
+                        evaluatorId: event.target.value,
+                      }))
+                    }
+                    className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
+                  >
+                    {data.users.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-4">
+                <ScoreSelect
+                  label="安全判断"
+                  value={ratingForm.safetyScore}
+                  onChange={(value) =>
+                    setRatingForm((current) => ({ ...current, safetyScore: value }))
+                  }
+                />
+                <ScoreSelect
+                  label="準備"
+                  value={ratingForm.preparationScore}
+                  onChange={(value) =>
+                    setRatingForm((current) => ({
+                      ...current,
+                      preparationScore: value,
+                    }))
+                  }
+                />
+                <ScoreSelect
+                  label="連絡/共有"
+                  value={ratingForm.communicationScore}
+                  onChange={(value) =>
+                    setRatingForm((current) => ({
+                      ...current,
+                      communicationScore: value,
+                    }))
+                  }
+                />
+                <ScoreSelect
+                  label="船体/備品扱い"
+                  value={ratingForm.boatCareScore}
+                  onChange={(value) =>
+                    setRatingForm((current) => ({ ...current, boatCareScore: value }))
+                  }
+                />
+              </div>
+
+              <label className="block">
+                <span className="text-sm font-bold text-slate-700">コメント</span>
+                <textarea
+                  value={ratingForm.comment}
+                  onChange={(event) =>
+                    setRatingForm((current) => ({
+                      ...current,
+                      comment: event.target.value,
+                    }))
+                  }
+                  className="mt-2 min-h-24 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-base outline-none ring-blue-600 focus:ring-2"
+                  placeholder="良かった点、次回確認したい点など"
+                />
+              </label>
+
+              {ratingState === "error" ? (
+                <p className="rounded-lg bg-rose-50 p-3 text-sm font-bold text-rose-800">
+                  評価の保存に失敗しました。
+                </p>
+              ) : null}
+
+              <button
+                type="submit"
+                disabled={ratingState === "saving" || !ratingForm.reservationId}
+                className="flex h-13 w-full items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-base font-black text-white disabled:bg-slate-300"
+              >
+                <Star size={20} aria-hidden="true" />
+                {ratingState === "saving" ? "保存中..." : "釣行評価を保存"}
+              </button>
+            </form>
+          </Section>
+        ) : null}
+
+        {canEdit ? (
+          <Section title="単独出船前の操船スキル評価">
+            <form
+              onSubmit={saveSkillAssessment}
+              className="space-y-4 rounded-lg border border-sky-100 bg-white p-4 shadow-sm"
+            >
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="block">
+                  <span className="text-sm font-bold text-slate-700">評価対象</span>
+                  <select
+                    value={skillForm.userId}
+                    onChange={(event) =>
+                      setSkillForm((current) => ({
+                        ...current,
+                        userId: event.target.value,
+                      }))
+                    }
+                    className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
+                  >
+                    {data.users.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-sm font-bold text-slate-700">評価者</span>
+                  <select
+                    value={skillForm.assessorId}
+                    onChange={(event) =>
+                      setSkillForm((current) => ({
+                        ...current,
+                        assessorId: event.target.value,
+                      }))
+                    }
+                    className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
+                  >
+                    {data.users.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-sm font-bold text-slate-700">判定</span>
+                  <select
+                    value={skillForm.status}
+                    onChange={(event) =>
+                      setSkillForm((current) => ({
+                        ...current,
+                        status: event.target.value as SkillAssessmentStatus,
+                      }))
+                    }
+                    className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
+                  >
+                    {Object.entries(skillStatusLabels).map(([status, label]) => (
+                      <option key={status} value={status}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                {[
+                  ["離岸", "departureScore"],
+                  ["着岸", "dockingScore"],
+                  ["航行ルール", "navigationRulesScore"],
+                  ["天候判断", "weatherJudgmentScore"],
+                  ["緊急時対応", "emergencyScore"],
+                  ["備品理解", "equipmentScore"],
+                ].map(([label, key]) => (
+                  <ScoreSelect
+                    key={key}
+                    label={label}
+                    value={skillForm[key as keyof typeof skillForm] as number}
+                    onChange={(value) =>
+                      setSkillForm((current) => ({ ...current, [key]: value }))
+                    }
+                  />
+                ))}
+              </div>
+
+              <label className="block">
+                <span className="text-sm font-bold text-slate-700">
+                  推奨事項
+                </span>
+                <textarea
+                  value={skillForm.recommendation}
+                  onChange={(event) =>
+                    setSkillForm((current) => ({
+                      ...current,
+                      recommendation: event.target.value,
+                    }))
+                  }
+                  className="mt-2 min-h-24 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-base outline-none ring-blue-600 focus:ring-2"
+                  placeholder="単独出船前に確認したい練習項目など"
+                />
+              </label>
+
+              {skillState === "error" ? (
+                <p className="rounded-lg bg-rose-50 p-3 text-sm font-bold text-rose-800">
+                  スキル評価の保存に失敗しました。
+                </p>
+              ) : null}
+
+              <button
+                type="submit"
+                disabled={skillState === "saving"}
+                className="flex h-13 w-full items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-base font-black text-white disabled:bg-slate-300"
+              >
+                <ClipboardCheck size={20} aria-hidden="true" />
+                {skillState === "saving" ? "保存中..." : "スキル評価を保存"}
+              </button>
+            </form>
+          </Section>
+        ) : null}
 
         {editingMember ? (
           <div className="fixed inset-0 z-40 flex items-end bg-slate-950/45 p-0 sm:items-center sm:p-4">

@@ -54,6 +54,11 @@ export type VoyageStatus = "planned" | "underway" | "completed";
 
 export type VoyageReviewStatus = "unreviewed" | "safe" | "needs_review";
 
+export type SkillAssessmentStatus =
+  | "training"
+  | "solo_ready"
+  | "needs_practice";
+
 export type SupportLocation = {
   latitude: number;
   longitude: number;
@@ -269,6 +274,42 @@ export type VoyageLog = {
   updatedAt: string;
 };
 
+export type MemberTripRating = {
+  id: string;
+  organizationId: string;
+  boatId: string;
+  reservationId: string;
+  userId: string;
+  evaluatorId: string;
+  safetyScore: number;
+  preparationScore: number;
+  communicationScore: number;
+  boatCareScore: number;
+  overallScore: number;
+  comment: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SkillAssessment = {
+  id: string;
+  organizationId: string;
+  boatId: string;
+  userId: string;
+  assessorId: string;
+  dockingScore: number;
+  departureScore: number;
+  navigationRulesScore: number;
+  weatherJudgmentScore: number;
+  emergencyScore: number;
+  equipmentScore: number;
+  status: SkillAssessmentStatus;
+  recommendation: string;
+  assessedAt: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type AppNotification = {
   id: string;
   organizationId: string;
@@ -304,6 +345,8 @@ export type AppData = {
   supportRequests: SupportRequest[];
   supportMessages: SupportMessage[];
   voyageLogs: VoyageLog[];
+  memberTripRatings: MemberTripRating[];
+  skillAssessments: SkillAssessment[];
   maintenanceLogs: MaintenanceLog[];
   notifications: AppNotification[];
   notificationPreferences: NotificationPreference[];

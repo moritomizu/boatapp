@@ -1,9 +1,11 @@
 import type {
   AppData,
   HandoverNote,
+  MemberTripRating,
   PostReturnCheck,
   PreDepartureCheck,
   Reservation,
+  SkillAssessment,
   SupportMessage,
   SupportRequest,
   VoyageLog,
@@ -356,6 +358,60 @@ export const mockData: AppData = {
       updatedAt: "2026-06-01T10:58:00.000+09:00",
     },
   ],
+  memberTripRatings: [
+    {
+      id: "rating-001",
+      organizationId: "org-osaka-tapiyota",
+      boatId: "boat-tapiyota",
+      reservationId: "res-001",
+      userId: "user-owner-1",
+      evaluatorId: "user-admin",
+      safetyScore: 5,
+      preparationScore: 4,
+      communicationScore: 5,
+      boatCareScore: 4,
+      overallScore: 4.5,
+      comment: "出船前後の確認が丁寧。帰港時の申し送りも適切。",
+      createdAt: "2026-06-01T12:20:00.000+09:00",
+      updatedAt: "2026-06-01T12:20:00.000+09:00",
+    },
+    {
+      id: "rating-002",
+      organizationId: "org-osaka-tapiyota",
+      boatId: "boat-tapiyota",
+      reservationId: "res-001",
+      userId: "user-member-1",
+      evaluatorId: "user-owner-1",
+      safetyScore: 4,
+      preparationScore: 3,
+      communicationScore: 4,
+      boatCareScore: 4,
+      overallScore: 3.8,
+      comment: "同乗時の動きは良好。単独出船前に着岸練習を増やしたい。",
+      createdAt: "2026-06-01T12:30:00.000+09:00",
+      updatedAt: "2026-06-01T12:30:00.000+09:00",
+    },
+  ],
+  skillAssessments: [
+    {
+      id: "skill-001",
+      organizationId: "org-osaka-tapiyota",
+      boatId: "boat-tapiyota",
+      userId: "user-member-1",
+      assessorId: "user-admin",
+      dockingScore: 3,
+      departureScore: 4,
+      navigationRulesScore: 3,
+      weatherJudgmentScore: 3,
+      emergencyScore: 2,
+      equipmentScore: 4,
+      status: "training",
+      recommendation: "単独出船前に横風時の着岸と緊急時対応を追加練習。",
+      assessedAt: "2026-06-01T13:00:00.000+09:00",
+      createdAt: "2026-06-01T13:00:00.000+09:00",
+      updatedAt: "2026-06-01T13:00:00.000+09:00",
+    },
+  ],
   maintenanceLogs: [
     {
       id: "maint-001",
@@ -504,6 +560,32 @@ export const createVoyageLog = (
   return {
     ...voyage,
     id: `voyage-${crypto.randomUUID()}`,
+    createdAt: now,
+    updatedAt: now,
+  };
+};
+
+export const createMemberTripRating = (
+  rating: Omit<MemberTripRating, "id" | "createdAt" | "updatedAt">,
+): MemberTripRating => {
+  const now = new Date().toISOString();
+
+  return {
+    ...rating,
+    id: `rating-${crypto.randomUUID()}`,
+    createdAt: now,
+    updatedAt: now,
+  };
+};
+
+export const createSkillAssessment = (
+  assessment: Omit<SkillAssessment, "id" | "createdAt" | "updatedAt">,
+): SkillAssessment => {
+  const now = new Date().toISOString();
+
+  return {
+    ...assessment,
+    id: `skill-${crypto.randomUUID()}`,
     createdAt: now,
     updatedAt: now,
   };

@@ -9,11 +9,13 @@ import type {
   Boat,
   HandoverNote,
   MaintenanceLog,
+  MemberTripRating,
   NotificationPreference,
   Organization,
   PostReturnCheck,
   PreDepartureCheck,
   Reservation,
+  SkillAssessment,
   SupportMessage,
   SupportRequest,
   VoyageLog,
@@ -30,6 +32,8 @@ type CollectionMap = {
   supportRequests: SupportRequest;
   supportMessages: SupportMessage;
   voyageLogs: VoyageLog;
+  memberTripRatings: MemberTripRating;
+  skillAssessments: SkillAssessment;
   maintenanceLogs: MaintenanceLog;
   notifications: AppNotification;
   notificationPreferences: NotificationPreference;
@@ -46,6 +50,8 @@ const collections = [
   "supportRequests",
   "supportMessages",
   "voyageLogs",
+  "memberTripRatings",
+  "skillAssessments",
   "maintenanceLogs",
   "notifications",
   "notificationPreferences",
@@ -188,6 +194,8 @@ export async function getFirestoreAppData(fallback: AppData = mockData) {
     supportRequests,
     supportMessages,
     voyageLogs,
+    memberTripRatings,
+    skillAssessments,
     maintenanceLogs,
     notifications,
     notificationPreferences,
@@ -226,6 +234,8 @@ export async function getFirestoreAppData(fallback: AppData = mockData) {
     supportRequests: supportRequests as SupportRequest[],
     supportMessages: supportMessages as SupportMessage[],
     voyageLogs: voyageLogs as VoyageLog[],
+    memberTripRatings: memberTripRatings as MemberTripRating[],
+    skillAssessments: skillAssessments as SkillAssessment[],
     maintenanceLogs: maintenanceLogs as MaintenanceLog[],
     notifications: notifications as AppNotification[],
     notificationPreferences:
@@ -292,6 +302,22 @@ export async function saveFirestoreAppData(
     writeCollection(
       "voyageLogs",
       changedRows("voyageLogs", data.voyageLogs, previousData?.voyageLogs),
+    ),
+    writeCollection(
+      "memberTripRatings",
+      changedRows(
+        "memberTripRatings",
+        data.memberTripRatings,
+        previousData?.memberTripRatings,
+      ),
+    ),
+    writeCollection(
+      "skillAssessments",
+      changedRows(
+        "skillAssessments",
+        data.skillAssessments,
+        previousData?.skillAssessments,
+      ),
     ),
     writeCollection(
       "maintenanceLogs",

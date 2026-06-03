@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -137,9 +138,22 @@ export default function HomePage() {
               <p className="text-sm font-semibold text-sky-200">
                 大阪 共同保有艇
               </p>
-              <h1 className="mt-1 text-3xl font-black tracking-normal">
-                {data.boat.name}
-              </h1>
+              <div className="mt-1 flex items-center gap-3">
+                <span className="relative size-11 shrink-0 overflow-hidden rounded-lg border border-white/20 bg-white/10">
+                  <Image
+                    src={data.boat.imageUrl}
+                    alt=""
+                    fill
+                    sizes="44px"
+                    className="object-cover"
+                    unoptimized={data.boat.imageUrl.startsWith("data:")}
+                    aria-hidden="true"
+                  />
+                </span>
+                <h1 className="text-3xl font-black tracking-normal">
+                  {data.boat.name}
+                </h1>
+              </div>
             </div>
             <Badge className={boatStatusTone[data.boat.status]}>
               {boatStatusLabels[data.boat.status]}
@@ -208,26 +222,6 @@ export default function HomePage() {
             </div>
           </section>
         </Link>
-
-        <Section title="主要操作">
-          <div className="grid gap-3 sm:grid-cols-2">
-            {actions.map((action) => {
-              const Icon = action.icon;
-              return (
-                <Link
-                  key={action.href}
-                  href={action.href}
-                  className="flex min-h-16 items-center gap-3 rounded-lg border border-sky-100 bg-white px-4 py-3 text-base font-black text-blue-950 shadow-sm"
-                >
-                  <span className="grid size-10 place-items-center rounded-lg bg-sky-100 text-blue-800">
-                    <Icon size={23} aria-hidden="true" />
-                  </span>
-                  {action.label}
-                </Link>
-              );
-            })}
-          </div>
-        </Section>
 
         <Section title="次にやること">
           <Card>
@@ -330,6 +324,26 @@ export default function HomePage() {
               )}
             </div>
           </Card>
+        </Section>
+
+        <Section title="主要操作">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {actions.map((action) => {
+              const Icon = action.icon;
+              return (
+                <Link
+                  key={action.href}
+                  href={action.href}
+                  className="flex min-h-16 items-center gap-3 rounded-lg border border-sky-100 bg-white px-4 py-3 text-base font-black text-blue-950 shadow-sm"
+                >
+                  <span className="grid size-10 place-items-center rounded-lg bg-sky-100 text-blue-800">
+                    <Icon size={23} aria-hidden="true" />
+                  </span>
+                  {action.label}
+                </Link>
+              );
+            })}
+          </div>
         </Section>
 
         {highPriorityHandovers.length > 0 ? (
