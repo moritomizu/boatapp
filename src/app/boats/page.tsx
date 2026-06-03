@@ -303,6 +303,16 @@ export default function BoatsPage() {
             }`}
           >
             {imageMessage}
+            {imageState === "error" && imageFile ? (
+              <button
+                type="button"
+                onClick={() => saveBoatImage(imageFile)}
+                className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
+              >
+                <UploadCloud size={18} aria-hidden="true" />
+                写真アップロードを再試行
+              </button>
+            ) : null}
           </div>
         ) : null}
 
@@ -502,14 +512,14 @@ export default function BoatsPage() {
                 </div>
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp"
                   onChange={(event) =>
                     setImageFile(event.target.files?.[0] ?? undefined)
                   }
                   className="mt-3 w-full text-sm font-semibold text-blue-900 file:mr-3 file:h-10 file:rounded-lg file:border-0 file:bg-blue-800 file:px-4 file:text-sm file:font-black file:text-white"
                 />
                 <p className="mt-2 text-sm leading-6 text-blue-800">
-                  選択した写真は最大幅1600px程度へ圧縮して保存します。圏外時は圧縮済み写真を端末内に保留できます。
+                  JPEG/PNG/WebPに対応しています。選択した写真は最大幅1280px程度へ圧縮して保存します。圏外時は圧縮済み写真を端末内に保留できます。
                 </p>
                 {imageFile ? (
                   <p className="mt-2 text-sm font-black text-blue-900">

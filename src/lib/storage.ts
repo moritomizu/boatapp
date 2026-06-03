@@ -1,12 +1,15 @@
 "use client";
 
-import { firebaseStorage } from "@/lib/firebase";
+import { firebaseAuth, firebaseStorage } from "@/lib/firebase";
 import { useMockData } from "@/lib/data-source";
 import type { SupportAttachment } from "@/types/domain";
 
 const BOAT_IMAGE_QUEUE_KEY = "tapiyota-grand-boat-club:queued-boat-image:v1";
-const MAX_IMAGE_WIDTH = 1600;
-const IMAGE_QUALITY = 0.78;
+const MAX_IMAGE_WIDTH = 1280;
+const IMAGE_QUALITY = 0.72;
+const IMAGE_LOAD_TIMEOUT_MS = 10000;
+const IMAGE_COMPRESS_TIMEOUT_MS = 10000;
+const STORAGE_UPLOAD_TIMEOUT_MS = 30000;
 
 type QueuedBoatImage = {
   boatId: string;
@@ -26,20 +29,68 @@ function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string) {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+    promise
+      .then((value) => resolve(value))
+      .catch((error) => reject(error))
+      .finally(() => window.clearTimeout(timeoutId));
+  });
+}
+
 function loadImageElement(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const image = new Image();
+    const timeoutId = window.setTimeout(() => {
+      URL.revokeObjectURL(url);
+      reject(
+        new Error(
+          "画像の読み込みに時間がかかっています。JPEG/PNG/WebP形式の写真で再度お試しください。",
+        ),
+      );
+    }, IMAGE_LOAD_TIMEOUT_MS);
     image.addEventListener("load", () => {
+      window.clearTimeout(timeoutId);
       URL.revokeObjectURL(url);
       resolve(image);
     });
     image.addEventListener("error", () => {
+      window.clearTimeout(timeoutId);
       URL.revokeObjectURL(url);
       reject(new Error("画像を読み込めませんでした。別の写真でお試しください。"));
     });
     image.src = url;
   });
+}
+
+async function requireFirebaseStorageUser() {
+  if (useMockData || !firebaseStorage) return;
+  if (firebaseAuth?.currentUser) return;
+
+  const { onAuthStateChanged } = await import("firebase/auth");
+  const user = await withTimeout(
+    new Promise((resolve) => {
+      if (!firebaseAuth) {
+        resolve(undefined);
+        return;
+      }
+
+      const unsubscribe = onAuthStateChanged(firebaseAuth, (currentUser) => {
+        unsubscribe();
+        resolve(currentUser ?? undefined);
+      });
+    }),
+    3000,
+    "Firebase Authのログイン状態を確認できませんでした。",
+  );
+
+  if (!user) {
+    throw new Error(
+      "Firebaseにログインしていないため、Storageへ写真を保存できません。ログイン画面からメール/Googleでログインし直してください。",
+    );
+  }
 }
 
 function dataUrlToFile(dataUrl: string, name: string, contentType: string) {
@@ -72,8 +123,12 @@ export async function compressImageFile(file: File): Promise<File> {
   if (!context) return file;
 
   context.drawImage(image, 0, 0, width, height);
-  const blob = await new Promise<Blob | null>((resolve) =>
-    canvas.toBlob(resolve, "image/jpeg", IMAGE_QUALITY),
+  const blob = await withTimeout(
+    new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", IMAGE_QUALITY),
+    ),
+    IMAGE_COMPRESS_TIMEOUT_MS,
+    "画像の圧縮に時間がかかっています。少し小さい写真で再度お試しください。",
   );
   if (!blob) return file;
 
@@ -105,6 +160,7 @@ export async function uploadSupportAttachment({
     throw new Error("Firebase Storage is not configured.");
   }
 
+  await requireFirebaseStorageUser();
   const { getDownloadURL, ref, uploadBytes } = await import("firebase/storage");
   const uploadFile = file.type.startsWith("image/")
     ? await compressImageFile(file)
@@ -112,9 +168,13 @@ export async function uploadSupportAttachment({
   const safeName = uploadFile.name.replaceAll("/", "_");
   const path = `supportRequests/${supportRequestId}/${crypto.randomUUID()}-${safeName}`;
   const storageRef = ref(firebaseStorage, path);
-  const snapshot = await uploadBytes(storageRef, uploadFile, {
-    contentType: uploadFile.type || "application/octet-stream",
-  });
+  const snapshot = await withTimeout(
+    uploadBytes(storageRef, uploadFile, {
+      contentType: uploadFile.type || "application/octet-stream",
+    }),
+    STORAGE_UPLOAD_TIMEOUT_MS,
+    "Firebase Storageへのアップロードが30秒以内に完了しませんでした。Storage Rules、Storage Bucket、通信状態を確認してください。",
+  );
   const url = await getDownloadURL(snapshot.ref);
 
   return {
@@ -143,15 +203,20 @@ export async function uploadBoatImage({
     throw new Error("Firebase Storage is not configured.");
   }
 
+  await requireFirebaseStorageUser();
   const { getDownloadURL, ref, uploadBytes } = await import("firebase/storage");
   const compressed = await compressImageFile(file);
   const safeName = compressed.name.replaceAll("/", "_");
   const path = `boats/${boatId}/${crypto.randomUUID()}-${safeName}`;
   const storageRef = ref(firebaseStorage, path);
-  const snapshot = await uploadBytes(storageRef, compressed, {
-    contentType: compressed.type || "image/jpeg",
-    customMetadata: { uploadedBy: userId },
-  });
+  const snapshot = await withTimeout(
+    uploadBytes(storageRef, compressed, {
+      contentType: compressed.type || "image/jpeg",
+      customMetadata: { uploadedBy: userId },
+    }),
+    STORAGE_UPLOAD_TIMEOUT_MS,
+    "Firebase Storageへのアップロードが30秒以内に完了しませんでした。Storage Rules、Storage Bucket、通信状態を確認してください。",
+  );
 
   return getDownloadURL(snapshot.ref);
 }
