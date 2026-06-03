@@ -1,10 +1,12 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useState } from "react";
 import {
   Camera,
   Edit3,
+  MessageSquareWarning,
   Save,
   ShieldCheck,
   UploadCloud,
@@ -15,7 +17,16 @@ import { AppShell } from "@/components/app-shell";
 import { Badge, Card, Field, Section } from "@/components/ui";
 import { updateClientAppData, useClientAppData } from "@/lib/client-store";
 import { getInitialAppData } from "@/lib/data-source";
-import { boatStatusLabels, boatStatusTone, roleLabels } from "@/lib/labels";
+import {
+  boatStatusLabels,
+  boatStatusTone,
+  handoverCategoryLabels,
+  handoverPriorityLabels,
+  handoverPriorityTone,
+  handoverStatusLabels,
+  handoverStatusTone,
+  roleLabels,
+} from "@/lib/labels";
 import {
   clearQueuedBoatImage,
   getQueuedBoatImage,
@@ -50,6 +61,21 @@ export default function BoatsPage() {
     engineInfo: appData.boat.engineInfo,
     notes: appData.boat.notes,
   });
+  const unresolvedHandovers = appData.handoverNotes
+    .filter((note) => note.status !== "resolved")
+    .sort((a, b) => {
+      if (a.priority === "high" && b.priority !== "high") return -1;
+      if (a.priority !== "high" && b.priority === "high") return 1;
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    })
+    .slice(0, 5);
+  const latestResolvedHandovers = appData.handoverNotes
+    .filter((note) => note.status === "resolved")
+    .sort(
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+    )
+    .slice(0, 3);
 
   function openEditor() {
     setForm({
@@ -315,6 +341,90 @@ export default function BoatsPage() {
             ) : null}
           </div>
         ) : null}
+
+        <Section
+          title="申し送り"
+          action={
+            <Link href="/handovers" className="text-sm font-bold text-blue-800">
+              作成・一覧
+            </Link>
+          }
+        >
+          <div className="space-y-3">
+            {unresolvedHandovers.map((note) => {
+              const author = appData.users.find((user) => user.id === note.createdBy);
+
+              return (
+                <Card key={note.id}>
+                  <div className="flex items-start gap-3">
+                    <span
+                      className={`grid size-10 shrink-0 place-items-center rounded-lg ${
+                        note.priority === "high"
+                          ? "bg-rose-100 text-rose-800"
+                          : "bg-amber-100 text-amber-900"
+                      }`}
+                    >
+                      <MessageSquareWarning size={20} aria-hidden="true" />
+                    </span>
+                    <div>
+                      <p className="text-base font-black text-slate-950">
+                        {note.title}
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-slate-600">
+                        {note.body}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Badge className={handoverPriorityTone[note.priority]}>
+                      重要度{handoverPriorityLabels[note.priority]}
+                    </Badge>
+                    <Badge className={handoverStatusTone[note.status]}>
+                      {handoverStatusLabels[note.status]}
+                    </Badge>
+                    <Badge className="bg-sky-100 text-blue-800 ring-sky-200">
+                      {handoverCategoryLabels[note.category]}
+                    </Badge>
+                  </div>
+                  <p className="mt-3 text-xs font-bold text-slate-500">
+                    {author?.name ?? "作成者不明"} /{" "}
+                    {new Intl.DateTimeFormat("ja-JP", {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    }).format(new Date(note.updatedAt))}
+                  </p>
+                </Card>
+              );
+            })}
+            {unresolvedHandovers.length === 0 ? (
+              <Card>
+                <p className="text-sm font-semibold text-slate-600">
+                  未解決の申し送りはありません。
+                </p>
+              </Card>
+            ) : null}
+            {latestResolvedHandovers.length > 0 ? (
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <p className="text-xs font-black text-slate-500">最近解決した申し送り</p>
+                <div className="mt-2 space-y-2">
+                  {latestResolvedHandovers.map((note) => (
+                    <div
+                      key={note.id}
+                      className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2"
+                    >
+                      <span className="truncate text-sm font-bold text-slate-800">
+                        {note.title}
+                      </span>
+                      <Badge className={handoverStatusTone[note.status]}>
+                        {handoverStatusLabels[note.status]}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </Section>
 
         <Section title="メンテナンス台帳">
           <div className="space-y-3">

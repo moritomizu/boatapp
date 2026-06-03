@@ -465,14 +465,14 @@ export default function HomePage() {
         <Section
           title="最新の申し送り"
           action={
-            <Link href="/handovers" className="text-sm font-bold text-blue-800">
+            <Link href="/boats" className="text-sm font-bold text-blue-800">
               すべて見る
             </Link>
           }
         >
           <div className="space-y-3">
             {latestHandovers.map((note) => (
-              <Link key={note.id} href="/handovers" className="block">
+              <Link key={note.id} href="/boats" className="block">
                 <Card>
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -489,31 +489,6 @@ export default function HomePage() {
                 </Card>
               </Link>
             ))}
-          </div>
-        </Section>
-
-        <Section title="今後追加・本接続予定の運用機能">
-          <div className="grid gap-3 sm:grid-cols-2">
-            {[
-              ["メンテナンス台帳", Ship],
-              ["船舶カルテ", Ship],
-              ["操船スキル詳細評価", Users],
-              ["メンバー利用制限", Users],
-              ["通知のFirebase本接続", Bell],
-              ["写真添付", CalendarDays],
-            ].map(([label, Icon]) => {
-              const TypedIcon = Icon as typeof ClipboardCheck;
-              return (
-                <div
-                  key={label as string}
-                  className="flex min-h-14 items-center gap-3 rounded-lg border border-dashed border-sky-200 bg-sky-50 px-4 py-3 text-sm font-bold text-blue-900"
-                >
-                  <TypedIcon size={20} aria-hidden="true" />
-                  {label as string}
-                  <span className="ml-auto text-xs text-slate-500">予定</span>
-                </div>
-              );
-            })}
           </div>
         </Section>
       </div>

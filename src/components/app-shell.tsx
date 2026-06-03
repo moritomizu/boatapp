@@ -9,8 +9,8 @@ import {
   ClipboardCheck,
   Home,
   LifeBuoy,
-  MessageSquareWarning,
   Navigation,
+  Ship,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui";
@@ -24,7 +24,7 @@ const navItems = [
   { href: "/checks/pre-departure", label: "チェック", icon: ClipboardCheck },
   { href: "/voyages", label: "航行", icon: Navigation },
   { href: "/support", label: "相談", icon: LifeBuoy },
-  { href: "/handovers", label: "申し送り", icon: MessageSquareWarning },
+  { href: "/boats", label: "船舶", icon: Ship },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -56,6 +56,23 @@ export function AppShell({ children }: { children: ReactNode }) {
             </span>
           </Link>
           <div className="flex items-center gap-2">
+            <Link
+              href="/boats"
+              className="hidden min-w-0 items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-2 text-blue-950 sm:flex"
+              aria-label={`対象船舶: ${data.boat.name}`}
+            >
+              <Ship size={17} aria-hidden="true" />
+              <span className="max-w-32 truncate text-xs font-black">
+                {data.boat.name}
+              </span>
+            </Link>
+            <Link
+              href="/boats"
+              className="grid size-10 place-items-center rounded-full border border-sky-200 bg-sky-50 text-blue-900 sm:hidden"
+              aria-label={`対象船舶: ${data.boat.name}`}
+            >
+              <Ship size={19} aria-hidden="true" />
+            </Link>
             <Link
               href="/notifications"
               className="relative grid size-10 place-items-center rounded-full border border-sky-200 text-blue-900"
@@ -98,7 +115,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             const Icon = item.icon;
             const active =
               pathname === item.href ||
-              (item.href.startsWith("/checks") && pathname.startsWith("/checks"));
+              (item.href.startsWith("/checks") && pathname.startsWith("/checks")) ||
+              (item.href === "/boats" && pathname.startsWith("/handovers"));
 
             return (
               <Link
