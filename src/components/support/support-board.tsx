@@ -13,6 +13,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { Badge, Card, Section } from "@/components/ui";
+import { getBoatName } from "@/lib/boat-utils";
 import { postReturnCheckItems, preDepartureCheckItems } from "@/lib/check-items";
 import { updateClientAppData, useClientAppData } from "@/lib/client-store";
 import {
@@ -60,6 +61,7 @@ export function SupportBoard({
   const requests = appData.supportRequests;
   const messages = appData.supportMessages;
   const [selectedId, setSelectedId] = useState(data.supportRequests[0]?.id ?? "");
+  const [scope, setScope] = useState<"current" | "all">("current");
   const [categoryFilter, setCategoryFilter] = useState<"all" | SupportCategory>(
     "all",
   );
@@ -102,6 +104,7 @@ export function SupportBoard({
 
   const visibleRequests = useMemo(() => {
     return [...requests]
+      .filter((request) => (scope === "current" ? request.boatId === appData.boat.id : true))
       .filter((request) =>
         categoryFilter === "all" ? true : request.category === categoryFilter,
       )
@@ -117,7 +120,7 @@ export function SupportBoard({
         if (urgencyDiff !== 0) return urgencyDiff;
         return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
       });
-  }, [categoryFilter, requests, statusFilter]);
+  }, [appData.boat.id, categoryFilter, requests, scope, statusFilter]);
 
   function updateForm<T extends keyof typeof form>(
     key: T,
@@ -362,6 +365,9 @@ export function SupportBoard({
           onSubmit={handleCreate}
           className="space-y-4 rounded-lg border border-sky-100 bg-white p-4 shadow-sm"
         >
+          <p className="rounded-lg bg-sky-50 p-3 text-sm font-black text-blue-900">
+            対象船舶: {appData.boat.name}
+          </p>
           <label className="block">
             <span className="text-sm font-bold text-slate-700">タイトル</span>
             <input
@@ -428,7 +434,9 @@ export function SupportBoard({
                 className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
               >
                 <option value="">予約に紐付けない</option>
-                {appData.reservations.map((reservation) => (
+                {appData.reservations
+                  .filter((reservation) => reservation.boatId === appData.boat.id)
+                  .map((reservation) => (
                   <option key={reservation.id} value={reservation.id}>
                     {formatDate(reservation.startAt)}{" "}
                     {formatTime(reservation.startAt)} /{" "}
@@ -523,6 +531,24 @@ export function SupportBoard({
 
       <Section title="サポート要請一覧">
         <div className="grid gap-2 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => setScope("current")}
+            className={`h-11 rounded-lg text-sm font-black ${
+              scope === "current" ? "bg-blue-800 text-white" : "bg-white text-slate-700"
+            }`}
+          >
+            選択中の船
+          </button>
+          <button
+            type="button"
+            onClick={() => setScope("all")}
+            className={`h-11 rounded-lg text-sm font-black ${
+              scope === "all" ? "bg-blue-800 text-white" : "bg-white text-slate-700"
+            }`}
+          >
+            全艇表示
+          </button>
           <select
             value={categoryFilter}
             onChange={(event) =>
@@ -573,6 +599,7 @@ export function SupportBoard({
                   <div>
                     <p className="font-black text-slate-950">{request.title}</p>
                     <p className="mt-1 text-xs font-semibold text-slate-500">
+                      {getBoatName(appData, request.boatId)} /{" "}
                       {author?.name} /{" "}
                       {new Intl.DateTimeFormat("ja-JP", {
                         dateStyle: "medium",
@@ -679,7 +706,7 @@ export function SupportBoard({
                     <div className="rounded-lg bg-slate-50 p-3">
                       <dt className="font-bold text-slate-500">対象船舶</dt>
                       <dd className="mt-1 font-black text-slate-900">
-                        {appData.boat.name}
+                        {getBoatName(appData, selectedRequest.boatId)}
                       </dd>
                     </div>
                     <div className="rounded-lg bg-slate-50 p-3">

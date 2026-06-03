@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Badge, Card, Section } from "@/components/ui";
+import { findBoat, getBoatName, getBoats, reservationWarnings } from "@/lib/boat-utils";
 import { updateClientAppData, useClientAppData } from "@/lib/client-store";
 import { getInitialAppData } from "@/lib/data-source";
 import { deleteFirestoreDocument } from "@/lib/firebase-repository";
@@ -57,8 +58,17 @@ const reservationPhase = (startAt: string) => {
 export default function ReservationsPage() {
   const initialData = getInitialAppData();
   const data = useClientAppData(initialData);
-  const reservations = data.reservations;
+  const boats = getBoats(data);
+  const [viewMode, setViewMode] = useState<"all" | "boat" | "mine">("boat");
+  const [selectedBoatId, setSelectedBoatId] = useState(data.boat.id);
+  const visibleReservations = data.reservations.filter((reservation) => {
+    if (viewMode === "mine") return reservation.userId === data.currentUser.id;
+    if (viewMode === "boat") return reservation.boatId === selectedBoatId;
+    return true;
+  });
+  const reservations = visibleReservations;
   const [form, setForm] = useState({
+    boatId: data.boat.id,
     date: "2026-06-08",
     startTime: "07:00",
     endTime: "11:00",
@@ -83,24 +93,29 @@ export default function ReservationsPage() {
   const draftReservation = useMemo(
     () => ({
       id: "draft",
+      boatId: form.boatId,
       startAt: `${form.date}T${form.startTime}:00.000+09:00`,
       endAt: `${form.date}T${form.endTime}:00.000+09:00`,
     }),
-    [form.date, form.endTime, form.startTime],
+    [form.boatId, form.date, form.endTime, form.startTime],
   );
   const hasOverlap = hasTimeOverlap(
     draftReservation,
-    reservations.filter((reservation) => reservation.id !== editingId),
+    data.reservations.filter(
+      (reservation) =>
+        reservation.id !== editingId && reservation.boatId === form.boatId,
+    ),
   );
+  const warnings = reservationWarnings(data, form.userId, form.boatId);
   const calendarMonth = useMemo(() => {
-    const base = new Date(reservations[0]?.startAt ?? "2026-06-01T00:00:00.000+09:00");
+    const base = new Date(data.reservations[0]?.startAt ?? "2026-06-01T00:00:00.000+09:00");
     const firstDay = new Date(base.getFullYear(), base.getMonth(), 1);
     const lastDay = new Date(base.getFullYear(), base.getMonth() + 1, 0);
     const leadingBlankCount = firstDay.getDay();
     const days = Array.from({ length: lastDay.getDate() }, (_, index) => {
       const date = new Date(base.getFullYear(), base.getMonth(), index + 1);
       const dateKey = toDateKey(date);
-      const dayReservations = reservations.filter(
+      const dayReservations = visibleReservations.filter(
         (reservation) => reservation.startAt.slice(0, 10) === dateKey,
       );
 
@@ -119,7 +134,7 @@ export default function ReservationsPage() {
       leadingBlankCount,
       days,
     };
-  }, [reservations]);
+  }, [data.reservations, visibleReservations]);
 
   function updateForm<T extends keyof typeof form>(
     key: T,
@@ -136,7 +151,7 @@ export default function ReservationsPage() {
 
     const reservationInput = {
       organizationId: data.organization.id,
-      boatId: data.boat.id,
+      boatId: form.boatId,
       userId: form.userId,
       startAt: `${form.date}T${form.startTime}:00.000+09:00`,
       endAt: `${form.date}T${form.endTime}:00.000+09:00`,
@@ -184,6 +199,7 @@ export default function ReservationsPage() {
     setSaveState("idle");
     setForm({
       date: reservation.startAt.slice(0, 10),
+      boatId: reservation.boatId,
       startTime: reservation.startAt.slice(11, 16),
       endTime: reservation.endAt.slice(11, 16),
       userId: reservation.userId,
@@ -202,6 +218,7 @@ export default function ReservationsPage() {
     setSaveState("idle");
     setForm((current) => ({
       ...current,
+      boatId: selectedBoatId,
       date: "2026-06-08",
       startTime: "07:00",
       endTime: "11:00",
@@ -220,6 +237,7 @@ export default function ReservationsPage() {
     setSaveState("idle");
     setForm((current) => ({
       ...current,
+      boatId: selectedBoatId,
       date: dateKey,
       userId: data.currentUser.id,
       startTime: "07:00",
@@ -322,6 +340,51 @@ export default function ReservationsPage() {
         </div>
 
         <Section title={`${calendarMonth.label}の予約`}>
+          <div className="mb-3 grid gap-2 sm:grid-cols-3">
+            <button
+              type="button"
+              onClick={() => setViewMode("all")}
+              className={`h-11 rounded-lg text-sm font-black ${
+                viewMode === "all" ? "bg-blue-800 text-white" : "bg-white text-slate-700"
+              }`}
+            >
+              全艇表示
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("boat")}
+              className={`h-11 rounded-lg text-sm font-black ${
+                viewMode === "boat" ? "bg-blue-800 text-white" : "bg-white text-slate-700"
+              }`}
+            >
+              船ごと表示
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("mine")}
+              className={`h-11 rounded-lg text-sm font-black ${
+                viewMode === "mine" ? "bg-blue-800 text-white" : "bg-white text-slate-700"
+              }`}
+            >
+              自分の予約
+            </button>
+          </div>
+          {viewMode === "boat" ? (
+            <label className="mb-3 block">
+              <span className="text-sm font-bold text-slate-700">表示船舶</span>
+              <select
+                value={selectedBoatId}
+                onChange={(event) => setSelectedBoatId(event.target.value)}
+                className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-white px-3 text-base outline-none ring-blue-600 focus:ring-2"
+              >
+                {boats.map((boat) => (
+                  <option key={boat.id} value={boat.id}>
+                    {boat.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <div className="rounded-lg border border-sky-100 bg-white p-3 shadow-sm">
             <div className="grid grid-cols-7 gap-1 text-center text-xs font-black text-slate-500">
               {["日", "月", "火", "水", "木", "金", "土"].map((day) => (
@@ -363,7 +426,9 @@ export default function ReservationsPage() {
                           href={`#reservation-${reservation.id}`}
                           className="block rounded-md bg-blue-800 px-1.5 py-1 text-[10px] font-black leading-4 text-white"
                         >
-                          {formatTime(reservation.startAt)} {user?.name}
+                          {formatTime(reservation.startAt)}{" "}
+                          {viewMode === "all" ? `${getBoatName(data, reservation.boatId)} ` : ""}
+                          {user?.name}
                         </Link>
                       );
                     })}
@@ -393,6 +458,25 @@ export default function ReservationsPage() {
             className="space-y-4 rounded-lg border border-sky-100 bg-white p-4 shadow-sm"
           >
             <div className="grid gap-3 sm:grid-cols-3">
+              <label className="block sm:col-span-3">
+                <span className="text-sm font-bold text-slate-700">
+                  対象船舶
+                </span>
+                <select
+                  value={form.boatId}
+                  onChange={(event) => updateForm("boatId", event.target.value)}
+                  className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
+                >
+                  {boats.map((boat) => (
+                    <option key={boat.id} value={boat.id}>
+                      {boat.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-2 rounded-lg bg-sky-50 p-3 text-sm font-black text-blue-900">
+                  対象船舶: {findBoat(data, form.boatId).name}
+                </p>
+              </label>
               <label className="block">
                 <span className="text-sm font-bold text-slate-700">利用日</span>
                 <input
@@ -437,6 +521,17 @@ export default function ReservationsPage() {
                   aria-hidden="true"
                 />
                 同日同時間帯に重複する予約があります。今回は登録はブロックしません。
+              </div>
+            ) : null}
+
+            {warnings.length > 0 ? (
+              <div className="space-y-2 rounded-lg bg-amber-50 p-3 text-sm font-bold leading-6 text-amber-900">
+                {warnings.map((warning) => (
+                  <p key={warning} className="flex gap-2">
+                    <AlertTriangle className="mt-0.5 shrink-0" size={16} aria-hidden="true" />
+                    {warning}
+                  </p>
+                ))}
               </div>
             ) : null}
 
@@ -595,9 +690,13 @@ export default function ReservationsPage() {
             </div>
           ) : null}
           <div className="space-y-3">
-            {reservations.map((reservation) => {
+            {visibleReservations.map((reservation) => {
               const user = data.users.find((item) => item.id === reservation.userId);
-              const overlap = hasTimeOverlap(reservation, reservations);
+              const overlap = hasTimeOverlap(
+                reservation,
+                data.reservations.filter((item) => item.boatId === reservation.boatId),
+              );
+              const boat = findBoat(data, reservation.boatId);
               const phase = reservationPhase(reservation.startAt);
               const voyage = data.voyageLogs.find(
                 (item) => item.reservationId === reservation.id,
@@ -629,6 +728,9 @@ export default function ReservationsPage() {
                   <Card>
                     <div className="flex items-start justify-between gap-3">
                       <div>
+                        <p className="text-sm font-black text-blue-700">
+                          {boat.name}
+                        </p>
                         <p className="text-lg font-black text-blue-950">
                           {formatDate(reservation.startAt)}
                         </p>

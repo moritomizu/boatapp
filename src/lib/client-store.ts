@@ -21,6 +21,21 @@ let cachedSnapshot: AppData | undefined;
 let firestoreLoaded = false;
 let firestoreRefreshPromise: Promise<AppData> | undefined;
 
+function normalizeAppData(data: AppData, fallback: AppData): AppData {
+  const boats = data.boats?.length ? data.boats : fallback.boats?.length ? fallback.boats : [data.boat];
+
+  return {
+    ...fallback,
+    ...data,
+    boats,
+    memberBoatPermissions:
+      data.memberBoatPermissions ?? fallback.memberBoatPermissions ?? [],
+    joinRequests: data.joinRequests ?? fallback.joinRequests ?? [],
+    memberTripRatings: data.memberTripRatings ?? fallback.memberTripRatings ?? [],
+    skillAssessments: data.skillAssessments ?? fallback.skillAssessments ?? [],
+  };
+}
+
 export function loadClientAppData(fallback: AppData = getInitialAppData()) {
   if (shouldUseFirestore()) return cachedSnapshot ?? fallback;
   if (!isBrowser()) return fallback;
@@ -36,6 +51,7 @@ export function loadClientAppData(fallback: AppData = getInitialAppData()) {
       ...fallback,
       ...JSON.parse(stored),
     } as AppData;
+    cachedSnapshot = normalizeAppData(cachedSnapshot, fallback);
     return cachedSnapshot;
   } catch {
     cachedSnapshot = fallback;
@@ -77,7 +93,7 @@ export async function refreshClientAppData(
 
   firestoreRefreshPromise = getFirestoreAppData(fallback)
     .then((data) => {
-      cachedSnapshot = data;
+      cachedSnapshot = normalizeAppData(data, fallback);
       firestoreLoaded = true;
       if (isBrowser()) window.dispatchEvent(new Event(STORE_EVENT));
 

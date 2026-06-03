@@ -10,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 import { Badge, Card, Section } from "@/components/ui";
+import { getBoatName } from "@/lib/boat-utils";
 import { updateClientAppData, useClientAppData } from "@/lib/client-store";
 import {
   handoverCategoryLabels,
@@ -46,6 +47,7 @@ export function HandoverBoard({
 }) {
   const appData = useClientAppData(data);
   const notes = appData.handoverNotes;
+  const [scope, setScope] = useState<"current" | "all">("current");
   const [selectedId, setSelectedId] = useState("");
   const [form, setForm] = useState({
     title: initialDraft.title ?? "",
@@ -69,15 +71,18 @@ export function HandoverBoard({
   const unresolvedNotes = useMemo(
     () =>
       notes
+        .filter((note) => (scope === "current" ? note.boatId === appData.boat.id : true))
         .filter((note) => note.status !== "resolved")
         .sort((a, b) => {
           if (a.priority === "high" && b.priority !== "high") return -1;
           if (a.priority !== "high" && b.priority === "high") return 1;
           return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
         }),
-    [notes],
+    [appData.boat.id, notes, scope],
   );
-  const resolvedNotes = notes.filter((note) => note.status === "resolved");
+  const resolvedNotes = notes
+    .filter((note) => (scope === "current" ? note.boatId === appData.boat.id : true))
+    .filter((note) => note.status === "resolved");
   const selectedNote = notes.find((note) => note.id === selectedId);
   const canResolve =
     appData.currentUser.role === "admin" ||
@@ -218,6 +223,7 @@ export function HandoverBoard({
           <div>
             <p className="text-base font-black text-slate-950">{note.title}</p>
             <p className="mt-1 text-xs font-semibold text-slate-500">
+              {getBoatName(appData, note.boatId)} /{" "}
               {author?.name} /{" "}
               {new Intl.DateTimeFormat("ja-JP", {
                 dateStyle: "medium",
@@ -257,6 +263,27 @@ export function HandoverBoard({
         </p>
       </div>
 
+      <div className="grid gap-2 sm:grid-cols-2">
+        <button
+          type="button"
+          onClick={() => setScope("current")}
+          className={`h-11 rounded-lg text-sm font-black ${
+            scope === "current" ? "bg-blue-800 text-white" : "bg-white text-slate-700"
+          }`}
+        >
+          選択中の船
+        </button>
+        <button
+          type="button"
+          onClick={() => setScope("all")}
+          className={`h-11 rounded-lg text-sm font-black ${
+            scope === "all" ? "bg-blue-800 text-white" : "bg-white text-slate-700"
+          }`}
+        >
+          全艇の申し送り
+        </button>
+      </div>
+
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Card>
           <p className="text-xs font-bold text-slate-500">未解決</p>
@@ -287,6 +314,9 @@ export function HandoverBoard({
           onSubmit={handleSubmit}
           className="space-y-4 rounded-lg border border-sky-100 bg-white p-4 shadow-sm"
         >
+          <p className="rounded-lg bg-sky-50 p-3 text-sm font-black text-blue-900">
+            対象船舶: {appData.boat.name}
+          </p>
           <label className="block">
             <span className="text-sm font-bold text-slate-700">タイトル</span>
             <input
@@ -369,7 +399,9 @@ export function HandoverBoard({
                 className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
               >
                 <option value="">予約に紐付けない</option>
-                {appData.reservations.map((reservation) => (
+                {appData.reservations
+                  .filter((reservation) => reservation.boatId === appData.boat.id)
+                  .map((reservation) => (
                   <option key={reservation.id} value={reservation.id}>
                     {new Intl.DateTimeFormat("ja-JP", {
                       month: "numeric",
@@ -490,6 +522,9 @@ export function HandoverBoard({
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
+              <Badge className="bg-sky-100 text-blue-800 ring-sky-200">
+                {getBoatName(appData, selectedNote.boatId)}
+              </Badge>
               <Badge className="bg-sky-100 text-blue-800 ring-sky-200">
                 {handoverCategoryLabels[selectedNote.category]}
               </Badge>

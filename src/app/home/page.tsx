@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Badge, Card, Section } from "@/components/ui";
+import { canUseBoat, getBoats } from "@/lib/boat-utils";
 import { useClientAppData } from "@/lib/client-store";
 import { getInitialAppData, useMockData } from "@/lib/data-source";
 import {
@@ -38,14 +39,18 @@ import { findNextReservation, formatDate, formatTime, isSameDay } from "@/lib/re
 export default function HomePage() {
   const initialData = getInitialAppData();
   const data = useClientAppData(initialData);
+  const boats = getBoats(data);
 
   const todayIso = new Date().toISOString();
   const todaysReservations = data.reservations.filter((reservation) =>
-    isSameDay(reservation.startAt, todayIso),
+    reservation.boatId === data.boat.id && isSameDay(reservation.startAt, todayIso),
   );
-  const nextReservation = findNextReservation(data.reservations);
+  const selectedBoatReservations = data.reservations.filter(
+    (reservation) => reservation.boatId === data.boat.id,
+  );
+  const nextReservation = findNextReservation(selectedBoatReservations);
   const activeVoyage = data.voyageLogs.find(
-    (voyage) => voyage.status === "underway",
+    (voyage) => voyage.boatId === data.boat.id && voyage.status === "underway",
   );
   const primaryReservation =
     (activeVoyage
@@ -67,12 +72,13 @@ export default function HomePage() {
       )
     : false;
   const unresolvedHandovers = data.handoverNotes.filter(
-    (note) => note.status !== "resolved",
+    (note) => note.boatId === data.boat.id && note.status !== "resolved",
   );
   const highPriorityHandovers = unresolvedHandovers.filter(
     (note) => note.priority === "high",
   );
   const latestHandovers = [...data.handoverNotes]
+    .filter((note) => note.boatId === data.boat.id)
     .sort(
       (a, b) =>
         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
@@ -80,12 +86,16 @@ export default function HomePage() {
     .slice(0, 3);
   const unresolvedHandoverCount = unresolvedHandovers.length;
   const unresolvedSupportRequests = data.supportRequests.filter(
-    (request) => request.status === "open",
+    (request) => request.boatId === data.boat.id && request.status === "open",
   );
   const highUrgencySupportRequests = data.supportRequests.filter(
-    (request) => request.status !== "resolved" && request.urgency === "high",
+    (request) =>
+      request.boatId === data.boat.id &&
+      request.status !== "resolved" &&
+      request.urgency === "high",
   );
   const latestSupportRequests = [...data.supportRequests]
+    .filter((request) => request.boatId === data.boat.id)
     .sort(
       (a, b) =>
         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
@@ -165,6 +175,81 @@ export default function HomePage() {
               : "Firebaseデータで表示中。"}
           </p>
         </section>
+
+        <Section title="利用する船を選ぶ">
+          <div className="space-y-3">
+            <p className="rounded-lg bg-sky-50 p-3 text-sm font-bold text-blue-900">
+              所属組織: {data.organization.name}
+            </p>
+            {boats.map((boat) => {
+              const available = canUseBoat(data, data.currentUser, boat);
+              const boatTodaysReservations = data.reservations.filter(
+                (reservation) =>
+                  reservation.boatId === boat.id &&
+                  isSameDay(reservation.startAt, todayIso),
+              );
+              const boatHandovers = data.handoverNotes.filter(
+                (note) => note.boatId === boat.id && note.status !== "resolved",
+              );
+              const boatSupports = data.supportRequests.filter(
+                (request) =>
+                  request.boatId === boat.id &&
+                  (request.status === "open" || request.status === "in_progress"),
+              );
+
+              return (
+                <Link
+                  key={boat.id}
+                  href={`/boats?boatId=${boat.id}`}
+                  className="block rounded-lg border border-sky-100 bg-white p-3 shadow-sm"
+                >
+                  <div className="flex gap-3">
+                    <span className="relative size-20 shrink-0 overflow-hidden rounded-lg bg-sky-100">
+                      <Image
+                        src={boat.imageUrl}
+                        alt=""
+                        fill
+                        sizes="80px"
+                        className="object-cover"
+                        unoptimized={boat.imageUrl.startsWith("data:")}
+                      />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-lg font-black text-blue-950">
+                          {boat.name}
+                        </p>
+                        <Badge className={boatStatusTone[boat.status]}>
+                          {boatStatusLabels[boat.status]}
+                        </Badge>
+                        <Badge
+                          className={
+                            available
+                              ? "bg-emerald-100 text-emerald-800 ring-emerald-200"
+                              : "bg-slate-100 text-slate-700 ring-slate-200"
+                          }
+                        >
+                          {available ? "利用可" : "権限確認"}
+                        </Badge>
+                      </div>
+                      <div className="mt-2 grid grid-cols-3 gap-2 text-center text-xs font-bold text-slate-600">
+                        <div className="rounded-lg bg-slate-50 p-2">
+                          今日 {boatTodaysReservations.length}
+                        </div>
+                        <div className="rounded-lg bg-slate-50 p-2">
+                          申し送り {boatHandovers.length}
+                        </div>
+                        <div className="rounded-lg bg-slate-50 p-2">
+                          相談 {boatSupports.length}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </Section>
 
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <Card>

@@ -2,7 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Camera,
   ClipboardCheck,
@@ -46,8 +47,12 @@ import type { Boat, BoatStatus } from "@/types/domain";
 export default function BoatsPage() {
   const initialData = getInitialAppData();
   const appData = useClientAppData(initialData);
+  const searchParams = useSearchParams();
   const canEdit = appData.currentUser.role === "admin";
-  const managedBoats = appData.boats?.length ? appData.boats : [appData.boat];
+  const managedBoats = useMemo(
+    () => (appData.boats?.length ? appData.boats : [appData.boat]),
+    [appData.boat, appData.boats],
+  );
   const [isEditing, setIsEditing] = useState(false);
   const [isAddingBoat, setIsAddingBoat] = useState(false);
   const [saveState, setSaveState] = useState<
@@ -114,6 +119,27 @@ export default function BoatsPage() {
       ? boatRatings.reduce((total, rating) => total + rating.overallScore, 0) /
         boatRatings.length
       : undefined;
+
+  const selectBoat = useCallback(
+    async (boat: Boat) => {
+      await updateClientAppData(
+        (current) => ({
+          ...current,
+          boat,
+          boats: current.boats?.length ? current.boats : managedBoats,
+        }),
+        appData,
+      );
+    },
+    [appData, managedBoats],
+  );
+
+  useEffect(() => {
+    const boatId = searchParams.get("boatId");
+    const boat = managedBoats.find((item) => item.id === boatId);
+    if (!boat || boat.id === appData.boat.id) return;
+    void selectBoat(boat);
+  }, [appData.boat.id, managedBoats, searchParams, selectBoat]);
 
   function openEditor() {
     setForm({
@@ -287,17 +313,6 @@ export default function BoatsPage() {
     clearQueuedBoatImage();
     setHasQueuedImage(false);
     setSaveState("idle");
-  }
-
-  async function selectBoat(boat: Boat) {
-    await updateClientAppData(
-      (current) => ({
-        ...current,
-        boat,
-        boats: current.boats?.length ? current.boats : managedBoats,
-      }),
-      appData,
-    );
   }
 
   async function addBoat(event: React.FormEvent<HTMLFormElement>) {

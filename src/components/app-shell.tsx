@@ -39,7 +39,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const data = useClientAppData(getInitialAppData());
   const activeVoyage = data.voyageLogs.find((voyage) => voyage.status === "underway");
   const todaysReservation = data.reservations.find((reservation) =>
-    isSameDateKey(reservation.startAt),
+    reservation.boatId === data.boat.id && isSameDateKey(reservation.startAt),
   );
   const todaysVoyage = todaysReservation
     ? data.voyageLogs.find(

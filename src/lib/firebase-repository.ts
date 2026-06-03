@@ -10,6 +10,7 @@ import type {
   HandoverNote,
   JoinRequest,
   MaintenanceLog,
+  MemberBoatPermission,
   MemberTripRating,
   NotificationPreference,
   Organization,
@@ -26,6 +27,7 @@ type CollectionMap = {
   organizations: Organization;
   boats: Boat;
   users: AppUser;
+  memberBoatPermissions: MemberBoatPermission;
   reservations: Reservation;
   joinRequests: JoinRequest;
   preDepartureChecks: PreDepartureCheck;
@@ -45,6 +47,7 @@ const collections = [
   "organizations",
   "boats",
   "users",
+  "memberBoatPermissions",
   "reservations",
   "joinRequests",
   "preDepartureChecks",
@@ -190,6 +193,7 @@ export async function getFirestoreAppData(fallback: AppData = mockData) {
     organizations,
     boats,
     users,
+    memberBoatPermissions,
     reservations,
     joinRequests,
     preDepartureChecks,
@@ -235,6 +239,10 @@ export async function getFirestoreAppData(fallback: AppData = mockData) {
     boats: resolvedBoats,
     users: resolvedUsers,
     currentUser,
+    memberBoatPermissions:
+      (memberBoatPermissions as MemberBoatPermission[]).length > 0
+        ? (memberBoatPermissions as MemberBoatPermission[])
+        : fallback.memberBoatPermissions ?? [],
     reservations:
       (reservations as Reservation[]).length > 0
         ? (reservations as Reservation[])
@@ -279,6 +287,14 @@ export async function saveFirestoreAppData(
       ),
     ),
     writeCollection("users", changedRows("users", data.users, previousData?.users)),
+    writeCollection(
+      "memberBoatPermissions",
+      changedRows(
+        "memberBoatPermissions",
+        data.memberBoatPermissions ?? [],
+        previousData?.memberBoatPermissions,
+      ),
+    ),
     writeCollection(
       "reservations",
       changedRows("reservations", data.reservations, previousData?.reservations),

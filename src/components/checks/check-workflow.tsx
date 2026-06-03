@@ -13,6 +13,7 @@ import {
   Save,
 } from "lucide-react";
 import { Badge, Card, Section } from "@/components/ui";
+import { findBoat } from "@/lib/boat-utils";
 import { updateClientAppData, useClientAppData } from "@/lib/client-store";
 import { targetFishLabels } from "@/lib/labels";
 import {
@@ -87,6 +88,7 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
   const selectedReservation = appData.reservations.find(
     (reservation) => reservation.id === reservationId,
   );
+  const selectedBoat = findBoat(appData, selectedReservation?.boatId ?? appData.boat.id);
   const existingRecord = useMemo(
     () =>
       history
@@ -125,7 +127,7 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
 
     const baseInput = {
       organizationId: data.organization.id,
-      boatId: appData.boat.id,
+      boatId: selectedReservation?.boatId ?? appData.boat.id,
       reservationId,
       userId,
       checkedAt: new Date(checkedAt).toISOString(),
@@ -238,10 +240,12 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
 
           {selectedReservation ? (
             <div className="mt-4 rounded-lg bg-sky-50 p-3 text-sm font-semibold leading-6 text-blue-900">
+              対象船舶: {selectedBoat.name} / 予約:{" "}
+              {formatDate(selectedReservation.startAt)}{" "}
+              {formatTime(selectedReservation.startAt)} -{" "}
+              {formatTime(selectedReservation.endAt)} /{" "}
               {selectedReservation.destinationArea} /{" "}
               {targetFishLabels[selectedReservation.targetFish]} /{" "}
-              {formatTime(selectedReservation.startAt)} -{" "}
-              {formatTime(selectedReservation.endAt)}
             </div>
           ) : null}
         </Card>

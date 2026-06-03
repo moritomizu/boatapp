@@ -61,6 +61,13 @@ export type SkillAssessmentStatus =
 
 export type JoinRequestStatus = "requested" | "approved" | "declined";
 
+export type BoatSkillLevel =
+  | "trainee"
+  | "beginner"
+  | "normal"
+  | "advanced"
+  | "owner";
+
 export type SupportLocation = {
   latitude: number;
   longitude: number;
@@ -107,6 +114,12 @@ export type Boat = {
   engineInfo: string;
   imageUrl: string;
   notes: string;
+  isActive?: boolean;
+  allowNightUse?: boolean;
+  allowSoloUse?: boolean;
+  allowBeginnerUse?: boolean;
+  adminNotes?: string;
+  createdAt?: string;
   updatedAt: string;
 };
 
@@ -120,6 +133,21 @@ export type AppUser = {
   canNightUse: boolean;
   notes: string;
   createdAt: string;
+};
+
+export type MemberBoatPermission = {
+  id: string;
+  organizationId: string;
+  userId: string;
+  boatId: string;
+  canReserve: boolean;
+  canSolo: boolean;
+  canNightUse: boolean;
+  canUseAsGuestHost: boolean;
+  skillLevel: BoatSkillLevel;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type Reservation = {
@@ -354,6 +382,7 @@ export type AppData = {
   boats?: Boat[];
   users: AppUser[];
   currentUser: AppUser;
+  memberBoatPermissions: MemberBoatPermission[];
   reservations: Reservation[];
   joinRequests: JoinRequest[];
   preDepartureChecks: PreDepartureCheck[];
