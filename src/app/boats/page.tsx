@@ -2,7 +2,15 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import { Camera, Edit3, Save, ShieldCheck, UploadCloud, X } from "lucide-react";
+import {
+  Camera,
+  Edit3,
+  Save,
+  ShieldCheck,
+  UploadCloud,
+  Wrench,
+  X,
+} from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Badge, Card, Field, Section } from "@/components/ui";
 import { updateClientAppData, useClientAppData } from "@/lib/client-store";
@@ -26,6 +34,7 @@ export default function BoatsPage() {
     "idle" | "saving" | "saved" | "queued" | "error"
   >("idle");
   const [imageFile, setImageFile] = useState<File | undefined>();
+  const [imageMessage, setImageMessage] = useState("");
   const [hasQueuedImage, setHasQueuedImage] = useState(
     () => Boolean(getQueuedBoatImage()),
   );
@@ -68,6 +77,7 @@ export default function BoatsPage() {
 
     let imageUrl = appData.boat.imageUrl;
     let queuedImage = false;
+    setImageMessage("");
 
     try {
       if (imageFile) {
@@ -81,12 +91,18 @@ export default function BoatsPage() {
           queuedImage = true;
           setSaveState("queued");
         } else {
-          imageUrl = await uploadBoatImage({
-            file: imageFile,
-            boatId: appData.boat.id,
-            userId: appData.currentUser.id,
-          });
-          setHasQueuedImage(Boolean(getQueuedBoatImage()));
+          try {
+            imageUrl = await uploadBoatImage({
+              file: imageFile,
+              boatId: appData.boat.id,
+              userId: appData.currentUser.id,
+            });
+            setHasQueuedImage(Boolean(getQueuedBoatImage()));
+          } catch {
+            setImageMessage(
+              "写真アップロードに失敗したため、写真は変更せず船舶情報のみ保存します。",
+            );
+          }
         }
       }
 
@@ -232,8 +248,79 @@ export default function BoatsPage() {
         ) : saveState === "saved" ? (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">
             船舶情報を保存しました。
+            {imageMessage ? (
+              <span className="mt-2 block text-amber-900">{imageMessage}</span>
+            ) : null}
           </div>
         ) : null}
+
+        <Section title="メンテナンス台帳">
+          <div className="space-y-3">
+            {[...appData.maintenanceLogs]
+              .sort(
+                (a, b) =>
+                  new Date(b.performedAt).getTime() -
+                  new Date(a.performedAt).getTime(),
+              )
+              .slice(0, 5)
+              .map((log) => {
+                const author = appData.users.find(
+                  (user) => user.id === log.createdBy,
+                );
+                const handover = appData.handoverNotes.find(
+                  (note) => note.id === log.handoverNoteId,
+                );
+
+                return (
+                  <Card key={log.id}>
+                    <div className="flex items-start gap-3">
+                      <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-sky-100 text-blue-800">
+                        <Wrench size={20} aria-hidden="true" />
+                      </span>
+                      <div>
+                        <p className="text-base font-black text-slate-950">
+                          {log.title}
+                        </p>
+                        <p className="mt-1 text-sm leading-6 text-slate-600">
+                          {log.body}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Badge className="bg-sky-100 text-blue-800 ring-sky-200">
+                        {log.category}
+                      </Badge>
+                      {handover ? (
+                        <Badge className="bg-amber-100 text-amber-900 ring-amber-200">
+                          申し送り連携
+                        </Badge>
+                      ) : null}
+                      <Badge className="bg-slate-100 text-slate-700 ring-slate-200">
+                        {new Intl.DateTimeFormat("ja-JP", {
+                          dateStyle: "medium",
+                        }).format(new Date(log.performedAt))}
+                      </Badge>
+                    </div>
+                    <p className="mt-3 text-xs font-bold text-slate-500">
+                      記録者: {author?.name ?? "不明"} / 費用:{" "}
+                      {new Intl.NumberFormat("ja-JP", {
+                        style: "currency",
+                        currency: "JPY",
+                        maximumFractionDigits: 0,
+                      }).format(log.cost)}
+                    </p>
+                  </Card>
+                );
+              })}
+            {appData.maintenanceLogs.length === 0 ? (
+              <Card>
+                <p className="text-sm font-semibold text-slate-600">
+                  メンテナンス台帳はまだありません。申し送り詳細から整備記録へ昇格できます。
+                </p>
+              </Card>
+            ) : null}
+          </div>
+        </Section>
 
         <Section title="基本情報">
           <Card>
@@ -385,6 +472,11 @@ export default function BoatsPage() {
                   >
                     保留写真を破棄
                   </button>
+                ) : null}
+                {imageMessage ? (
+                  <p className="mt-2 rounded-lg bg-amber-50 p-2 text-sm font-bold leading-6 text-amber-900">
+                    {imageMessage}
+                  </p>
                 ) : null}
               </label>
 

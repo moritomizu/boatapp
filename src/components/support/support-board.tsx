@@ -68,6 +68,7 @@ export function SupportBoard({
   const [comment, setComment] = useState("");
   const [resolveComment, setResolveComment] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [attachmentMessage, setAttachmentMessage] = useState("");
   const [createState, setCreateState] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
@@ -175,7 +176,7 @@ export function SupportBoard({
     try {
       let attachments: SupportAttachment[] = [];
       if (selectedFiles.length > 0) {
-        attachments = await Promise.all(
+        const uploadResults = await Promise.allSettled(
           selectedFiles.map((file) =>
             uploadSupportAttachment({
               file,
@@ -183,6 +184,20 @@ export function SupportBoard({
               userId: form.createdBy,
             }),
           ),
+        );
+        attachments = uploadResults
+          .filter(
+            (result): result is PromiseFulfilledResult<SupportAttachment> =>
+              result.status === "fulfilled",
+          )
+          .map((result) => result.value);
+        const failedCount = uploadResults.filter(
+          (result) => result.status === "rejected",
+        ).length;
+        setAttachmentMessage(
+          failedCount > 0
+            ? `写真${failedCount}枚の添付に失敗しましたが、サポート要請本文は保存しました。通信が安定してから再度コメントで状況を補足してください。`
+            : "",
         );
       }
 
@@ -207,6 +222,7 @@ export function SupportBoard({
       setLocationMessage("");
     } catch {
       setCreateState("error");
+      setAttachmentMessage("");
     }
   }
 
@@ -479,6 +495,11 @@ export function SupportBoard({
             {selectedFiles.length > 0 ? (
               <p className="mt-2 text-sm font-black text-blue-900">
                 選択中: {selectedFiles.length}枚
+              </p>
+            ) : null}
+            {attachmentMessage ? (
+              <p className="mt-2 rounded-lg bg-amber-50 p-2 text-sm font-bold leading-6 text-amber-900">
+                {attachmentMessage}
               </p>
             ) : null}
           </label>

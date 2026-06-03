@@ -76,22 +76,36 @@ export async function uploadSupportAttachment({
   userId: string;
 }): Promise<SupportAttachment> {
   if (!firebaseStorage) {
+    if (useMockData) {
+      const uploadFile = await compressImageFile(file);
+      return {
+        url: await readFileAsDataUrl(uploadFile),
+        name: uploadFile.name,
+        contentType: uploadFile.type || "image/jpeg",
+        uploadedAt: new Date().toISOString(),
+        uploadedBy: userId,
+      };
+    }
+
     throw new Error("Firebase Storage is not configured.");
   }
 
   const { getDownloadURL, ref, uploadBytes } = await import("firebase/storage");
-  const safeName = file.name.replaceAll("/", "_");
+  const uploadFile = file.type.startsWith("image/")
+    ? await compressImageFile(file)
+    : file;
+  const safeName = uploadFile.name.replaceAll("/", "_");
   const path = `supportRequests/${supportRequestId}/${crypto.randomUUID()}-${safeName}`;
   const storageRef = ref(firebaseStorage, path);
-  const snapshot = await uploadBytes(storageRef, file, {
-    contentType: file.type || "application/octet-stream",
+  const snapshot = await uploadBytes(storageRef, uploadFile, {
+    contentType: uploadFile.type || "application/octet-stream",
   });
   const url = await getDownloadURL(snapshot.ref);
 
   return {
     url,
-    name: file.name,
-    contentType: file.type || "application/octet-stream",
+    name: uploadFile.name,
+    contentType: uploadFile.type || "application/octet-stream",
     uploadedAt: new Date().toISOString(),
     uploadedBy: userId,
   };
