@@ -191,6 +191,7 @@ export type HandoverNote = {
   status: HandoverStatus;
   createdBy: string;
   estimatedCost?: number;
+  attachments?: SupportAttachment[];
   createdAt: string;
   updatedAt: string;
   resolvedAt?: string;

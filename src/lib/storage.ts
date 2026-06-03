@@ -186,6 +186,57 @@ export async function uploadSupportAttachment({
   };
 }
 
+export async function uploadHandoverAttachment({
+  file,
+  handoverNoteId,
+  userId,
+}: {
+  file: File;
+  handoverNoteId: string;
+  userId: string;
+}): Promise<SupportAttachment> {
+  if (!firebaseStorage) {
+    if (useMockData) {
+      const uploadFile = await compressImageFile(file);
+      return {
+        url: await readFileAsDataUrl(uploadFile),
+        name: uploadFile.name,
+        contentType: uploadFile.type || "image/jpeg",
+        uploadedAt: new Date().toISOString(),
+        uploadedBy: userId,
+      };
+    }
+
+    throw new Error("Firebase Storage is not configured.");
+  }
+
+  await requireFirebaseStorageUser();
+  const { getDownloadURL, ref, uploadBytes } = await import("firebase/storage");
+  const uploadFile = file.type.startsWith("image/")
+    ? await compressImageFile(file)
+    : file;
+  const safeName = uploadFile.name.replaceAll("/", "_");
+  const path = `handoverNotes/${handoverNoteId}/${crypto.randomUUID()}-${safeName}`;
+  const storageRef = ref(firebaseStorage, path);
+  const snapshot = await withTimeout(
+    uploadBytes(storageRef, uploadFile, {
+      contentType: uploadFile.type || "application/octet-stream",
+      customMetadata: { uploadedBy: userId },
+    }),
+    STORAGE_UPLOAD_TIMEOUT_MS,
+    "Firebase Storageへのアップロードが30秒以内に完了しませんでした。Storage Rules、Storage Bucket、通信状態を確認してください。",
+  );
+  const url = await getDownloadURL(snapshot.ref);
+
+  return {
+    url,
+    name: uploadFile.name,
+    contentType: uploadFile.type || "application/octet-stream",
+    uploadedAt: new Date().toISOString(),
+    uploadedBy: userId,
+  };
+}
+
 export async function uploadBoatImage({
   file,
   boatId,

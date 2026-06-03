@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   Camera,
@@ -20,12 +22,14 @@ import {
   handoverStatusTone,
 } from "@/lib/labels";
 import { createHandoverNote } from "@/lib/mock-data";
+import { uploadHandoverAttachment } from "@/lib/storage";
 import type {
   AppData,
   HandoverCategory,
   HandoverNote,
   HandoverPriority,
   HandoverStatus,
+  SupportAttachment,
 } from "@/types/domain";
 
 const categories = Object.keys(handoverCategoryLabels) as HandoverCategory[];
@@ -67,6 +71,8 @@ export function HandoverBoard({
     "idle",
   );
   const [maintenanceCost, setMaintenanceCost] = useState(0);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [attachmentMessage, setAttachmentMessage] = useState("");
 
   const unresolvedNotes = useMemo(
     () =>
@@ -118,18 +124,49 @@ export function HandoverBoard({
       status: form.status,
       createdBy: form.createdBy,
       estimatedCost: form.estimatedCost > 0 ? form.estimatedCost : undefined,
+      attachments: [],
       resolvedAt: form.status === "resolved" ? new Date().toISOString() : undefined,
     });
 
-    const nextNotes = [note, ...notes];
-
-    setSelectedId(note.id);
     try {
+      let attachments: SupportAttachment[] = [];
+      if (selectedFiles.length > 0) {
+        const uploadResults = await Promise.allSettled(
+          selectedFiles.map((file) =>
+            uploadHandoverAttachment({
+              file,
+              handoverNoteId: note.id,
+              userId: form.createdBy,
+            }),
+          ),
+        );
+        attachments = uploadResults
+          .filter(
+            (result): result is PromiseFulfilledResult<SupportAttachment> =>
+              result.status === "fulfilled",
+          )
+          .map((result) => result.value);
+        const failedCount = uploadResults.filter(
+          (result) => result.status === "rejected",
+        ).length;
+        setAttachmentMessage(
+          failedCount > 0
+            ? `写真${failedCount}枚の添付に失敗しましたが、申し送り本文は保存しました。Storage Rulesを確認してください。`
+            : "",
+        );
+      } else {
+        setAttachmentMessage("");
+      }
+
+      const noteWithAttachments = { ...note, attachments };
+      const nextNotes = [noteWithAttachments, ...notes];
+      setSelectedId(noteWithAttachments.id);
       await updateClientAppData(
         (current) => ({ ...current, handoverNotes: nextNotes }),
         appData,
       );
       setSaveState("saved");
+      setSelectedFiles([]);
       setForm((current) => ({
         ...current,
         title: "",
@@ -139,7 +176,12 @@ export function HandoverBoard({
         category: "other",
         estimatedCost: 0,
       }));
-    } catch {
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "申し送りの作成に失敗しました。";
+      setAttachmentMessage(message);
       setSaveState("error");
     }
   }
@@ -453,9 +495,28 @@ export function HandoverBoard({
               <Camera size={20} aria-hidden="true" />
               写真添付
             </div>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(event) =>
+                setSelectedFiles(Array.from(event.target.files ?? []))
+              }
+              className="mt-3 w-full text-sm font-semibold text-blue-900 file:mr-3 file:h-10 file:rounded-lg file:border-0 file:bg-blue-800 file:px-4 file:text-sm file:font-black file:text-white"
+            />
             <p className="mt-2 text-sm leading-6 text-blue-800">
-              Firebase Storage接続後に利用予定です。
+              状況写真を添付できます。保存時に圧縮してStorageへアップロードします。
             </p>
+            {selectedFiles.length > 0 ? (
+              <p className="mt-2 text-sm font-black text-blue-900">
+                選択中: {selectedFiles.length}枚
+              </p>
+            ) : null}
+            {attachmentMessage ? (
+              <p className="mt-2 rounded-lg bg-amber-50 p-2 text-sm font-bold leading-6 text-amber-900">
+                {attachmentMessage}
+              </p>
+            ) : null}
           </div>
 
           <button
@@ -549,6 +610,31 @@ export function HandoverBoard({
                   maximumFractionDigits: 0,
                 }).format(selectedNote.estimatedCost)}
               </p>
+            ) : null}
+
+            {selectedNote.attachments && selectedNote.attachments.length > 0 ? (
+              <div className="mt-4 rounded-lg bg-slate-50 p-3">
+                <p className="text-sm font-black text-slate-900">添付写真</p>
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {selectedNote.attachments.map((attachment) => (
+                    <Link
+                      key={attachment.url}
+                      href={attachment.url}
+                      target="_blank"
+                      className="block overflow-hidden rounded-lg border border-slate-200 bg-white"
+                    >
+                      <Image
+                        src={attachment.url}
+                        alt={attachment.name}
+                        width={240}
+                        height={240}
+                        className="aspect-square w-full object-cover"
+                        unoptimized={attachment.url.startsWith("data:")}
+                      />
+                    </Link>
+                  ))}
+                </div>
+              </div>
             ) : null}
 
             <div className="mt-5 rounded-lg border border-sky-100 bg-sky-50 p-3">

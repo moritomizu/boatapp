@@ -863,6 +863,7 @@ export function SupportBoard({
                               width={240}
                               height={240}
                               className="aspect-square w-full object-cover"
+                              unoptimized={attachment.url.startsWith("data:")}
                             />
                           </Link>
                         ))}

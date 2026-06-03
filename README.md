@@ -432,15 +432,30 @@ GoogleログインではFirebase Authの `GoogleAuthProvider` と `signInWithPop
 
 Geolocation APIはブラウザの位置情報許可が必要です。取得できた場合は緯度、経度、精度、取得時刻を保存する想定です。取得できない場合でもサポート要請は作成できます。
 
-写真添付を使う場合は、Firebase ConsoleでStorageを有効化し、テスト段階では以下のようにログイン済みユーザーだけ読み書きできるRulesを設定します。
+写真添付を使う場合は、Firebase ConsoleでStorageを有効化し、テスト段階では以下のようにログイン済みユーザーだけ読み書きできるRulesを設定します。アプリは現在、船舶写真を `boats/{boatId}/...`、申し送り写真を `handoverNotes/{noteId}/...`、サポート写真を `supportRequests/{requestId}/...` に保存します。
 
 ```js
 rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    match /{allPaths=**} {
-      allow read, write: if request.auth != null;
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    match /boats/{boatId}/{fileName} {
+      allow read: if signedIn();
+      allow write: if signedIn();
+    }
+
+    match /handoverNotes/{noteId}/{fileName} {
+      allow read: if signedIn();
+      allow write: if signedIn();
+    }
+
+    match /supportRequests/{requestId}/{fileName} {
+      allow read: if signedIn();
+      allow write: if signedIn();
     }
   }
 }
