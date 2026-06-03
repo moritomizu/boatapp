@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
   AlertTriangle,
   Camera,
   CheckCircle2,
   ClipboardCheck,
+  Navigation,
+  RotateCcw,
   Save,
 } from "lucide-react";
 import { Badge, Card, Section } from "@/components/ui";
@@ -54,6 +57,7 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
   initialReservationId,
   items,
 }: CheckWorkflowProps<Key, RecordType>) {
+  const router = useRouter();
   const appData = useClientAppData(data);
   const history = (
     mode === "pre-departure"
@@ -83,6 +87,17 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
   const selectedReservation = appData.reservations.find(
     (reservation) => reservation.id === reservationId,
   );
+  const existingRecord = useMemo(
+    () =>
+      history
+        .filter((record) => record.reservationId === reservationId)
+        .sort(
+          (a, b) =>
+            new Date(b.checkedAt).getTime() - new Date(a.checkedAt).getTime(),
+        )[0],
+    [history, reservationId],
+  );
+  const selectedHistory = existingRecord ? [existingRecord] : [];
 
   const issueLink = useMemo(() => {
     const params = new URLSearchParams({
@@ -128,7 +143,10 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
             items: checks as PostReturnCheck["items"],
           });
 
-    const nextHistory = [record as RecordType, ...history];
+    const nextHistory = [
+      record as RecordType,
+      ...history.filter((item) => item.reservationId !== reservationId),
+    ];
 
     setSavedRecord(record as RecordType);
     const nextData =
@@ -144,6 +162,9 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
     try {
       await updateClientAppData(() => nextData, appData);
       setSaveState("saved");
+      if (mode === "pre-departure" && !hasIssue) {
+        router.push(`/voyages?reservationId=${reservationId}`);
+      }
     } catch {
       setSaveState("error");
     }
@@ -224,6 +245,54 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
             </div>
           ) : null}
         </Card>
+
+        {existingRecord ? (
+          <Card>
+            <div className="flex items-start gap-3">
+              <span
+                className={`grid size-11 shrink-0 place-items-center rounded-lg ${
+                  existingRecord.hasIssue
+                    ? "bg-rose-100 text-rose-800"
+                    : "bg-emerald-100 text-emerald-800"
+                }`}
+              >
+                <ClipboardCheck size={22} aria-hidden="true" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-base font-black text-slate-950">
+                    この予約はチェック実施済みです
+                  </p>
+                  <Badge
+                    className={
+                      existingRecord.hasIssue
+                        ? "bg-rose-100 text-rose-800 ring-rose-200"
+                        : "bg-emerald-100 text-emerald-800 ring-emerald-200"
+                    }
+                  >
+                    {existingRecord.hasIssue ? "問題あり" : "問題なし"}
+                  </Badge>
+                </div>
+                <p className="mt-1 text-sm leading-6 text-slate-600">
+                  {new Intl.DateTimeFormat("ja-JP", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  }).format(new Date(existingRecord.checkedAt))}
+                  に保存されています。再保存するとこの記録を置き換えます。
+                </p>
+                {mode === "pre-departure" && !existingRecord.hasIssue ? (
+                  <Link
+                    href={`/voyages?reservationId=${reservationId}`}
+                    className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
+                  >
+                    <Navigation size={18} aria-hidden="true" />
+                    出船へ進む
+                  </Link>
+                ) : null}
+              </div>
+            </div>
+          </Card>
+        ) : null}
 
         <Section
           title="チェック項目"
@@ -328,14 +397,24 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
             disabled={saveState === "saving"}
             className="flex h-14 w-full items-center justify-center gap-2 rounded-lg bg-blue-800 px-5 text-base font-black text-white disabled:bg-slate-300"
           >
-            <Save size={22} aria-hidden="true" />
+            {existingRecord ? (
+              <RotateCcw size={22} aria-hidden="true" />
+            ) : mode === "pre-departure" && !hasIssue ? (
+              <Navigation size={22} aria-hidden="true" />
+            ) : (
+              <Save size={22} aria-hidden="true" />
+            )}
             {saveState === "saving"
               ? "保存中..."
               : saveState === "saved"
                 ? "保存しました"
                 : saveState === "error"
                   ? "保存に失敗しました"
-                : "チェック結果を保存"}
+                  : existingRecord
+                    ? "チェック結果を更新"
+                    : mode === "pre-departure" && !hasIssue
+                      ? "保存して出船へ進む"
+                      : "チェック結果を保存"}
           </button>
         </div>
       </form>
@@ -365,6 +444,10 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
                   後で作成する
                 </button>
               </div>
+            ) : mode === "pre-departure" ? (
+              <p className="text-sm font-semibold leading-6 text-emerald-800">
+                問題なしとして保存しました。出船画面へ進みます。
+              </p>
             ) : (
               <p className="text-sm font-semibold leading-6 text-emerald-800">
                 問題なしとして履歴に追加しました。
@@ -374,9 +457,9 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
         </Card>
       ) : null}
 
-      <Section title="チェック履歴">
+      <Section title="この予約のチェック記録">
         <div className="space-y-3">
-          {history.map((record) => {
+          {selectedHistory.map((record) => {
             const reservation = appData.reservations.find(
               (item) => item.id === record.reservationId,
             );
@@ -414,6 +497,13 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
               </Card>
             );
           })}
+          {selectedHistory.length === 0 ? (
+            <Card>
+              <p className="text-sm font-semibold leading-6 text-slate-600">
+                この予約のチェック記録はまだありません。
+              </p>
+            </Card>
+          ) : null}
         </div>
       </Section>
     </div>

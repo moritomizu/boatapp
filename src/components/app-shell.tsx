@@ -41,18 +41,35 @@ export function AppShell({ children }: { children: ReactNode }) {
   const todaysReservation = data.reservations.find((reservation) =>
     isSameDateKey(reservation.startAt),
   );
+  const todaysVoyage = todaysReservation
+    ? data.voyageLogs.find(
+        (voyage) => voyage.reservationId === todaysReservation.id,
+      )
+    : undefined;
   const preCheckDone = todaysReservation
     ? data.preDepartureChecks.some(
+        (check) => check.reservationId === todaysReservation.id,
+      )
+    : false;
+  const postCheckDone = todaysReservation
+    ? data.postReturnChecks.some(
         (check) => check.reservationId === todaysReservation.id,
       )
     : false;
   const departureHref = activeVoyage
     ? `/voyages?reservationId=${activeVoyage.reservationId}`
     : todaysReservation
-      ? preCheckDone
+      ? todaysVoyage?.status === "completed" && !postCheckDone
+        ? `/checks/post-return?reservationId=${todaysReservation.id}`
+        : preCheckDone
         ? `/voyages?reservationId=${todaysReservation.id}`
         : `/checks/pre-departure?reservationId=${todaysReservation.id}`
       : "/reservations";
+  const departureLabel = activeVoyage
+    ? "航行中"
+    : todaysReservation && todaysVoyage?.status === "completed" && !postCheckDone
+      ? "帰港"
+      : "出船";
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950">
@@ -163,7 +180,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             }`}
           >
             <Navigation size={24} aria-hidden="true" />
-            出船
+            {departureLabel}
           </Link>
           {navItems.slice(2).map((item) => {
             const Icon = item.icon;
