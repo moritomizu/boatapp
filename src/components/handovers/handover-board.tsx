@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   FilePlus2,
   MessageSquareWarning,
+  Wrench,
   X,
 } from "lucide-react";
 import { Badge, Card, Section } from "@/components/ui";
@@ -59,6 +60,9 @@ export function HandoverBoard({
     "idle" | "saving" | "saved" | "error"
   >("idle");
   const [resolvingId, setResolvingId] = useState("");
+  const [promoteState, setPromoteState] = useState<"idle" | "saving" | "done">(
+    "idle",
+  );
 
   const unresolvedNotes = useMemo(
     () =>
@@ -76,6 +80,12 @@ export function HandoverBoard({
   const canResolve =
     appData.currentUser.role === "admin" ||
     appData.currentUser.role === "owner";
+  const canPromote = canResolve;
+  const selectedMaintenanceLog = selectedNote
+    ? appData.maintenanceLogs.find(
+        (log) => log.handoverNoteId === selectedNote.id,
+      )
+    : undefined;
 
   function updateForm<T extends keyof typeof form>(
     key: T,
@@ -150,6 +160,40 @@ export function HandoverBoard({
     }
   }
 
+  async function promoteToMaintenanceLog(note: HandoverNote) {
+    if (promoteState === "saving" || selectedMaintenanceLog) return;
+    setPromoteState("saving");
+    const now = new Date().toISOString();
+    const log = {
+      id: `maintenance-${crypto.randomUUID()}`,
+      organizationId: note.organizationId,
+      boatId: note.boatId,
+      handoverNoteId: note.id,
+      category: handoverCategoryLabels[note.category],
+      title: note.title,
+      body: `申し送りからメンテナンス台帳へ昇格\n\n${note.body}`,
+      cost: 0,
+      performedAt: now,
+      createdBy: appData.currentUser.id,
+      createdAt: now,
+    };
+    const nextNotes = notes.map((item) =>
+      item.id === note.id && item.status === "unconfirmed"
+        ? { ...item, status: "in_progress" as HandoverStatus, updatedAt: now }
+        : item,
+    );
+
+    await updateClientAppData(
+      (current) => ({
+        ...current,
+        handoverNotes: nextNotes,
+        maintenanceLogs: [log, ...current.maintenanceLogs],
+      }),
+      appData,
+    );
+    setPromoteState("done");
+  }
+
   function renderNote(note: HandoverNote) {
     const author = appData.users.find((user) => user.id === note.createdBy);
 
@@ -157,7 +201,10 @@ export function HandoverBoard({
       <button
         type="button"
         key={note.id}
-        onClick={() => setSelectedId(note.id)}
+        onClick={() => {
+          setPromoteState("idle");
+          setSelectedId(note.id);
+        }}
         className={`w-full rounded-lg border bg-white p-4 text-left shadow-sm ${
           selectedId === note.id ? "border-blue-400 ring-2 ring-blue-100" : "border-sky-100"
         } ${note.priority === "high" && note.status !== "resolved" ? "bg-rose-50" : ""}`}
@@ -434,6 +481,47 @@ export function HandoverBoard({
             <p className="mt-4 whitespace-pre-wrap text-base leading-8 text-slate-700">
               {selectedNote.body}
             </p>
+
+            <div className="mt-5 rounded-lg border border-sky-100 bg-sky-50 p-3">
+              <div className="flex items-start gap-2">
+                <Wrench
+                  className="mt-0.5 shrink-0 text-blue-800"
+                  size={20}
+                  aria-hidden="true"
+                />
+                <div>
+                  <p className="text-sm font-black text-blue-950">
+                    メンテナンス台帳への昇格
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-blue-900">
+                    重要な申し送りや対応内容は、船舶の整備記録として残せます。
+                  </p>
+                </div>
+              </div>
+              {selectedMaintenanceLog ? (
+                <p className="mt-3 rounded-lg bg-white p-3 text-sm font-bold text-emerald-800">
+                  すでに整備記録へ紐づいています: {selectedMaintenanceLog.title}
+                </p>
+              ) : canPromote ? (
+                <button
+                  type="button"
+                  onClick={() => promoteToMaintenanceLog(selectedNote)}
+                  disabled={promoteState === "saving"}
+                  className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white disabled:bg-slate-300"
+                >
+                  <Wrench size={19} aria-hidden="true" />
+                  {promoteState === "saving"
+                    ? "作成中..."
+                    : promoteState === "done"
+                      ? "整備記録を作成しました"
+                      : "メンテナンス台帳へ昇格"}
+                </button>
+              ) : (
+                <p className="mt-3 rounded-lg bg-white p-3 text-sm font-bold text-slate-600">
+                  整備記録への昇格は管理者/共同オーナーが行えます。
+                </p>
+              )}
+            </div>
 
             {selectedNote.status !== "resolved" ? (
               <button

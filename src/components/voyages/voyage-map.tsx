@@ -109,7 +109,6 @@ export function VoyageMap({ points }: { points: TrackPoint[] }) {
         const map = new maps.Map(mapRef.current, {
           center: path[0],
           zoom: 12,
-          mapTypeId: "hybrid",
           disableDefaultUI: true,
           zoomControl: true,
         });

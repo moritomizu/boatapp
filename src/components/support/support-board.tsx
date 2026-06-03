@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useMemo, useState } from "react";
 import {
   Camera,
+  ClipboardCheck,
   LifeBuoy,
   MapPin,
   MessageSquarePlus,
@@ -12,6 +13,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { Badge, Card, Section } from "@/components/ui";
+import { postReturnCheckItems, preDepartureCheckItems } from "@/lib/check-items";
 import { updateClientAppData, useClientAppData } from "@/lib/client-store";
 import {
   supportCategoryLabels,
@@ -594,6 +596,21 @@ export function SupportBoard({
               const mapUrl = selectedRequest.location
                 ? `https://www.google.com/maps?q=${selectedRequest.location.latitude},${selectedRequest.location.longitude}`
                 : "";
+              const relatedPreCheck = appData.preDepartureChecks.find(
+                (check) => check.reservationId === selectedRequest.reservationId,
+              );
+              const relatedPostCheck = appData.postReturnChecks.find(
+                (check) => check.reservationId === selectedRequest.reservationId,
+              );
+              const preCheckUser = appData.users.find(
+                (user) => user.id === relatedPreCheck?.userId,
+              );
+              const preCheckedCount = relatedPreCheck
+                ? Object.values(relatedPreCheck.items).filter(Boolean).length
+                : 0;
+              const postCheckedCount = relatedPostCheck
+                ? Object.values(relatedPostCheck.items).filter(Boolean).length
+                : 0;
 
               return (
                 <div className="space-y-4">
@@ -653,6 +670,113 @@ export function SupportBoard({
                       </dd>
                     </div>
                   </dl>
+
+                  <div className="rounded-lg border border-sky-100 bg-sky-50 p-3">
+                    <div className="flex items-start gap-2">
+                      <ClipboardCheck
+                        className="mt-0.5 shrink-0 text-blue-800"
+                        size={21}
+                        aria-hidden="true"
+                      />
+                      <div>
+                        <p className="text-sm font-black text-blue-950">
+                          チェック結果との連携
+                        </p>
+                        <p className="mt-1 text-sm leading-6 text-blue-900">
+                          サポート要請に紐づく予約のチェック状況を確認できます。
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      <div className="rounded-lg bg-white p-3">
+                        <p className="text-xs font-bold text-slate-500">
+                          出船前チェック
+                        </p>
+                        {relatedPreCheck ? (
+                          <>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <Badge
+                                className={
+                                  relatedPreCheck.hasIssue
+                                    ? "bg-rose-100 text-rose-800 ring-rose-200"
+                                    : "bg-emerald-100 text-emerald-800 ring-emerald-200"
+                                }
+                              >
+                                {relatedPreCheck.hasIssue ? "問題あり" : "問題なし"}
+                              </Badge>
+                              <Badge className="bg-slate-100 text-slate-700 ring-slate-200">
+                                {preCheckedCount}/{preDepartureCheckItems.length}項目
+                              </Badge>
+                            </div>
+                            <p className="mt-2 text-sm font-bold text-slate-900">
+                              {preCheckUser?.name ?? "実施者不明"} /{" "}
+                              {new Intl.DateTimeFormat("ja-JP", {
+                                dateStyle: "medium",
+                                timeStyle: "short",
+                              }).format(new Date(relatedPreCheck.checkedAt))}
+                            </p>
+                            {relatedPreCheck.comment ? (
+                              <p className="mt-2 text-sm leading-6 text-slate-600">
+                                {relatedPreCheck.comment}
+                              </p>
+                            ) : null}
+                          </>
+                        ) : (
+                          <>
+                            <p className="mt-2 text-sm font-bold text-amber-800">
+                              この予約の出船前チェックは未確認です。
+                            </p>
+                            {selectedRequest.reservationId ? (
+                              <Link
+                                href={`/checks/pre-departure?reservationId=${selectedRequest.reservationId}`}
+                                className="mt-2 inline-flex text-sm font-black text-blue-800 underline underline-offset-4"
+                              >
+                                出船前チェックを開く
+                              </Link>
+                            ) : null}
+                          </>
+                        )}
+                      </div>
+                      <div className="rounded-lg bg-white p-3">
+                        <p className="text-xs font-bold text-slate-500">
+                          帰港後チェック
+                        </p>
+                        {relatedPostCheck ? (
+                          <>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <Badge
+                                className={
+                                  relatedPostCheck.hasIssue
+                                    ? "bg-rose-100 text-rose-800 ring-rose-200"
+                                    : "bg-emerald-100 text-emerald-800 ring-emerald-200"
+                                }
+                              >
+                                {relatedPostCheck.hasIssue ? "問題あり" : "問題なし"}
+                              </Badge>
+                              <Badge className="bg-slate-100 text-slate-700 ring-slate-200">
+                                {postCheckedCount}/{postReturnCheckItems.length}項目
+                              </Badge>
+                            </div>
+                            <p className="mt-2 text-sm font-bold text-slate-900">
+                              {new Intl.DateTimeFormat("ja-JP", {
+                                dateStyle: "medium",
+                                timeStyle: "short",
+                              }).format(new Date(relatedPostCheck.checkedAt))}
+                            </p>
+                            {relatedPostCheck.comment ? (
+                              <p className="mt-2 text-sm leading-6 text-slate-600">
+                                {relatedPostCheck.comment}
+                              </p>
+                            ) : null}
+                          </>
+                        ) : (
+                          <p className="mt-2 text-sm font-bold text-slate-600">
+                            まだ帰港後チェックは登録されていません。
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
 
                   {selectedRequest.location ? (
                     <div className="rounded-lg bg-sky-50 p-3 text-sm leading-6 text-blue-900">

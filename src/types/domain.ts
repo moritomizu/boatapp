@@ -237,6 +237,7 @@ export type MaintenanceLog = {
   id: string;
   organizationId: string;
   boatId: string;
+  handoverNoteId?: string;
   category: string;
   title: string;
   body: string;

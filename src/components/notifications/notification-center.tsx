@@ -4,27 +4,59 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Bell, BellRing, CheckCircle2, Radio, Waves } from "lucide-react";
 import { Badge, Card, Section } from "@/components/ui";
+import { updateClientAppData, useClientAppData } from "@/lib/client-store";
 import {
   notificationCategoryLabels,
   notificationPriorityLabels,
   notificationPriorityTone,
 } from "@/lib/labels";
-import type { AppData, AppNotification } from "@/types/domain";
+import type { AppData, NotificationChannel, NotificationPreference } from "@/types/domain";
+
+const defaultPreference = (userId: string): NotificationPreference => ({
+  userId,
+  channels: ["in_app"],
+  weatherAlerts: true,
+  reservationReminders: true,
+  checkReminders: true,
+  handoverAlerts: true,
+  supportAlerts: true,
+});
+
+const notificationSettingItems: {
+  label: string;
+  key: keyof Pick<
+    NotificationPreference,
+    | "weatherAlerts"
+    | "reservationReminders"
+    | "checkReminders"
+    | "handoverAlerts"
+    | "supportAlerts"
+  >;
+}[] = [
+  { label: "天候/海況アラート", key: "weatherAlerts" },
+  { label: "予約リマインド", key: "reservationReminders" },
+  { label: "出船前/帰港後チェック", key: "checkReminders" },
+  { label: "重要申し送り", key: "handoverAlerts" },
+  { label: "サポート要請", key: "supportAlerts" },
+];
 
 export function NotificationCenter({ data }: { data: AppData }) {
-  const [notifications, setNotifications] = useState<AppNotification[]>(
-    data.notifications,
-  );
+  const appData = useClientAppData(data);
   const [permission, setPermission] = useState(
     typeof window !== "undefined" && "Notification" in window
       ? Notification.permission
       : "unsupported",
   );
-  const preference = data.notificationPreferences.find(
-    (item) => item.userId === data.currentUser.id,
+  const [settingsState, setSettingsState] = useState<"idle" | "saving" | "error">(
+    "idle",
   );
+  const preference =
+    appData.notificationPreferences.find(
+      (item) => item.userId === appData.currentUser.id,
+    ) ?? defaultPreference(appData.currentUser.id);
+  const notifications = appData.notifications;
   const unreadNotifications = notifications.filter(
-    (notification) => !notification.readBy.includes(data.currentUser.id),
+    (notification) => !notification.readBy.includes(appData.currentUser.id),
   );
   const urgentNotifications = unreadNotifications.filter(
     (notification) => notification.priority === "urgent",
@@ -54,19 +86,63 @@ export function NotificationCenter({ data }: { data: AppData }) {
     }
   }
 
-  function markAsRead(notificationId: string) {
-    setNotifications((current) =>
-      current.map((notification) =>
-        notification.id === notificationId
-          ? {
-              ...notification,
-              readBy: Array.from(
-                new Set([...notification.readBy, data.currentUser.id]),
-              ),
-            }
-          : notification,
-      ),
+  async function savePreference(nextPreference: NotificationPreference) {
+    setSettingsState("saving");
+    try {
+      await updateClientAppData(
+        (current) => {
+          const exists = current.notificationPreferences.some(
+            (item) => item.userId === nextPreference.userId,
+          );
+
+          return {
+            ...current,
+            notificationPreferences: exists
+              ? current.notificationPreferences.map((item) =>
+                  item.userId === nextPreference.userId ? nextPreference : item,
+                )
+              : [...current.notificationPreferences, nextPreference],
+          };
+        },
+        appData,
+      );
+      setSettingsState("idle");
+    } catch {
+      setSettingsState("error");
+    }
+  }
+
+  function updatePreference<T extends keyof NotificationPreference>(
+    key: T,
+    value: NotificationPreference[T],
+  ) {
+    void savePreference({ ...preference, [key]: value });
+  }
+
+  async function markAsRead(notificationId: string) {
+    await updateClientAppData(
+      (current) => ({
+        ...current,
+        notifications: current.notifications.map((notification) =>
+          notification.id === notificationId
+            ? {
+                ...notification,
+                readBy: Array.from(
+                  new Set([...notification.readBy, appData.currentUser.id]),
+                ),
+              }
+            : notification,
+        ),
+      }),
+      appData,
     );
+  }
+
+  function toggleChannel(channel: NotificationChannel) {
+    const channels = preference.channels.includes(channel)
+      ? preference.channels.filter((item) => item !== channel)
+      : [...preference.channels, channel];
+    updatePreference("channels", channels);
   }
 
   return (
@@ -133,31 +209,70 @@ export function NotificationCenter({ data }: { data: AppData }) {
       <Section title="通知設定">
         <Card>
           <div className="grid gap-3 sm:grid-cols-2">
-            {[
-              ["天候/海況アラート", preference?.weatherAlerts],
-              ["予約リマインド", preference?.reservationReminders],
-              ["出船前/帰港後チェック", preference?.checkReminders],
-              ["重要申し送り", preference?.handoverAlerts],
-              ["サポート要請", preference?.supportAlerts],
-            ].map(([label, enabled]) => (
-              <div
-                key={label as string}
-                className="flex min-h-13 items-center justify-between rounded-lg bg-slate-50 px-3 py-3"
+            {notificationSettingItems.map(({ label, key }) => {
+              const enabled = preference[key];
+
+              return (
+              <button
+                type="button"
+                key={key}
+                onClick={() => updatePreference(key, !enabled)}
+                disabled={settingsState === "saving"}
+                className="flex min-h-13 items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-3 text-left disabled:opacity-60"
               >
                 <span className="text-sm font-black text-slate-800">
                   {label as string}
                 </span>
-                <Badge
-                  className={
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-black ${
                     enabled
-                      ? "bg-emerald-100 text-emerald-800 ring-emerald-200"
-                      : "bg-slate-100 text-slate-700 ring-slate-200"
-                  }
+                      ? "bg-emerald-100 text-emerald-800"
+                      : "bg-slate-200 text-slate-600"
+                  }`}
                 >
                   {enabled ? "ON" : "OFF"}
-                </Badge>
-              </div>
-            ))}
+                </span>
+              </button>
+              );
+            })}
+          </div>
+          <div className="mt-4 border-t border-slate-100 pt-4">
+            <p className="text-sm font-black text-slate-800">通知チャンネル</p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              {[
+                ["in_app", "アプリ内"],
+                ["push", "プッシュ通知"],
+                ["email", "メール"],
+              ].map(([channel, label]) => {
+                const enabled = preference.channels.includes(
+                  channel as NotificationChannel,
+                );
+
+                return (
+                  <button
+                    type="button"
+                    key={channel}
+                    onClick={() => toggleChannel(channel as NotificationChannel)}
+                    disabled={settingsState === "saving"}
+                    className={`h-11 rounded-lg border px-3 text-sm font-black disabled:opacity-60 ${
+                      enabled
+                        ? "border-blue-200 bg-blue-800 text-white"
+                        : "border-slate-200 bg-white text-slate-700"
+                    }`}
+                  >
+                    {label} {enabled ? "ON" : "OFF"}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-3 text-xs font-semibold leading-5 text-slate-500">
+              プッシュ通知はFirebase Cloud Messaging接続後に本配信へ拡張します。現時点では設定保存とブラウザ通知許可の確認ができます。
+            </p>
+            {settingsState === "error" ? (
+              <p className="mt-3 rounded-lg bg-rose-50 p-3 text-sm font-bold text-rose-800">
+                通知設定の保存に失敗しました。
+              </p>
+            ) : null}
           </div>
         </Card>
       </Section>
@@ -165,7 +280,7 @@ export function NotificationCenter({ data }: { data: AppData }) {
       <Section title="通知一覧">
         <div className="space-y-3">
           {sortedNotifications.map((notification) => {
-            const isRead = notification.readBy.includes(data.currentUser.id);
+            const isRead = notification.readBy.includes(appData.currentUser.id);
 
             return (
               <Card key={notification.id}>
