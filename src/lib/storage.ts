@@ -237,6 +237,47 @@ export async function uploadHandoverAttachment({
   };
 }
 
+export async function uploadCheckImage({
+  file,
+  mode,
+  checkId,
+  userId,
+}: {
+  file: File;
+  mode: "pre-departure" | "post-return";
+  checkId: string;
+  userId: string;
+}): Promise<string> {
+  if (!firebaseStorage) {
+    if (useMockData) {
+      return readFileAsDataUrl(await compressImageFile(file));
+    }
+
+    throw new Error("Firebase Storage is not configured.");
+  }
+
+  await requireFirebaseStorageUser();
+  const { getDownloadURL, ref, uploadBytes } = await import("firebase/storage");
+  const uploadFile = file.type.startsWith("image/")
+    ? await compressImageFile(file)
+    : file;
+  const safeName = uploadFile.name.replaceAll("/", "_");
+  const collection =
+    mode === "pre-departure" ? "preDepartureChecks" : "postReturnChecks";
+  const path = `${collection}/${checkId}/${crypto.randomUUID()}-${safeName}`;
+  const storageRef = ref(firebaseStorage, path);
+  const snapshot = await withTimeout(
+    uploadBytes(storageRef, uploadFile, {
+      contentType: uploadFile.type || "application/octet-stream",
+      customMetadata: { uploadedBy: userId },
+    }),
+    STORAGE_UPLOAD_TIMEOUT_MS,
+    "Firebase Storageへのアップロードが30秒以内に完了しませんでした。Storage Rules、Storage Bucket、通信状態を確認してください。",
+  );
+
+  return getDownloadURL(snapshot.ref);
+}
+
 export async function uploadBoatImage({
   file,
   boatId,

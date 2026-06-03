@@ -340,6 +340,21 @@ export function SupportBoard({
         </p>
       </div>
 
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Card>
+          <p className="text-sm font-black text-blue-950">相談サポート</p>
+          <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+            現在進行形の困りごとを共有します。出船中の給油相談、ライト不具合、帰港判断などに使います。
+          </p>
+        </Card>
+        <Card>
+          <p className="text-sm font-black text-blue-950">申し送り</p>
+          <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+            次回以降の利用者へ残す共有事項です。サポートで得た知見は申し送り化できます。
+          </p>
+        </Card>
+      </div>
+
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Card>
           <p className="text-xs font-bold text-slate-500">未対応</p>
@@ -644,6 +659,12 @@ export function SupportBoard({
               const mapUrl = selectedRequest.location
                 ? `https://www.google.com/maps?q=${selectedRequest.location.latitude},${selectedRequest.location.longitude}`
                 : "";
+              const handoverParams = new URLSearchParams({
+                reservationId: selectedRequest.reservationId ?? "",
+                source: "support",
+                title: `サポート要請: ${selectedRequest.title}`,
+                body: selectedRequest.body,
+              });
               const relatedPreCheck = appData.preDepartureChecks.find(
                 (check) => check.reservationId === selectedRequest.reservationId,
               );
@@ -872,6 +893,12 @@ export function SupportBoard({
                   ) : null}
 
                   <div className="grid gap-2 sm:grid-cols-2">
+                    <Link
+                      href={`/handovers?${handoverParams.toString()}#new`}
+                      className="flex h-12 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 px-4 text-sm font-black text-amber-900"
+                    >
+                      申し送りへ登録
+                    </Link>
                     {canChangeAllStatuses &&
                     selectedRequest.status === "open" ? (
                       <button

@@ -22,7 +22,11 @@ import {
   voyageStatusLabels,
   voyageStatusTone,
 } from "@/lib/labels";
-import { formatDate, formatTime } from "@/lib/reservations";
+import {
+  formatDate,
+  formatTime,
+  withReservationSessionStatus,
+} from "@/lib/reservations";
 import {
   calculateAverageSpeedKmh,
   calculateDistanceKm,
@@ -156,6 +160,11 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
       await updateClientAppData(
         (current) => ({
           ...current,
+          reservations: current.reservations.map((reservation) =>
+            reservation.id === selectedReservation.id
+              ? withReservationSessionStatus(reservation, "underway")
+              : reservation,
+          ),
           voyageLogs: [voyage, ...current.voyageLogs],
         }),
         appData,

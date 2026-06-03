@@ -1,4 +1,4 @@
-import type { Reservation } from "@/types/domain";
+import type { AppData, Reservation, ReservationSessionStatus } from "@/types/domain";
 
 export const formatDate = (iso: string) =>
   new Intl.DateTimeFormat("ja-JP", {
@@ -53,3 +53,41 @@ export const findNextReservation = (reservations: Reservation[]) => {
         new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
     )[0];
 };
+
+export const getReservationSessionStatus = (
+  reservation: Reservation,
+  data: Pick<
+    AppData,
+    "preDepartureChecks" | "postReturnChecks" | "voyageLogs"
+  >,
+): ReservationSessionStatus => {
+  if (reservation.sessionStatus) return reservation.sessionStatus;
+
+  const postCheckDone = data.postReturnChecks.some(
+    (check) => check.reservationId === reservation.id,
+  );
+  if (postCheckDone) return "returned";
+
+  const voyage = data.voyageLogs.find(
+    (item) => item.reservationId === reservation.id,
+  );
+  if (voyage?.status === "underway" || voyage?.status === "completed") {
+    return "underway";
+  }
+
+  const preCheckDone = data.preDepartureChecks.some(
+    (check) => check.reservationId === reservation.id,
+  );
+  if (preCheckDone) return "pre_checked";
+
+  return "scheduled";
+};
+
+export const withReservationSessionStatus = (
+  reservation: Reservation,
+  sessionStatus: ReservationSessionStatus,
+): Reservation => ({
+  ...reservation,
+  sessionStatus,
+  updatedAt: new Date().toISOString(),
+});

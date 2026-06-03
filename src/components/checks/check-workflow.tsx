@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -20,7 +21,12 @@ import {
   createPostReturnCheck,
   createPreDepartureCheck,
 } from "@/lib/mock-data";
-import { formatDate, formatTime } from "@/lib/reservations";
+import {
+  formatDate,
+  formatTime,
+  withReservationSessionStatus,
+} from "@/lib/reservations";
+import { uploadCheckImage } from "@/lib/storage";
 import type {
   AppData,
   PostReturnCheck,
@@ -78,6 +84,8 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
   );
   const [hasIssue, setHasIssue] = useState(false);
   const [comment, setComment] = useState("");
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [imageMessage, setImageMessage] = useState("");
   const [savedRecord, setSavedRecord] = useState<RecordType | null>(null);
   const [saveState, setSaveState] = useState<
     "idle" | "saving" | "saved" | "error"
@@ -134,7 +142,7 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
       hasIssue,
       comment,
     };
-    const record =
+    const draftRecord =
       mode === "pre-departure"
         ? createPreDepartureCheck({
             ...baseInput,
@@ -144,6 +152,40 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
             ...baseInput,
             items: checks as PostReturnCheck["items"],
           });
+    let imageUrls: string[] = [];
+
+    if (selectedFiles.length > 0) {
+      setImageMessage("写真を圧縮してアップロードしています。");
+      const uploadResults = await Promise.allSettled(
+        selectedFiles.map((file) =>
+          uploadCheckImage({
+            file,
+            mode,
+            checkId: draftRecord.id,
+            userId,
+          }),
+        ),
+      );
+      imageUrls = uploadResults
+        .filter(
+          (result): result is PromiseFulfilledResult<string> =>
+            result.status === "fulfilled",
+        )
+        .map((result) => result.value);
+      const failedCount = uploadResults.filter(
+        (result) => result.status === "rejected",
+      ).length;
+      setImageMessage(
+        failedCount > 0
+          ? `写真${failedCount}枚の添付に失敗しましたが、チェック結果は保存します。`
+          : "写真を添付しました。",
+      );
+    }
+
+    const record = {
+      ...draftRecord,
+      imageUrls,
+    };
 
     const nextHistory = [
       record as RecordType,
@@ -151,19 +193,30 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
     ];
 
     setSavedRecord(record as RecordType);
+    const nextReservations = appData.reservations.map((reservation) =>
+      reservation.id === reservationId
+        ? withReservationSessionStatus(
+            reservation,
+            mode === "pre-departure" ? "pre_checked" : "returned",
+          )
+        : reservation,
+    );
     const nextData =
       mode === "pre-departure"
         ? {
             ...appData,
+            reservations: nextReservations,
             preDepartureChecks: nextHistory as PreDepartureCheck[],
           }
         : {
             ...appData,
+            reservations: nextReservations,
             postReturnChecks: nextHistory as PostReturnCheck[],
           };
     try {
       await updateClientAppData(() => nextData, appData);
       setSaveState("saved");
+      setSelectedFiles([]);
       if (mode === "pre-departure" && !hasIssue) {
         router.push(`/voyages?reservationId=${reservationId}`);
       }
@@ -389,8 +442,27 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
                 写真添付
               </div>
               <p className="mt-2 text-sm leading-6 text-blue-800">
-                Firebase Storage接続後に利用予定です。
+                チェック時の船体・備品・気になる箇所を複数枚添付できます。
               </p>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(event) =>
+                  setSelectedFiles(Array.from(event.target.files ?? []))
+                }
+                className="mt-3 block w-full text-sm font-bold text-blue-900 file:mr-3 file:min-h-10 file:rounded-lg file:border-0 file:bg-blue-800 file:px-4 file:text-sm file:font-black file:text-white"
+              />
+              {selectedFiles.length > 0 ? (
+                <p className="mt-2 text-sm font-bold text-blue-900">
+                  {selectedFiles.length}枚を添付予定
+                </p>
+              ) : null}
+              {imageMessage ? (
+                <p className="mt-2 rounded-lg bg-white p-3 text-sm font-bold leading-6 text-blue-900">
+                  {imageMessage}
+                </p>
+              ) : null}
             </div>
           </div>
         </Card>
@@ -497,6 +569,28 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
                   <p className="mt-3 text-sm leading-6 text-slate-600">
                     {record.comment}
                   </p>
+                ) : null}
+                {record.imageUrls?.length ? (
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    {record.imageUrls.map((url) => (
+                      <a
+                        key={url}
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="relative aspect-square overflow-hidden rounded-lg bg-slate-100"
+                      >
+                        <Image
+                          src={url}
+                          alt="チェック添付写真"
+                          fill
+                          sizes="33vw"
+                          unoptimized={url.startsWith("data:")}
+                          className="object-cover"
+                        />
+                      </a>
+                    ))}
+                  </div>
                 ) : null}
               </Card>
             );

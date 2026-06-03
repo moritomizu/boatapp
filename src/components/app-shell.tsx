@@ -5,6 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   Bell,
+  BookOpen,
   CalendarDays,
   Check,
   ChevronDown,
@@ -21,7 +22,7 @@ import { selectCurrentBoat, useClientAppData } from "@/lib/client-store";
 import { getInitialAppData } from "@/lib/data-source";
 import { firebaseAuth } from "@/lib/firebase";
 import { canUseBoat, getBoats } from "@/lib/boat-utils";
-import { roleLabels } from "@/lib/labels";
+import { getReservationSessionStatus } from "@/lib/reservations";
 
 const navItems = [
   { href: "/home", label: "ホーム", icon: Home },
@@ -66,18 +67,25 @@ export function AppShell({ children }: { children: ReactNode }) {
         (check) => check.reservationId === todaysReservation.id,
       )
     : false;
+  const todaySessionStatus = todaysReservation
+    ? getReservationSessionStatus(todaysReservation, data)
+    : undefined;
   const departureHref = activeVoyage
     ? `/voyages?reservationId=${activeVoyage.reservationId}`
     : todaysReservation
-      ? todaysVoyage?.status === "completed" && !postCheckDone
+      ? todaySessionStatus === "closed"
+        ? `/reservations#reservation-${todaysReservation.id}`
+        : (todaysVoyage?.status === "completed" || todaySessionStatus === "underway") && !postCheckDone
         ? `/checks/post-return?reservationId=${todaysReservation.id}`
-        : preCheckDone
+        : preCheckDone || todaySessionStatus === "pre_checked"
         ? `/voyages?reservationId=${todaysReservation.id}`
         : `/checks/pre-departure?reservationId=${todaysReservation.id}`
       : "/reservations";
   const departureLabel = activeVoyage
     ? "航行中"
-    : todaysReservation && todaysVoyage?.status === "completed" && !postCheckDone
+    : todaysReservation &&
+        (todaysVoyage?.status === "completed" || todaySessionStatus === "underway") &&
+        !postCheckDone
       ? "帰港"
       : "出船";
 
@@ -94,7 +102,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-20 border-b border-sky-100 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           <Link href="/home" className="flex items-center gap-2">
-            <span className="grid size-10 place-items-center overflow-hidden rounded-2xl bg-blue-700 p-1 text-white">
+            <span className="grid size-10 place-items-center overflow-hidden rounded-full bg-blue-700 p-1 text-white">
               <Image
                 src="/tapoyota_logo.png"
                 alt=""
@@ -104,7 +112,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 aria-hidden="true"
               />
             </span>
-            <span>
+            <span className="hidden sm:block">
               <span className="block text-sm font-semibold text-blue-950">
                 TaPiYoTa Grand Boat Club
               </span>
@@ -171,16 +179,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                 aria-label={`現在の利用者: ${data.currentUser.name}`}
               >
                 <Badge className="bg-sky-100 text-blue-800 ring-sky-200">
-                  {data.currentUser.name.slice(0, 2)}
+                  {data.currentUser.name.slice(0, 1)}
                 </Badge>
-                <span className="hidden sm:block">
-                  <span className="block max-w-32 truncate">
-                    {data.currentUser.name}
-                  </span>
-                  <span className="block text-[10px] text-slate-500">
-                    {roleLabels[data.currentUser.role]}
-                  </span>
-                </span>
                 <ChevronDown size={15} aria-hidden="true" />
               </summary>
               <div className="absolute right-0 top-12 z-50 w-64 rounded-lg border border-sky-100 bg-white p-3 shadow-xl">
@@ -197,6 +197,13 @@ export function AppShell({ children }: { children: ReactNode }) {
                   >
                     <User size={17} aria-hidden="true" />
                     プロフィール編集
+                  </Link>
+                  <Link
+                    href="/my-log"
+                    className="flex min-h-11 items-center gap-2 rounded-lg bg-slate-50 px-3 text-sm font-black text-slate-800"
+                  >
+                    <BookOpen size={17} aria-hidden="true" />
+                    My Log
                   </Link>
                   <Link
                     href="/members"

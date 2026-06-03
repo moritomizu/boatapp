@@ -5,6 +5,7 @@ import type {
   HandoverStatus,
   NotificationCategory,
   NotificationPriority,
+  ReservationSessionStatus,
   SupportCategory,
   SupportStatus,
   SupportUrgency,
@@ -161,4 +162,26 @@ export const voyageReviewStatusTone: Record<VoyageReviewStatus, string> = {
   unreviewed: "bg-slate-100 text-slate-700 ring-slate-200",
   safe: "bg-emerald-100 text-emerald-800 ring-emerald-200",
   needs_review: "bg-rose-100 text-rose-800 ring-rose-200",
+};
+
+export const reservationSessionStatusLabels: Record<
+  ReservationSessionStatus,
+  string
+> = {
+  scheduled: "⚪ 予約中",
+  pre_checked: "🟡 出船前確認済",
+  underway: "🟢 出船中",
+  returned: "🔵 利用終了",
+  closed: "クローズ",
+};
+
+export const reservationSessionStatusTone: Record<
+  ReservationSessionStatus,
+  string
+> = {
+  scheduled: "bg-slate-100 text-slate-700 ring-slate-200",
+  pre_checked: "bg-amber-100 text-amber-900 ring-amber-200",
+  underway: "bg-emerald-100 text-emerald-800 ring-emerald-200",
+  returned: "bg-sky-100 text-blue-800 ring-sky-200",
+  closed: "bg-slate-200 text-slate-700 ring-slate-300",
 };

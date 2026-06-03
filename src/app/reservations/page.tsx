@@ -5,6 +5,8 @@ import { useMemo, useState } from "react";
 import {
   AlertTriangle,
   CalendarPlus,
+  ChevronLeft,
+  ChevronRight,
   Edit3,
   Eye,
   Navigation,
@@ -20,12 +22,18 @@ import { findBoat, getBoatName, getBoats, reservationWarnings } from "@/lib/boat
 import { updateClientAppData, useClientAppData } from "@/lib/client-store";
 import { getInitialAppData } from "@/lib/data-source";
 import { deleteFirestoreDocument } from "@/lib/firebase-repository";
-import { targetFishLabels } from "@/lib/labels";
+import {
+  reservationSessionStatusLabels,
+  reservationSessionStatusTone,
+  targetFishLabels,
+} from "@/lib/labels";
 import { createJoinRequest, createReservation } from "@/lib/mock-data";
 import {
   formatDate,
   formatTime,
+  getReservationSessionStatus,
   hasTimeOverlap,
+  withReservationSessionStatus,
 } from "@/lib/reservations";
 import type { Reservation, TargetFish } from "@/types/domain";
 
@@ -61,6 +69,7 @@ export default function ReservationsPage() {
   const boats = getBoats(data);
   const [viewMode, setViewMode] = useState<"all" | "boat" | "mine">("boat");
   const [selectedBoatId, setSelectedBoatId] = useState(data.boat.id);
+  const [calendarOffset, setCalendarOffset] = useState(0);
   const visibleReservations = data.reservations.filter((reservation) => {
     if (viewMode === "mine") return reservation.userId === data.currentUser.id;
     if (viewMode === "boat") return reservation.boatId === selectedBoatId;
@@ -108,7 +117,8 @@ export default function ReservationsPage() {
   );
   const warnings = reservationWarnings(data, form.userId, form.boatId);
   const calendarMonth = useMemo(() => {
-    const base = new Date(data.reservations[0]?.startAt ?? "2026-06-01T00:00:00.000+09:00");
+    const base = new Date();
+    base.setMonth(base.getMonth() + calendarOffset);
     const firstDay = new Date(base.getFullYear(), base.getMonth(), 1);
     const lastDay = new Date(base.getFullYear(), base.getMonth() + 1, 0);
     const leadingBlankCount = firstDay.getDay();
@@ -134,7 +144,7 @@ export default function ReservationsPage() {
       leadingBlankCount,
       days,
     };
-  }, [data.reservations, visibleReservations]);
+  }, [calendarOffset, visibleReservations]);
 
   function updateForm<T extends keyof typeof form>(
     key: T,
@@ -195,6 +205,8 @@ export default function ReservationsPage() {
   function startEdit(reservationId: string) {
     const reservation = reservations.find((item) => item.id === reservationId);
     if (!reservation) return;
+    const sessionStatus = getReservationSessionStatus(reservation, data);
+    if (sessionStatus === "closed" && data.currentUser.role !== "admin") return;
     setEditingId(reservationId);
     setSaveState("idle");
     setForm({
@@ -326,6 +338,30 @@ export default function ReservationsPage() {
     }
   }
 
+  async function closeReservation(reservation: Reservation) {
+    if (data.currentUser.role !== "admin" && data.currentUser.role !== "owner") {
+      return;
+    }
+
+    setSaveState("saving");
+    try {
+      await updateClientAppData(
+        (current) => ({
+          ...current,
+          reservations: current.reservations.map((item) =>
+            item.id === reservation.id
+              ? withReservationSessionStatus(item, "closed")
+              : item,
+          ),
+        }),
+        data,
+      );
+      setSaveState("saved");
+    } catch {
+      setSaveState("error");
+    }
+  }
+
   return (
     <AppShell>
       <div className="space-y-6">
@@ -340,6 +376,31 @@ export default function ReservationsPage() {
         </div>
 
         <Section title={`${calendarMonth.label}の予約`}>
+          <div className="mb-3 grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              onClick={() => setCalendarOffset((current) => current - 1)}
+              className="flex min-h-11 items-center justify-center gap-1 rounded-lg border border-sky-200 bg-white px-3 text-sm font-black text-blue-900"
+            >
+              <ChevronLeft size={17} aria-hidden="true" />
+              前月
+            </button>
+            <button
+              type="button"
+              onClick={() => setCalendarOffset(0)}
+              className="min-h-11 rounded-lg bg-blue-800 px-3 text-sm font-black text-white"
+            >
+              当月
+            </button>
+            <button
+              type="button"
+              onClick={() => setCalendarOffset((current) => current + 1)}
+              className="flex min-h-11 items-center justify-center gap-1 rounded-lg border border-sky-200 bg-white px-3 text-sm font-black text-blue-900"
+            >
+              翌月
+              <ChevronRight size={17} aria-hidden="true" />
+            </button>
+          </div>
           <div className="mb-3 grid gap-2 sm:grid-cols-3">
             <button
               type="button"
@@ -698,6 +759,8 @@ export default function ReservationsPage() {
               );
               const boat = findBoat(data, reservation.boatId);
               const phase = reservationPhase(reservation.startAt);
+              const sessionStatus = getReservationSessionStatus(reservation, data);
+              const isClosed = sessionStatus === "closed";
               const voyage = data.voyageLogs.find(
                 (item) => item.reservationId === reservation.id,
               );
@@ -756,6 +819,9 @@ export default function ReservationsPage() {
                       </Badge>
                       <Badge className="bg-white text-slate-700 ring-slate-200">
                         {reservation.joinAllowed ? "便乗歓迎" : "便乗なし"}
+                      </Badge>
+                      <Badge className={reservationSessionStatusTone[sessionStatus]}>
+                        {reservationSessionStatusLabels[sessionStatus]}
                       </Badge>
                       {overlap ? (
                         <Badge className="bg-amber-100 text-amber-900 ring-amber-200">
@@ -923,40 +989,64 @@ export default function ReservationsPage() {
                           >
                             申し送り確認
                           </Link>
-                          <Link
-                            href={`/checks/post-return?reservationId=${reservation.id}`}
-                            className="flex min-h-11 items-center justify-center rounded-lg border border-sky-200 px-4 text-sm font-black text-blue-900"
-                          >
-                            帰港後チェック
-                          </Link>
+                          {!isClosed ? (
+                            <Link
+                              href={`/checks/post-return?reservationId=${reservation.id}`}
+                              className="flex min-h-11 items-center justify-center rounded-lg border border-sky-200 px-4 text-sm font-black text-blue-900"
+                            >
+                              帰港後チェック
+                            </Link>
+                          ) : null}
                         </>
                       ) : phase === "today" ? (
                         <>
-                          <Link
-                            href={`/checks/pre-departure?reservationId=${reservation.id}`}
-                            className="flex min-h-11 items-center justify-center rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
-                          >
-                            出船前チェック
-                          </Link>
-                          <Link
-                            href={`/voyages?reservationId=${reservation.id}`}
-                            className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
-                          >
-                            <Navigation size={16} aria-hidden="true" />
-                            出船開始
-                          </Link>
-                          <Link
-                            href={`/checks/post-return?reservationId=${reservation.id}`}
-                            className="flex min-h-11 items-center justify-center rounded-lg border border-sky-200 px-4 text-sm font-black text-blue-900"
-                          >
-                            帰港後チェック
-                          </Link>
-                          <Link
-                            href={`/support?reservationId=${reservation.id}#new`}
-                            className="flex min-h-11 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-black text-rose-800"
-                          >
-                            サポート要請
-                          </Link>
+                          {sessionStatus === "scheduled" ? (
+                            <Link
+                              href={`/checks/pre-departure?reservationId=${reservation.id}`}
+                              className="flex min-h-11 items-center justify-center rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
+                            >
+                              出船前チェック
+                            </Link>
+                          ) : null}
+                          {sessionStatus === "pre_checked" ? (
+                            <Link
+                              href={`/voyages?reservationId=${reservation.id}`}
+                              className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
+                            >
+                              <Navigation size={16} aria-hidden="true" />
+                              出船開始
+                            </Link>
+                          ) : null}
+                          {sessionStatus === "underway" ? (
+                            <>
+                              <Link
+                                href={`/support?reservationId=${reservation.id}#new`}
+                                className="flex min-h-11 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-black text-rose-800"
+                              >
+                                サポート要請
+                              </Link>
+                              <Link
+                                href={`/checks/post-return?reservationId=${reservation.id}`}
+                                className="flex min-h-11 items-center justify-center rounded-lg bg-emerald-700 px-4 text-sm font-black text-white"
+                              >
+                                帰港後チェック
+                              </Link>
+                            </>
+                          ) : null}
+                          {sessionStatus === "returned" ? (
+                            <button
+                              type="button"
+                              onClick={() => closeReservation(reservation)}
+                              className="flex min-h-11 items-center justify-center rounded-lg bg-slate-800 px-4 text-sm font-black text-white"
+                            >
+                              予約クローズ
+                            </button>
+                          ) : null}
+                          {sessionStatus === "closed" ? (
+                            <div className="flex min-h-11 items-center justify-center rounded-lg bg-slate-100 px-4 text-sm font-black text-slate-500">
+                              利用終了
+                            </div>
+                          ) : null}
                         </>
                       ) : (
                         <>
@@ -968,14 +1058,16 @@ export default function ReservationsPage() {
                           </div>
                         </>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => startEdit(reservation.id)}
-                        className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-black text-slate-700"
-                      >
-                        <Edit3 size={16} aria-hidden="true" />
-                        編集
-                      </button>
+                      {isClosed && data.currentUser.role !== "admin" ? null : (
+                        <button
+                          type="button"
+                          onClick={() => startEdit(reservation.id)}
+                          className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-black text-slate-700"
+                        >
+                          <Edit3 size={16} aria-hidden="true" />
+                          編集
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => deleteReservation(reservation.id)}

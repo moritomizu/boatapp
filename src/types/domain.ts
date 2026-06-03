@@ -54,6 +54,13 @@ export type VoyageStatus = "planned" | "underway" | "completed";
 
 export type VoyageReviewStatus = "unreviewed" | "safe" | "needs_review";
 
+export type ReservationSessionStatus =
+  | "scheduled"
+  | "pre_checked"
+  | "underway"
+  | "returned"
+  | "closed";
+
 export type SkillAssessmentStatus =
   | "training"
   | "solo_ready"
@@ -181,6 +188,7 @@ export type Reservation = {
   availableSeats: number;
   joinAllowed: boolean;
   comment: string;
+  sessionStatus?: ReservationSessionStatus;
   createdAt: string;
   updatedAt: string;
 };
@@ -253,6 +261,7 @@ export type PreDepartureCheck = {
   items: PreDepartureCheckItems;
   hasIssue: boolean;
   comment: string;
+  imageUrls?: string[];
   createdAt: string;
   updatedAt: string;
 };
@@ -267,6 +276,7 @@ export type PostReturnCheck = {
   items: PostReturnCheckItems;
   hasIssue: boolean;
   comment: string;
+  imageUrls?: string[];
   createdAt: string;
   updatedAt: string;
 };

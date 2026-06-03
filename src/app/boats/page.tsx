@@ -87,6 +87,9 @@ export default function BoatsPage() {
     engineInfo: "",
     notes: "",
   });
+  const [usageFilter, setUsageFilter] = useState<"this_month" | "last_month" | "all">(
+    "this_month",
+  );
   const unresolvedHandovers = appData.handoverNotes
     .filter((note) => note.status !== "resolved")
     .sort((a, b) => {
@@ -108,7 +111,19 @@ export default function BoatsPage() {
       (a, b) =>
         new Date(b.startAt).getTime() - new Date(a.startAt).getTime(),
     );
-  const latestBoatReservations = boatReservations.slice(0, 6);
+  const now = new Date();
+  const usageFilteredReservations = boatReservations.filter((reservation) => {
+    if (usageFilter === "all") return true;
+    const target = new Date(reservation.startAt);
+    const offset = usageFilter === "last_month" ? -1 : 0;
+    const base = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+
+    return (
+      target.getFullYear() === base.getFullYear() &&
+      target.getMonth() === base.getMonth()
+    );
+  });
+  const latestBoatReservations = usageFilteredReservations.slice(0, 8);
   const completedVoyageCount = appData.voyageLogs.filter(
     (voyage) => voyage.boatId === appData.boat.id && voyage.status === "completed",
   ).length;
@@ -533,10 +548,32 @@ export default function BoatsPage() {
         <Section title="利用履歴">
           <div className="space-y-3">
             <div className="grid grid-cols-3 gap-2">
+              {[
+                ["this_month", "今月"],
+                ["last_month", "先月"],
+                ["all", "全期間"],
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() =>
+                    setUsageFilter(value as "this_month" | "last_month" | "all")
+                  }
+                  className={`min-h-11 rounded-lg text-sm font-black ${
+                    usageFilter === value
+                      ? "bg-blue-800 text-white"
+                      : "border border-sky-200 bg-white text-blue-900"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="grid grid-cols-3 gap-2">
               <div className="rounded-lg bg-sky-50 p-3">
                 <p className="text-xs font-bold text-blue-800">予約</p>
                 <p className="mt-1 text-xl font-black text-blue-950">
-                  {boatReservations.length}
+                  {usageFilteredReservations.length}
                 </p>
               </div>
               <div className="rounded-lg bg-emerald-50 p-3">
