@@ -5,9 +5,12 @@ import Link from "next/link";
 import { useState } from "react";
 import {
   Camera,
+  ClipboardCheck,
   Edit3,
+  Map,
   MessageSquareWarning,
   PlusCircle,
+  Star,
   Save,
   ShieldCheck,
   Ship,
@@ -28,7 +31,9 @@ import {
   handoverStatusLabels,
   handoverStatusTone,
   roleLabels,
+  targetFishLabels,
 } from "@/lib/labels";
+import { formatDate, formatTime } from "@/lib/reservations";
 import {
   clearQueuedBoatImage,
   getQueuedBoatImage,
@@ -88,6 +93,27 @@ export default function BoatsPage() {
         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
     )
     .slice(0, 3);
+  const boatReservations = appData.reservations
+    .filter((reservation) => reservation.boatId === appData.boat.id)
+    .sort(
+      (a, b) =>
+        new Date(b.startAt).getTime() - new Date(a.startAt).getTime(),
+    );
+  const latestBoatReservations = boatReservations.slice(0, 6);
+  const completedVoyageCount = appData.voyageLogs.filter(
+    (voyage) => voyage.boatId === appData.boat.id && voyage.status === "completed",
+  ).length;
+  const totalDistanceKm = appData.voyageLogs
+    .filter((voyage) => voyage.boatId === appData.boat.id)
+    .reduce((total, voyage) => total + (voyage.distanceKm ?? 0), 0);
+  const boatRatings = appData.memberTripRatings.filter(
+    (rating) => rating.boatId === appData.boat.id,
+  );
+  const averageBoatRating =
+    boatRatings.length > 0
+      ? boatRatings.reduce((total, rating) => total + rating.overallScore, 0) /
+        boatRatings.length
+      : undefined;
 
   function openEditor() {
     setForm({
@@ -489,6 +515,124 @@ export default function BoatsPage() {
                 ) : null}
               </Card>
             ))}
+          </div>
+        </Section>
+
+        <Section title="利用履歴">
+          <div className="space-y-3">
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-lg bg-sky-50 p-3">
+                <p className="text-xs font-bold text-blue-800">予約</p>
+                <p className="mt-1 text-xl font-black text-blue-950">
+                  {boatReservations.length}
+                </p>
+              </div>
+              <div className="rounded-lg bg-emerald-50 p-3">
+                <p className="text-xs font-bold text-emerald-800">航行完了</p>
+                <p className="mt-1 text-xl font-black text-emerald-900">
+                  {completedVoyageCount}
+                </p>
+              </div>
+              <div className="rounded-lg bg-amber-50 p-3">
+                <p className="text-xs font-bold text-amber-800">平均評価</p>
+                <p className="mt-1 text-xl font-black text-amber-900">
+                  {averageBoatRating ? averageBoatRating.toFixed(1) : "-"}
+                </p>
+              </div>
+            </div>
+            <div className="rounded-lg bg-white p-3 text-sm font-bold text-slate-600">
+              累計航行距離: {totalDistanceKm.toFixed(1)}km
+            </div>
+
+            {latestBoatReservations.map((reservation) => {
+              const user = appData.users.find(
+                (item) => item.id === reservation.userId,
+              );
+              const voyage = appData.voyageLogs.find(
+                (item) => item.reservationId === reservation.id,
+              );
+              const ratings = appData.memberTripRatings.filter(
+                (item) => item.reservationId === reservation.id,
+              );
+              const handovers = appData.handoverNotes.filter(
+                (item) => item.reservationId === reservation.id,
+              );
+
+              return (
+                <Card key={reservation.id}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-base font-black text-slate-950">
+                        {formatDate(reservation.startAt)}
+                      </p>
+                      <p className="mt-1 text-sm font-bold text-slate-600">
+                        {formatTime(reservation.startAt)} -{" "}
+                        {formatTime(reservation.endAt)} / {user?.name ?? "不明"}
+                      </p>
+                    </div>
+                    <Badge className="bg-sky-100 text-blue-800 ring-sky-200">
+                      {targetFishLabels[reservation.targetFish]}
+                    </Badge>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Badge
+                      className={
+                        voyage
+                          ? "bg-emerald-100 text-emerald-800 ring-emerald-200"
+                          : "bg-slate-100 text-slate-700 ring-slate-200"
+                      }
+                    >
+                      航行ログ{voyage ? "あり" : "なし"}
+                    </Badge>
+                    <Badge className="bg-amber-100 text-amber-900 ring-amber-200">
+                      評価{ratings.length}件
+                    </Badge>
+                    <Badge className="bg-white text-slate-700 ring-slate-200">
+                      申し送り{handovers.length}件
+                    </Badge>
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-slate-600">
+                    {reservation.destinationArea} / 同乗予定{" "}
+                    {reservation.passengerCount}名
+                    {voyage?.distanceKm
+                      ? ` / 航行距離 ${voyage.distanceKm.toFixed(1)}km`
+                      : ""}
+                  </p>
+                  {canEdit ? (
+                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                      <Link
+                        href={`/voyages?reservationId=${reservation.id}`}
+                        className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
+                      >
+                        <Map size={16} aria-hidden="true" />
+                        航路を見る
+                      </Link>
+                      <Link
+                        href={`/members#trip-rating`}
+                        className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 text-sm font-black text-amber-900"
+                      >
+                        <Star size={16} aria-hidden="true" />
+                        評価へ
+                      </Link>
+                      <Link
+                        href={`/reservations#reservation-${reservation.id}`}
+                        className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-4 text-sm font-black text-blue-900"
+                      >
+                        <ClipboardCheck size={16} aria-hidden="true" />
+                        予約詳細
+                      </Link>
+                    </div>
+                  ) : null}
+                </Card>
+              );
+            })}
+            {latestBoatReservations.length === 0 ? (
+              <Card>
+                <p className="text-sm font-semibold text-slate-600">
+                  この船の利用履歴はまだありません。
+                </p>
+              </Card>
+            ) : null}
           </div>
         </Section>
 

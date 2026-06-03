@@ -305,16 +305,25 @@ export default function MembersPage() {
             <div className="rounded-lg bg-sky-50 p-3 text-sm font-semibold text-blue-900">
               管理者として表示中。メンバーの追加、編集、削除ができます。
             </div>
-            <button
-              type="button"
-              onClick={() =>
-                setEditingMember(blankMember(data.organization.id))
-              }
-              className="flex h-12 items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
-            >
-              <Plus size={19} aria-hidden="true" />
-              メンバー追加
-            </button>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <a
+                href="#skill-assessment"
+                className="flex h-12 items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-4 text-sm font-black text-blue-900"
+              >
+                <ClipboardCheck size={19} aria-hidden="true" />
+                スキル評価へ
+              </a>
+              <button
+                type="button"
+                onClick={() =>
+                  setEditingMember(blankMember(data.organization.id))
+                }
+                className="flex h-12 items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
+              >
+                <Plus size={19} aria-hidden="true" />
+                メンバー追加
+              </button>
+            </div>
           </div>
         ) : (
           <div className="flex items-start gap-2 rounded-lg bg-sky-50 p-3 text-sm font-semibold leading-6 text-blue-900">
@@ -393,10 +402,10 @@ export default function MembersPage() {
                 ) : null}
 
                 {canEdit && (ratings.length > 0 || skill?.recommendation) ? (
-                  <div className="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
-                    <p className="text-xs font-black text-slate-500">
-                      評価メモ
-                    </p>
+                  <details className="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
+                    <summary className="cursor-pointer text-sm font-black text-slate-700">
+                      評価メモ・推奨事項を開く
+                    </summary>
                     <div className="mt-2 space-y-2">
                       {ratings.map((item) => {
                         const reservation = data.reservations.find(
@@ -440,7 +449,7 @@ export default function MembersPage() {
                         </div>
                       ) : null}
                     </div>
-                  </div>
+                  </details>
                 ) : null}
 
                 <p className="mt-4 text-sm leading-6 text-slate-600">
@@ -487,6 +496,7 @@ export default function MembersPage() {
         </Section>
 
         {canEdit ? (
+          <div id="trip-rating" className="scroll-mt-24">
           <Section title="釣行ごとのメンバー評価">
             <form
               onSubmit={saveRating}
@@ -621,18 +631,23 @@ export default function MembersPage() {
               </button>
             </form>
           </Section>
+          </div>
         ) : null}
 
         {canEdit ? (
           <Section title="評価履歴">
-            <div className="space-y-3">
+            <details className="rounded-lg border border-slate-200 bg-white p-3">
+              <summary className="cursor-pointer text-sm font-black text-slate-800">
+                評価履歴を開く ({data.memberTripRatings.length}件)
+              </summary>
+              <div className="mt-3 space-y-3">
               {[...data.memberTripRatings]
                 .sort(
                   (a, b) =>
                     new Date(b.createdAt).getTime() -
                     new Date(a.createdAt).getTime(),
                 )
-                .slice(0, 10)
+                .slice(0, 8)
                 .map((rating) => {
                   const user = data.users.find((item) => item.id === rating.userId);
                   const evaluator = data.users.find(
@@ -689,20 +704,25 @@ export default function MembersPage() {
                   </p>
                 </Card>
               ) : null}
-            </div>
+              </div>
+            </details>
           </Section>
         ) : null}
 
         {canEdit ? (
           <Section title="スキル評価履歴">
-            <div className="space-y-3">
+            <details className="rounded-lg border border-slate-200 bg-white p-3">
+              <summary className="cursor-pointer text-sm font-black text-slate-800">
+                スキル評価履歴を開く ({data.skillAssessments.length}件)
+              </summary>
+              <div className="mt-3 space-y-3">
               {[...data.skillAssessments]
                 .sort(
                   (a, b) =>
                     new Date(b.assessedAt).getTime() -
                     new Date(a.assessedAt).getTime(),
                 )
-                .slice(0, 10)
+                .slice(0, 8)
                 .map((assessment) => {
                   const user = data.users.find(
                     (item) => item.id === assessment.userId,
@@ -764,11 +784,13 @@ export default function MembersPage() {
                   </p>
                 </Card>
               ) : null}
-            </div>
+              </div>
+            </details>
           </Section>
         ) : null}
 
         {canEdit ? (
+          <div id="skill-assessment" className="scroll-mt-24">
           <Section title="単独出船前の操船スキル評価">
             <form
               onSubmit={saveSkillAssessment}
@@ -887,6 +909,7 @@ export default function MembersPage() {
               </button>
             </form>
           </Section>
+          </div>
         ) : null}
 
         {editingMember ? (
