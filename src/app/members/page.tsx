@@ -139,6 +139,16 @@ export default function MembersPage() {
       )[0];
   }
 
+  function recentRatings(userId: string) {
+    return [...data.memberTripRatings]
+      .filter((rating) => rating.userId === userId)
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      )
+      .slice(0, 2);
+  }
+
   async function saveRating(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (ratingState === "saving") return;
@@ -322,6 +332,7 @@ export default function MembersPage() {
             {data.users.map((user) => {
               const rating = averageRating(user.id);
               const skill = latestSkillAssessment(user.id);
+              const ratings = recentRatings(user.id);
 
               return (
               <Card key={user.id}>
@@ -377,6 +388,57 @@ export default function MembersPage() {
                       <p className="mt-1 text-sm font-black text-blue-950">
                         {skill ? skillStatusLabels[skill.status] : "未評価"}
                       </p>
+                    </div>
+                  </div>
+                ) : null}
+
+                {canEdit && (ratings.length > 0 || skill?.recommendation) ? (
+                  <div className="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
+                    <p className="text-xs font-black text-slate-500">
+                      評価メモ
+                    </p>
+                    <div className="mt-2 space-y-2">
+                      {ratings.map((item) => {
+                        const reservation = data.reservations.find(
+                          (reservationItem) =>
+                            reservationItem.id === item.reservationId,
+                        );
+                        const evaluator = data.users.find(
+                          (candidate) => candidate.id === item.evaluatorId,
+                        );
+
+                        return (
+                          <div
+                            key={item.id}
+                            className="rounded-lg bg-white px-3 py-2"
+                          >
+                            <p className="text-sm font-black text-slate-900">
+                              {item.overallScore.toFixed(1)} /{" "}
+                              {reservation
+                                ? `${reservation.startAt.slice(0, 10)} ${targetFishLabels[reservation.targetFish]}`
+                                : "対象釣行"}
+                            </p>
+                            {item.comment ? (
+                              <p className="mt-1 text-sm leading-6 text-slate-600">
+                                {item.comment}
+                              </p>
+                            ) : null}
+                            <p className="mt-1 text-xs font-bold text-slate-500">
+                              評価者: {evaluator?.name ?? "不明"}
+                            </p>
+                          </div>
+                        );
+                      })}
+                      {skill?.recommendation ? (
+                        <div className="rounded-lg bg-blue-50 px-3 py-2">
+                          <p className="text-sm font-black text-blue-950">
+                            スキル推奨事項
+                          </p>
+                          <p className="mt-1 text-sm leading-6 text-blue-900">
+                            {skill.recommendation}
+                          </p>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 ) : null}
@@ -558,6 +620,151 @@ export default function MembersPage() {
                 {ratingState === "saving" ? "保存中..." : "釣行評価を保存"}
               </button>
             </form>
+          </Section>
+        ) : null}
+
+        {canEdit ? (
+          <Section title="評価履歴">
+            <div className="space-y-3">
+              {[...data.memberTripRatings]
+                .sort(
+                  (a, b) =>
+                    new Date(b.createdAt).getTime() -
+                    new Date(a.createdAt).getTime(),
+                )
+                .slice(0, 10)
+                .map((rating) => {
+                  const user = data.users.find((item) => item.id === rating.userId);
+                  const evaluator = data.users.find(
+                    (item) => item.id === rating.evaluatorId,
+                  );
+                  const reservation = data.reservations.find(
+                    (item) => item.id === rating.reservationId,
+                  );
+
+                  return (
+                    <Card key={rating.id}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-black text-slate-950">
+                            {user?.name ?? "対象者不明"}
+                          </p>
+                          <p className="mt-1 text-sm text-slate-500">
+                            {reservation
+                              ? `${reservation.startAt.slice(0, 10)} / ${targetFishLabels[reservation.targetFish]}`
+                              : "対象釣行なし"}{" "}
+                            / 評価者: {evaluator?.name ?? "不明"}
+                          </p>
+                        </div>
+                        <Badge className="bg-amber-100 text-amber-900 ring-amber-200">
+                          {rating.overallScore.toFixed(1)}
+                        </Badge>
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+                        <div className="rounded-lg bg-slate-50 p-2">
+                          安全 {rating.safetyScore}
+                        </div>
+                        <div className="rounded-lg bg-slate-50 p-2">
+                          準備 {rating.preparationScore}
+                        </div>
+                        <div className="rounded-lg bg-slate-50 p-2">
+                          共有 {rating.communicationScore}
+                        </div>
+                        <div className="rounded-lg bg-slate-50 p-2">
+                          船体 {rating.boatCareScore}
+                        </div>
+                      </div>
+                      {rating.comment ? (
+                        <p className="mt-3 text-sm leading-6 text-slate-600">
+                          {rating.comment}
+                        </p>
+                      ) : null}
+                    </Card>
+                  );
+                })}
+              {data.memberTripRatings.length === 0 ? (
+                <Card>
+                  <p className="text-sm font-semibold text-slate-600">
+                    評価履歴はまだありません。
+                  </p>
+                </Card>
+              ) : null}
+            </div>
+          </Section>
+        ) : null}
+
+        {canEdit ? (
+          <Section title="スキル評価履歴">
+            <div className="space-y-3">
+              {[...data.skillAssessments]
+                .sort(
+                  (a, b) =>
+                    new Date(b.assessedAt).getTime() -
+                    new Date(a.assessedAt).getTime(),
+                )
+                .slice(0, 10)
+                .map((assessment) => {
+                  const user = data.users.find(
+                    (item) => item.id === assessment.userId,
+                  );
+                  const assessor = data.users.find(
+                    (item) => item.id === assessment.assessorId,
+                  );
+
+                  return (
+                    <Card key={assessment.id}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-black text-slate-950">
+                            {user?.name ?? "対象者不明"}
+                          </p>
+                          <p className="mt-1 text-sm text-slate-500">
+                            評価者: {assessor?.name ?? "不明"} /{" "}
+                            {new Intl.DateTimeFormat("ja-JP", {
+                              dateStyle: "medium",
+                            }).format(new Date(assessment.assessedAt))}
+                          </p>
+                        </div>
+                        <Badge className="bg-blue-100 text-blue-900 ring-blue-200">
+                          {skillStatusLabels[assessment.status]}
+                        </Badge>
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
+                        <div className="rounded-lg bg-slate-50 p-2">
+                          離岸 {assessment.departureScore}
+                        </div>
+                        <div className="rounded-lg bg-slate-50 p-2">
+                          着岸 {assessment.dockingScore}
+                        </div>
+                        <div className="rounded-lg bg-slate-50 p-2">
+                          ルール {assessment.navigationRulesScore}
+                        </div>
+                        <div className="rounded-lg bg-slate-50 p-2">
+                          天候 {assessment.weatherJudgmentScore}
+                        </div>
+                        <div className="rounded-lg bg-slate-50 p-2">
+                          緊急 {assessment.emergencyScore}
+                        </div>
+                        <div className="rounded-lg bg-slate-50 p-2">
+                          備品 {assessment.equipmentScore}
+                        </div>
+                      </div>
+                      {assessment.recommendation ? (
+                        <p className="mt-3 text-sm leading-6 text-slate-600">
+                          {assessment.recommendation}
+                        </p>
+                      ) : null}
+                    </Card>
+                  );
+                })}
+              {data.skillAssessments.length === 0 ? (
+                <Card>
+                  <p className="text-sm font-semibold text-slate-600">
+                    スキル評価履歴はまだありません。
+                  </p>
+                </Card>
+              ) : null}
+            </div>
           </Section>
         ) : null}
 
