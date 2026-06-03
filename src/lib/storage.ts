@@ -26,6 +26,22 @@ function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
+function loadImageElement(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.addEventListener("load", () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    });
+    image.addEventListener("error", () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("画像を読み込めませんでした。別の写真でお試しください。"));
+    });
+    image.src = url;
+  });
+}
+
 function dataUrlToFile(dataUrl: string, name: string, contentType: string) {
   const [header, base64] = dataUrl.split(",");
   const typeMatch = header.match(/^data:(.*?);base64$/);
@@ -45,7 +61,7 @@ function dataUrlToFile(dataUrl: string, name: string, contentType: string) {
 export async function compressImageFile(file: File): Promise<File> {
   if (!file.type.startsWith("image/")) return file;
 
-  const image = await createImageBitmap(file);
+  const image = await loadImageElement(file);
   const scale = Math.min(1, MAX_IMAGE_WIDTH / image.width);
   const width = Math.round(image.width * scale);
   const height = Math.round(image.height * scale);
@@ -59,7 +75,6 @@ export async function compressImageFile(file: File): Promise<File> {
   const blob = await new Promise<Blob | null>((resolve) =>
     canvas.toBlob(resolve, "image/jpeg", IMAGE_QUALITY),
   );
-  image.close();
   if (!blob) return file;
 
   const name = file.name.replace(/\.[^.]+$/, "") || "boat-image";

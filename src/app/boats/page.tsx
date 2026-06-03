@@ -33,6 +33,9 @@ export default function BoatsPage() {
   const [saveState, setSaveState] = useState<
     "idle" | "saving" | "saved" | "queued" | "error"
   >("idle");
+  const [imageState, setImageState] = useState<
+    "idle" | "uploading" | "uploaded" | "queued" | "error"
+  >("idle");
   const [imageFile, setImageFile] = useState<File | undefined>();
   const [imageMessage, setImageMessage] = useState("");
   const [hasQueuedImage, setHasQueuedImage] = useState(
@@ -75,37 +78,10 @@ export default function BoatsPage() {
     if (saveState === "saving") return;
     setSaveState("saving");
 
-    let imageUrl = appData.boat.imageUrl;
-    let queuedImage = false;
     setImageMessage("");
+    setImageState("idle");
 
     try {
-      if (imageFile) {
-        if (typeof navigator !== "undefined" && !navigator.onLine) {
-          await queueBoatImageUpload({
-            file: imageFile,
-            boatId: appData.boat.id,
-            userId: appData.currentUser.id,
-          });
-          setHasQueuedImage(true);
-          queuedImage = true;
-          setSaveState("queued");
-        } else {
-          try {
-            imageUrl = await uploadBoatImage({
-              file: imageFile,
-              boatId: appData.boat.id,
-              userId: appData.currentUser.id,
-            });
-            setHasQueuedImage(Boolean(getQueuedBoatImage()));
-          } catch {
-            setImageMessage(
-              "写真アップロードに失敗したため、写真は変更せず船舶情報のみ保存します。",
-            );
-          }
-        }
-      }
-
       const updatedAt = new Date().toISOString();
       const nextBoat = {
         ...appData.boat,
@@ -115,20 +91,76 @@ export default function BoatsPage() {
         capacity: Number(form.capacity) || appData.boat.capacity,
         fuelType: form.fuelType,
         engineInfo: form.engineInfo,
-        imageUrl,
         notes: form.notes,
         updatedAt,
       };
 
-      await updateClientAppData(
+      const savePromise = updateClientAppData(
         (current) => ({ ...current, boat: nextBoat }),
         appData,
       );
-      setImageFile(undefined);
-      setSaveState(queuedImage ? "queued" : "saved");
-      if (!queuedImage) setIsEditing(false);
+      setSaveState("saved");
+      setIsEditing(false);
+      await savePromise;
+
+      if (imageFile) {
+        await saveBoatImage(imageFile);
+      }
     } catch {
       setSaveState("error");
+    }
+  }
+
+  async function saveBoatImage(file: File) {
+    setImageState("uploading");
+    setImageMessage("写真を圧縮してアップロードしています。");
+
+    try {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        await queueBoatImageUpload({
+          file,
+          boatId: appData.boat.id,
+          userId: appData.currentUser.id,
+        });
+        setHasQueuedImage(true);
+        setImageState("queued");
+        setImageMessage(
+          "写真は圧縮してオフライン保留しました。オンラインになったら同期できます。",
+        );
+        setImageFile(undefined);
+        return;
+      }
+
+      const imageUrl = await uploadBoatImage({
+        file,
+        boatId: appData.boat.id,
+        userId: appData.currentUser.id,
+      });
+
+      await updateClientAppData(
+        (current) => ({
+          ...current,
+          boat: {
+            ...current.boat,
+            imageUrl,
+            updatedAt: new Date().toISOString(),
+          },
+        }),
+        appData,
+      );
+      setImageFile(undefined);
+      setHasQueuedImage(Boolean(getQueuedBoatImage()));
+      setImageState("uploaded");
+      setImageMessage("船舶写真を更新しました。");
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "写真アップロードに失敗しました。";
+      setImageState("error");
+      setImageMessage(
+        `船舶情報は保存済みです。写真だけ更新できませんでした: ${message}`,
+      );
     }
   }
 
@@ -156,8 +188,16 @@ export default function BoatsPage() {
         appData,
       );
       setHasQueuedImage(false);
+      setImageState("uploaded");
+      setImageMessage("保留写真を同期しました。");
       setSaveState("saved");
-    } catch {
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "保留写真の同期に失敗しました。";
+      setImageState("error");
+      setImageMessage(message);
       setSaveState("error");
     }
   }
@@ -189,6 +229,7 @@ export default function BoatsPage() {
               fill
               sizes="(min-width: 768px) 960px, 100vw"
               className="object-cover"
+              unoptimized={appData.boat.imageUrl.startsWith("data:")}
               priority
             />
           </div>
@@ -248,9 +289,20 @@ export default function BoatsPage() {
         ) : saveState === "saved" ? (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">
             船舶情報を保存しました。
-            {imageMessage ? (
-              <span className="mt-2 block text-amber-900">{imageMessage}</span>
-            ) : null}
+          </div>
+        ) : null}
+
+        {imageMessage ? (
+          <div
+            className={`rounded-lg border p-3 text-sm font-bold ${
+              imageState === "error"
+                ? "border-rose-200 bg-rose-50 text-rose-800"
+                : imageState === "uploaded"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : "border-amber-200 bg-amber-50 text-amber-900"
+            }`}
+          >
+            {imageMessage}
           </div>
         ) : null}
 
@@ -488,6 +540,11 @@ export default function BoatsPage() {
                 <Save size={21} aria-hidden="true" />
                 {saveState === "saving" ? "保存中..." : "保存する"}
               </button>
+              {imageFile ? (
+                <p className="mt-3 text-center text-xs font-bold leading-5 text-slate-500">
+                  基本情報を先に保存し、その後に写真をアップロードします。
+                </p>
+              ) : null}
             </form>
           </div>
         ) : null}
