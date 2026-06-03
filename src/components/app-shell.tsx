@@ -10,6 +10,7 @@ import {
   Home,
   LifeBuoy,
   MessageSquareWarning,
+  Navigation,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui";
@@ -21,6 +22,7 @@ const navItems = [
   { href: "/home", label: "ホーム", icon: Home },
   { href: "/reservations", label: "予約", icon: CalendarDays },
   { href: "/checks/pre-departure", label: "チェック", icon: ClipboardCheck },
+  { href: "/voyages", label: "航行", icon: Navigation },
   { href: "/support", label: "相談", icon: LifeBuoy },
   { href: "/handovers", label: "申し送り", icon: MessageSquareWarning },
 ];
@@ -91,7 +93,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-sky-100 bg-white/95 shadow-[0_-8px_28px_rgba(15,23,42,0.08)] backdrop-blur md:hidden">
-        <div className="grid grid-cols-5 px-2 pb-[max(env(safe-area-inset-bottom),8px)] pt-2">
+        <div className="grid grid-cols-6 px-1 pb-[max(env(safe-area-inset-bottom),8px)] pt-2">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active =
@@ -102,7 +104,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-xs font-semibold ${
+                className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-[11px] font-semibold ${
                   active ? "bg-blue-700 text-white" : "text-slate-500"
                 }`}
               >

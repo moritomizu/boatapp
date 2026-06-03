@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { AlertTriangle, CalendarPlus, ShipWheel } from "lucide-react";
+import { AlertTriangle, CalendarPlus, Navigation, ShipWheel } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Badge, Card, Section } from "@/components/ui";
 import { updateClientAppData, useClientAppData } from "@/lib/client-store";
@@ -428,12 +428,19 @@ export default function ReservationsPage() {
                       {reservation.comment ? <p>{reservation.comment}</p> : null}
                     </div>
 
-                    <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                    <div className="mt-4 grid gap-2 sm:grid-cols-4">
                       <Link
                         href={`/checks/pre-departure?reservationId=${reservation.id}`}
                         className="flex min-h-11 items-center justify-center rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
                       >
                         出船前チェック
+                      </Link>
+                      <Link
+                        href={`/voyages?reservationId=${reservation.id}`}
+                        className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
+                      >
+                        <Navigation size={16} aria-hidden="true" />
+                        出船開始
                       </Link>
                       <Link
                         href={`/checks/post-return?reservationId=${reservation.id}`}

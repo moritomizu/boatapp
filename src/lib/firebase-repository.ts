@@ -16,6 +16,7 @@ import type {
   Reservation,
   SupportMessage,
   SupportRequest,
+  VoyageLog,
 } from "@/types/domain";
 
 type CollectionMap = {
@@ -28,6 +29,7 @@ type CollectionMap = {
   handoverNotes: HandoverNote;
   supportRequests: SupportRequest;
   supportMessages: SupportMessage;
+  voyageLogs: VoyageLog;
   maintenanceLogs: MaintenanceLog;
   notifications: AppNotification;
   notificationPreferences: NotificationPreference;
@@ -43,6 +45,7 @@ const collections = [
   "handoverNotes",
   "supportRequests",
   "supportMessages",
+  "voyageLogs",
   "maintenanceLogs",
   "notifications",
   "notificationPreferences",
@@ -184,6 +187,7 @@ export async function getFirestoreAppData(fallback: AppData = mockData) {
     handoverNotes,
     supportRequests,
     supportMessages,
+    voyageLogs,
     maintenanceLogs,
     notifications,
     notificationPreferences,
@@ -221,6 +225,7 @@ export async function getFirestoreAppData(fallback: AppData = mockData) {
     handoverNotes: handoverNotes as HandoverNote[],
     supportRequests: supportRequests as SupportRequest[],
     supportMessages: supportMessages as SupportMessage[],
+    voyageLogs: voyageLogs as VoyageLog[],
     maintenanceLogs: maintenanceLogs as MaintenanceLog[],
     notifications: notifications as AppNotification[],
     notificationPreferences:
@@ -283,6 +288,10 @@ export async function saveFirestoreAppData(
         data.supportMessages,
         previousData?.supportMessages,
       ),
+    ),
+    writeCollection(
+      "voyageLogs",
+      changedRows("voyageLogs", data.voyageLogs, previousData?.voyageLogs),
     ),
     writeCollection(
       "maintenanceLogs",

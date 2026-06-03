@@ -6,6 +6,7 @@ import type {
   Reservation,
   SupportMessage,
   SupportRequest,
+  VoyageLog,
 } from "@/types/domain";
 
 export const mockData: AppData = {
@@ -311,6 +312,50 @@ export const mockData: AppData = {
       createdAt: "2026-05-28T18:02:00.000+09:00",
     },
   ],
+  voyageLogs: [
+    {
+      id: "voyage-001",
+      organizationId: "org-osaka-tapiyota",
+      boatId: "boat-tapiyota",
+      reservationId: "res-001",
+      userId: "user-owner-1",
+      status: "completed",
+      departedAt: "2026-06-01T07:08:00.000+09:00",
+      returnedAt: "2026-06-01T10:58:00.000+09:00",
+      durationMinutes: 230,
+      distanceKm: 32.4,
+      passengerCount: 2,
+      memo: "明石方面。帰りは向かい風で回転数を落として帰港。",
+      trackPoints: [
+        {
+          latitude: 34.6676,
+          longitude: 135.2497,
+          accuracy: 35,
+          capturedAt: "2026-06-01T07:08:00.000+09:00",
+        },
+        {
+          latitude: 34.632,
+          longitude: 135.125,
+          accuracy: 42,
+          capturedAt: "2026-06-01T08:10:00.000+09:00",
+        },
+        {
+          latitude: 34.6162,
+          longitude: 135.0813,
+          accuracy: 38,
+          capturedAt: "2026-06-01T09:40:00.000+09:00",
+        },
+        {
+          latitude: 34.6676,
+          longitude: 135.2497,
+          accuracy: 35,
+          capturedAt: "2026-06-01T10:58:00.000+09:00",
+        },
+      ],
+      createdAt: "2026-06-01T07:08:00.000+09:00",
+      updatedAt: "2026-06-01T10:58:00.000+09:00",
+    },
+  ],
   maintenanceLogs: [
     {
       id: "maint-001",
@@ -446,6 +491,19 @@ export const createReservation = (
   return {
     ...reservation,
     id: `res-${crypto.randomUUID()}`,
+    createdAt: now,
+    updatedAt: now,
+  };
+};
+
+export const createVoyageLog = (
+  voyage: Omit<VoyageLog, "id" | "createdAt" | "updatedAt">,
+): VoyageLog => {
+  const now = new Date().toISOString();
+
+  return {
+    ...voyage,
+    id: `voyage-${crypto.randomUUID()}`,
     createdAt: now,
     updatedAt: now,
   };

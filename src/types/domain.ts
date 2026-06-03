@@ -50,6 +50,8 @@ export type SupportUrgency = "low" | "medium" | "high";
 
 export type SupportStatus = "open" | "in_progress" | "resolved" | "closed";
 
+export type VoyageStatus = "planned" | "underway" | "completed";
+
 export type SupportLocation = {
   latitude: number;
   longitude: number;
@@ -63,6 +65,13 @@ export type SupportAttachment = {
   contentType: string;
   uploadedAt: string;
   uploadedBy: string;
+};
+
+export type TrackPoint = {
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+  capturedAt: string;
 };
 
 export type TargetFish =
@@ -235,6 +244,24 @@ export type MaintenanceLog = {
   createdAt: string;
 };
 
+export type VoyageLog = {
+  id: string;
+  organizationId: string;
+  boatId: string;
+  reservationId: string;
+  userId: string;
+  status: VoyageStatus;
+  departedAt?: string;
+  returnedAt?: string;
+  durationMinutes?: number;
+  distanceKm?: number;
+  trackPoints: TrackPoint[];
+  passengerCount: number;
+  memo: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type AppNotification = {
   id: string;
   organizationId: string;
@@ -269,6 +296,7 @@ export type AppData = {
   handoverNotes: HandoverNote[];
   supportRequests: SupportRequest[];
   supportMessages: SupportMessage[];
+  voyageLogs: VoyageLog[];
   maintenanceLogs: MaintenanceLog[];
   notifications: AppNotification[];
   notificationPreferences: NotificationPreference[];

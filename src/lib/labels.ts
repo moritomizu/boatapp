@@ -10,6 +10,7 @@ import type {
   SupportUrgency,
   TargetFish,
   UserRole,
+  VoyageStatus,
 } from "@/types/domain";
 
 export const roleLabels: Record<UserRole, string> = {
@@ -135,4 +136,16 @@ export const supportStatusTone: Record<SupportStatus, string> = {
   in_progress: "bg-blue-100 text-blue-900 ring-blue-200",
   resolved: "bg-emerald-100 text-emerald-800 ring-emerald-200",
   closed: "bg-slate-100 text-slate-700 ring-slate-200",
+};
+
+export const voyageStatusLabels: Record<VoyageStatus, string> = {
+  planned: "出船前",
+  underway: "航行中",
+  completed: "帰港済み",
+};
+
+export const voyageStatusTone: Record<VoyageStatus, string> = {
+  planned: "bg-sky-100 text-blue-800 ring-sky-200",
+  underway: "bg-amber-100 text-amber-900 ring-amber-200",
+  completed: "bg-emerald-100 text-emerald-800 ring-emerald-200",
 };

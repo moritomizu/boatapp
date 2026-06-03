@@ -6,8 +6,10 @@ import {
   Bell,
   CalendarDays,
   ClipboardCheck,
+  Compass,
   LifeBuoy,
   MessageSquareWarning,
+  Navigation,
   Ship,
   Users,
 } from "lucide-react";
@@ -27,6 +29,8 @@ import {
   supportUrgencyLabels,
   supportUrgencyTone,
   targetFishLabels,
+  voyageStatusLabels,
+  voyageStatusTone,
 } from "@/lib/labels";
 import { findNextReservation, formatDate, formatTime, isSameDay } from "@/lib/reservations";
 
@@ -34,11 +38,33 @@ export default function HomePage() {
   const initialData = getInitialAppData();
   const data = useClientAppData(initialData);
 
-  const todayIso = "2026-06-01T00:00:00.000+09:00";
+  const todayIso = new Date().toISOString();
   const todaysReservations = data.reservations.filter((reservation) =>
     isSameDay(reservation.startAt, todayIso),
   );
   const nextReservation = findNextReservation(data.reservations);
+  const activeVoyage = data.voyageLogs.find(
+    (voyage) => voyage.status === "underway",
+  );
+  const primaryReservation =
+    (activeVoyage
+      ? data.reservations.find(
+          (reservation) => reservation.id === activeVoyage.reservationId,
+        )
+      : undefined) ??
+    todaysReservations[0] ??
+    nextReservation;
+  const primaryReservationId = primaryReservation?.id;
+  const primaryPreCheckDone = primaryReservationId
+    ? data.preDepartureChecks.some(
+        (check) => check.reservationId === primaryReservationId,
+      )
+    : false;
+  const primaryPostCheckDone = primaryReservationId
+    ? data.postReturnChecks.some(
+        (check) => check.reservationId === primaryReservationId,
+      )
+    : false;
   const unresolvedHandovers = data.handoverNotes.filter(
     (note) => note.status !== "resolved",
   );
@@ -71,7 +97,6 @@ export default function HomePage() {
   const urgentNotifications = unreadNotifications.filter(
     (notification) => notification.priority === "urgent",
   );
-  const primaryReservationId = todaysReservations[0]?.id;
   const actions = [
     { href: "/reservations#new", label: "予約する", icon: CalendarDays },
     { href: "/reservations", label: "予約カレンダーを見る", icon: ClipboardCheck },
@@ -81,6 +106,13 @@ export default function HomePage() {
         : "/checks/pre-departure",
       label: "出船前チェック",
       icon: ClipboardCheck,
+    },
+    {
+      href: primaryReservationId
+        ? `/voyages?reservationId=${primaryReservationId}`
+        : "/voyages",
+      label: activeVoyage ? "航行中画面を開く" : "出船を開始",
+      icon: Navigation,
     },
     {
       href: primaryReservationId
@@ -197,6 +229,109 @@ export default function HomePage() {
           </div>
         </Section>
 
+        <Section title="次にやること">
+          <Card>
+            <div className="space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-lg font-black text-blue-950">
+                    {activeVoyage
+                      ? "航行中です"
+                      : primaryReservation
+                        ? "本日の流れを進めます"
+                        : "まずは予約を登録します"}
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-slate-600">
+                    {activeVoyage
+                      ? `${activeVoyage.trackPoints.length}件の位置を記録中。帰港したら航行ログを完了してください。`
+                      : primaryReservation
+                        ? `${formatDate(primaryReservation.startAt)} ${formatTime(primaryReservation.startAt)} / ${primaryReservation.destinationArea}`
+                        : "予約からチェック、出船、帰港後チェック、申し送りまでを順番に進めます。"}
+                  </p>
+                </div>
+                {activeVoyage ? (
+                  <Badge className={voyageStatusTone[activeVoyage.status]}>
+                    {voyageStatusLabels[activeVoyage.status]}
+                  </Badge>
+                ) : null}
+              </div>
+
+              {activeVoyage ? (
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <Link
+                    href={`/voyages?reservationId=${activeVoyage.reservationId}`}
+                    className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 text-sm font-black text-white"
+                  >
+                    <Navigation size={18} aria-hidden="true" />
+                    航行ログを開く
+                  </Link>
+                  <Link
+                    href={`/support?reservationId=${activeVoyage.reservationId}#new`}
+                    className="flex min-h-12 items-center justify-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-black text-rose-800"
+                  >
+                    <LifeBuoy size={18} aria-hidden="true" />
+                    サポート要請
+                  </Link>
+                  <Link
+                    href={`/checks/post-return?reservationId=${activeVoyage.reservationId}`}
+                    className="flex min-h-12 items-center justify-center gap-2 rounded-lg border border-sky-200 px-4 text-sm font-black text-blue-900"
+                  >
+                    <ClipboardCheck size={18} aria-hidden="true" />
+                    帰港後チェック
+                  </Link>
+                </div>
+              ) : primaryReservation ? (
+                <div className="grid gap-2 sm:grid-cols-4">
+                  <Link
+                    href={`/checks/pre-departure?reservationId=${primaryReservation.id}`}
+                    className={`flex min-h-12 items-center justify-center gap-2 rounded-lg px-4 text-sm font-black ${
+                      primaryPreCheckDone
+                        ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
+                        : "bg-blue-800 text-white"
+                    }`}
+                  >
+                    <ClipboardCheck size={18} aria-hidden="true" />
+                    {primaryPreCheckDone ? "出船前完了" : "出船前チェック"}
+                  </Link>
+                  <Link
+                    href={`/voyages?reservationId=${primaryReservation.id}`}
+                    className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
+                  >
+                    <Compass size={18} aria-hidden="true" />
+                    出船開始
+                  </Link>
+                  <Link
+                    href={`/checks/post-return?reservationId=${primaryReservation.id}`}
+                    className={`flex min-h-12 items-center justify-center gap-2 rounded-lg px-4 text-sm font-black ${
+                      primaryPostCheckDone
+                        ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
+                        : "border border-sky-200 text-blue-900"
+                    }`}
+                  >
+                    <ClipboardCheck size={18} aria-hidden="true" />
+                    {primaryPostCheckDone ? "帰港後完了" : "帰港後チェック"}
+                  </Link>
+                  <Link
+                    href={`/handovers?reservationId=${primaryReservation.id}#new`}
+                    className="flex min-h-12 items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 text-sm font-black text-amber-900"
+                  >
+                    <MessageSquareWarning size={18} aria-hidden="true" />
+                    申し送り
+                  </Link>
+                </div>
+              ) : (
+                <Link
+                  href="/reservations#new"
+                  className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
+                >
+                  <CalendarDays size={18} aria-hidden="true" />
+                  予約を登録
+                </Link>
+              )}
+            </div>
+          </Card>
+        </Section>
+
         {highPriorityHandovers.length > 0 ? (
           <Link
             href="/handovers"
@@ -266,6 +401,13 @@ export default function HomePage() {
                     >
                       <ClipboardCheck size={18} aria-hidden="true" />
                       帰港後チェックを開始
+                    </Link>
+                    <Link
+                      href={`/voyages?reservationId=${reservation.id}`}
+                      className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
+                    >
+                      <Navigation size={18} aria-hidden="true" />
+                      出船開始
                     </Link>
                   </div>
                 </Card>
@@ -355,7 +497,7 @@ export default function HomePage() {
             {[
               ["メンテナンス台帳", Ship],
               ["船舶カルテ", Ship],
-              ["操船スキル管理", Users],
+              ["操船スキル詳細評価", Users],
               ["メンバー利用制限", Users],
               ["通知のFirebase本接続", Bell],
               ["写真添付", CalendarDays],
