@@ -1,6 +1,7 @@
 import type {
   AppData,
   HandoverNote,
+  JoinRequest,
   MemberTripRating,
   PostReturnCheck,
   PreDepartureCheck,
@@ -32,6 +33,7 @@ export const mockData: AppData = {
       "共同オーナー4名とメンバーで運用。出船前後チェック、申し送り、整備ログを順次追加予定。",
     updatedAt: "2026-05-28T17:30:00.000+09:00",
   },
+  boats: [],
   users: [
     {
       id: "user-admin",
@@ -137,6 +139,19 @@ export const mockData: AppData = {
       comment: "時間帯重複の警告確認用。",
       createdAt: "2026-05-27T12:00:00.000+09:00",
       updatedAt: "2026-05-27T12:00:00.000+09:00",
+    },
+  ],
+  joinRequests: [
+    {
+      id: "join-001",
+      organizationId: "org-osaka-tapiyota",
+      boatId: "boat-tapiyota",
+      reservationId: "res-002",
+      userId: "user-member-1",
+      message: "夜シーバスの同乗を希望します。準備と片付けも手伝います。",
+      status: "requested",
+      createdAt: "2026-06-01T20:00:00.000+09:00",
+      updatedAt: "2026-06-01T20:00:00.000+09:00",
     },
   ],
   preDepartureChecks: [
@@ -547,6 +562,19 @@ export const createReservation = (
   return {
     ...reservation,
     id: `res-${crypto.randomUUID()}`,
+    createdAt: now,
+    updatedAt: now,
+  };
+};
+
+export const createJoinRequest = (
+  request: Omit<JoinRequest, "id" | "createdAt" | "updatedAt">,
+): JoinRequest => {
+  const now = new Date().toISOString();
+
+  return {
+    ...request,
+    id: `join-${crypto.randomUUID()}`,
     createdAt: now,
     updatedAt: now,
   };

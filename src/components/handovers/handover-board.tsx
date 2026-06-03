@@ -55,6 +55,7 @@ export function HandoverBoard({
     status: "unconfirmed" as HandoverStatus,
     reservationId: initialDraft.reservationId ?? "",
     createdBy: data.currentUser.id,
+    estimatedCost: 0,
   });
   const [saveState, setSaveState] = useState<
     "idle" | "saving" | "saved" | "error"
@@ -63,6 +64,7 @@ export function HandoverBoard({
   const [promoteState, setPromoteState] = useState<"idle" | "saving" | "done">(
     "idle",
   );
+  const [maintenanceCost, setMaintenanceCost] = useState(0);
 
   const unresolvedNotes = useMemo(
     () =>
@@ -110,6 +112,7 @@ export function HandoverBoard({
       priority: form.priority,
       status: form.status,
       createdBy: form.createdBy,
+      estimatedCost: form.estimatedCost > 0 ? form.estimatedCost : undefined,
       resolvedAt: form.status === "resolved" ? new Date().toISOString() : undefined,
     });
 
@@ -129,6 +132,7 @@ export function HandoverBoard({
         priority: "medium",
         status: "unconfirmed",
         category: "other",
+        estimatedCost: 0,
       }));
     } catch {
       setSaveState("error");
@@ -172,7 +176,7 @@ export function HandoverBoard({
       category: handoverCategoryLabels[note.category],
       title: note.title,
       body: `申し送りからメンテナンス台帳へ昇格\n\n${note.body}`,
-      cost: 0,
+      cost: maintenanceCost || note.estimatedCost || 0,
       performedAt: now,
       createdBy: appData.currentUser.id,
       createdAt: now,
@@ -203,6 +207,7 @@ export function HandoverBoard({
         key={note.id}
         onClick={() => {
           setPromoteState("idle");
+          setMaintenanceCost(note.estimatedCost ?? 0);
           setSelectedId(note.id);
         }}
         className={`w-full rounded-lg border bg-white p-4 text-left shadow-sm ${
@@ -393,6 +398,24 @@ export function HandoverBoard({
             </label>
           </div>
 
+          <label className="block">
+            <span className="text-sm font-bold text-slate-700">
+              想定費用・対応費用
+            </span>
+            <input
+              type="number"
+              min={0}
+              value={form.estimatedCost}
+              onChange={(event) =>
+                updateForm("estimatedCost", Number(event.target.value))
+              }
+              className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
+            />
+            <p className="mt-1 text-xs font-semibold text-slate-500">
+              未定の場合は0のままで構いません。整備記録へ昇格する際にも調整できます。
+            </p>
+          </label>
+
           <div className="rounded-lg border border-dashed border-sky-200 bg-sky-50 p-4">
             <div className="flex items-center gap-2 text-sm font-black text-blue-900">
               <Camera size={20} aria-hidden="true" />
@@ -482,6 +505,17 @@ export function HandoverBoard({
               {selectedNote.body}
             </p>
 
+            {selectedNote.estimatedCost ? (
+              <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm font-black text-amber-900">
+                想定費用:{" "}
+                {new Intl.NumberFormat("ja-JP", {
+                  style: "currency",
+                  currency: "JPY",
+                  maximumFractionDigits: 0,
+                }).format(selectedNote.estimatedCost)}
+              </p>
+            ) : null}
+
             <div className="mt-5 rounded-lg border border-sky-100 bg-sky-50 p-3">
               <div className="flex items-start gap-2">
                 <Wrench
@@ -503,19 +537,35 @@ export function HandoverBoard({
                   すでに整備記録へ紐づいています: {selectedMaintenanceLog.title}
                 </p>
               ) : canPromote ? (
-                <button
-                  type="button"
-                  onClick={() => promoteToMaintenanceLog(selectedNote)}
-                  disabled={promoteState === "saving"}
-                  className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white disabled:bg-slate-300"
-                >
-                  <Wrench size={19} aria-hidden="true" />
-                  {promoteState === "saving"
-                    ? "作成中..."
-                    : promoteState === "done"
-                      ? "整備記録を作成しました"
-                      : "メンテナンス台帳へ昇格"}
-                </button>
+                <div className="mt-3 space-y-3">
+                  <label className="block">
+                    <span className="text-sm font-bold text-blue-950">
+                      整備費用
+                    </span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={maintenanceCost}
+                      onChange={(event) =>
+                        setMaintenanceCost(Number(event.target.value))
+                      }
+                      className="mt-2 h-12 w-full rounded-lg border border-sky-200 bg-white px-3 text-base outline-none ring-blue-600 focus:ring-2"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => promoteToMaintenanceLog(selectedNote)}
+                    disabled={promoteState === "saving"}
+                    className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white disabled:bg-slate-300"
+                  >
+                    <Wrench size={19} aria-hidden="true" />
+                    {promoteState === "saving"
+                      ? "作成中..."
+                      : promoteState === "done"
+                        ? "整備記録を作成しました"
+                        : "メンテナンス台帳へ昇格"}
+                  </button>
+                </div>
               ) : (
                 <p className="mt-3 rounded-lg bg-white p-3 text-sm font-bold text-slate-600">
                   整備記録への昇格は管理者/共同オーナーが行えます。

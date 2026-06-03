@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import {
   Bell,
   CalendarDays,
-  ClipboardCheck,
   Home,
   LifeBuoy,
   Navigation,
@@ -21,15 +20,39 @@ import { roleLabels } from "@/lib/labels";
 const navItems = [
   { href: "/home", label: "ホーム", icon: Home },
   { href: "/reservations", label: "予約", icon: CalendarDays },
-  { href: "/checks/pre-departure", label: "チェック", icon: ClipboardCheck },
-  { href: "/voyages", label: "航行", icon: Navigation },
   { href: "/support", label: "相談", icon: LifeBuoy },
   { href: "/boats", label: "船舶", icon: Ship },
 ];
 
+const isSameDateKey = (value: string) => {
+  const now = new Date();
+  const target = new Date(value);
+  return (
+    now.getFullYear() === target.getFullYear() &&
+    now.getMonth() === target.getMonth() &&
+    now.getDate() === target.getDate()
+  );
+};
+
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const data = useClientAppData(getInitialAppData());
+  const activeVoyage = data.voyageLogs.find((voyage) => voyage.status === "underway");
+  const todaysReservation = data.reservations.find((reservation) =>
+    isSameDateKey(reservation.startAt),
+  );
+  const preCheckDone = todaysReservation
+    ? data.preDepartureChecks.some(
+        (check) => check.reservationId === todaysReservation.id,
+      )
+    : false;
+  const departureHref = activeVoyage
+    ? `/voyages?reservationId=${activeVoyage.reservationId}`
+    : todaysReservation
+      ? preCheckDone
+        ? `/voyages?reservationId=${todaysReservation.id}`
+        : `/checks/pre-departure?reservationId=${todaysReservation.id}`
+      : "/reservations";
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950">
@@ -110,12 +133,42 @@ export function AppShell({ children }: { children: ReactNode }) {
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-sky-100 bg-white/95 shadow-[0_-8px_28px_rgba(15,23,42,0.08)] backdrop-blur md:hidden">
-        <div className="grid grid-cols-6 px-1 pb-[max(env(safe-area-inset-bottom),8px)] pt-2">
-          {navItems.map((item) => {
+        <div className="grid grid-cols-5 items-end px-1 pb-[max(env(safe-area-inset-bottom),8px)] pt-2">
+          {navItems.slice(0, 2).map((item) => {
             const Icon = item.icon;
             const active =
               pathname === item.href ||
               (item.href.startsWith("/checks") && pathname.startsWith("/checks")) ||
+              (item.href === "/boats" && pathname.startsWith("/handovers"));
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-[11px] font-semibold ${
+                  active ? "bg-blue-700 text-white" : "text-slate-500"
+                }`}
+              >
+                <Icon size={21} aria-hidden="true" />
+                {item.label}
+              </Link>
+            );
+          })}
+          <Link
+            href={departureHref}
+            className={`mx-1 flex min-h-16 -translate-y-2 flex-col items-center justify-center gap-1 rounded-2xl bg-blue-800 text-[11px] font-black text-white shadow-lg shadow-blue-950/20 ${
+              pathname.startsWith("/voyages") || pathname.startsWith("/checks")
+                ? "ring-2 ring-blue-200"
+                : ""
+            }`}
+          >
+            <Navigation size={24} aria-hidden="true" />
+            出船
+          </Link>
+          {navItems.slice(2).map((item) => {
+            const Icon = item.icon;
+            const active =
+              pathname === item.href ||
               (item.href === "/boats" && pathname.startsWith("/handovers"));
 
             return (

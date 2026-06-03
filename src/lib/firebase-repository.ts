@@ -8,6 +8,7 @@ import type {
   AppUser,
   Boat,
   HandoverNote,
+  JoinRequest,
   MaintenanceLog,
   MemberTripRating,
   NotificationPreference,
@@ -26,6 +27,7 @@ type CollectionMap = {
   boats: Boat;
   users: AppUser;
   reservations: Reservation;
+  joinRequests: JoinRequest;
   preDepartureChecks: PreDepartureCheck;
   postReturnChecks: PostReturnCheck;
   handoverNotes: HandoverNote;
@@ -44,6 +46,7 @@ const collections = [
   "boats",
   "users",
   "reservations",
+  "joinRequests",
   "preDepartureChecks",
   "postReturnChecks",
   "handoverNotes",
@@ -188,6 +191,7 @@ export async function getFirestoreAppData(fallback: AppData = mockData) {
     boats,
     users,
     reservations,
+    joinRequests,
     preDepartureChecks,
     postReturnChecks,
     handoverNotes,
@@ -211,6 +215,12 @@ export async function getFirestoreAppData(fallback: AppData = mockData) {
     (boats as Boat[]).find((item) => item.id === fallback.boat.id) ??
     (boats as Boat[])[0] ??
     fallback.boat;
+  const resolvedBoats =
+    (boats as Boat[]).length > 0
+      ? (boats as Boat[])
+      : fallback.boats?.length
+        ? fallback.boats
+        : [fallback.boat];
   const resolvedUsers =
     (users as AppUser[]).length > 0 ? (users as AppUser[]) : fallback.users;
   const authEmail = await getCurrentAuthEmail();
@@ -222,12 +232,14 @@ export async function getFirestoreAppData(fallback: AppData = mockData) {
   return {
     organization,
     boat,
+    boats: resolvedBoats,
     users: resolvedUsers,
     currentUser,
     reservations:
       (reservations as Reservation[]).length > 0
         ? (reservations as Reservation[])
         : fallback.reservations,
+    joinRequests: joinRequests as JoinRequest[],
     preDepartureChecks: preDepartureChecks as PreDepartureCheck[],
     postReturnChecks: postReturnChecks as PostReturnCheck[],
     handoverNotes: handoverNotes as HandoverNote[],
@@ -256,12 +268,24 @@ export async function saveFirestoreAppData(
     ),
     writeCollection(
       "boats",
-      changedRows("boats", [data.boat], previousData ? [previousData.boat] : []),
+      changedRows(
+        "boats",
+        data.boats?.length ? data.boats : [data.boat],
+        previousData?.boats?.length
+          ? previousData.boats
+          : previousData
+            ? [previousData.boat]
+            : [],
+      ),
     ),
     writeCollection("users", changedRows("users", data.users, previousData?.users)),
     writeCollection(
       "reservations",
       changedRows("reservations", data.reservations, previousData?.reservations),
+    ),
+    writeCollection(
+      "joinRequests",
+      changedRows("joinRequests", data.joinRequests, previousData?.joinRequests),
     ),
     writeCollection(
       "preDepartureChecks",

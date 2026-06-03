@@ -59,6 +59,8 @@ export type SkillAssessmentStatus =
   | "solo_ready"
   | "needs_practice";
 
+export type JoinRequestStatus = "requested" | "approved" | "declined";
+
 export type SupportLocation = {
   latitude: number;
   longitude: number;
@@ -137,6 +139,18 @@ export type Reservation = {
   updatedAt: string;
 };
 
+export type JoinRequest = {
+  id: string;
+  organizationId: string;
+  boatId: string;
+  reservationId: string;
+  userId: string;
+  message: string;
+  status: JoinRequestStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type HandoverNote = {
   id: string;
   organizationId: string;
@@ -148,6 +162,7 @@ export type HandoverNote = {
   priority: HandoverPriority;
   status: HandoverStatus;
   createdBy: string;
+  estimatedCost?: number;
   createdAt: string;
   updatedAt: string;
   resolvedAt?: string;
@@ -336,9 +351,11 @@ export type NotificationPreference = {
 export type AppData = {
   organization: Organization;
   boat: Boat;
+  boats?: Boat[];
   users: AppUser[];
   currentUser: AppUser;
   reservations: Reservation[];
+  joinRequests: JoinRequest[];
   preDepartureChecks: PreDepartureCheck[];
   postReturnChecks: PostReturnCheck[];
   handoverNotes: HandoverNote[];

@@ -11,6 +11,7 @@ import {
   Save,
   ShipWheel,
   Trash2,
+  UserPlus,
   X,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
@@ -19,7 +20,7 @@ import { updateClientAppData, useClientAppData } from "@/lib/client-store";
 import { getInitialAppData } from "@/lib/data-source";
 import { deleteFirestoreDocument } from "@/lib/firebase-repository";
 import { targetFishLabels } from "@/lib/labels";
-import { createReservation } from "@/lib/mock-data";
+import { createJoinRequest, createReservation } from "@/lib/mock-data";
 import {
   formatDate,
   formatTime,
@@ -75,6 +76,9 @@ export default function ReservationsPage() {
   const [saveState, setSaveState] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
+  const [joinRequestState, setJoinRequestState] = useState("");
+  const [joinRequestMessage, setJoinRequestMessage] = useState("");
+  const [joinRequestResult, setJoinRequestResult] = useState("");
 
   const draftReservation = useMemo(
     () => ({
@@ -211,6 +215,66 @@ export default function ReservationsPage() {
     }));
   }
 
+  function startReservationForDate(dateKey: string) {
+    setEditingId("");
+    setSaveState("idle");
+    setForm((current) => ({
+      ...current,
+      date: dateKey,
+      userId: data.currentUser.id,
+      startTime: "07:00",
+      endTime: "11:00",
+      passengerCount: 1,
+      availableSeats: 0,
+      joinAllowed: false,
+      comment: "",
+    }));
+    document.getElementById("new")?.scrollIntoView({ behavior: "smooth" });
+  }
+
+  async function requestJoin(reservation: Reservation) {
+    if (joinRequestState) return;
+
+    const existingRequest = data.joinRequests.find(
+      (request) =>
+        request.reservationId === reservation.id &&
+        request.userId === data.currentUser.id,
+    );
+    if (existingRequest) {
+      setJoinRequestResult("この予約にはすでに便乗希望を送信しています。");
+      return;
+    }
+
+    setJoinRequestState(reservation.id);
+    setJoinRequestResult("");
+    try {
+      const request = createJoinRequest({
+        organizationId: data.organization.id,
+        boatId: reservation.boatId,
+        reservationId: reservation.id,
+        userId: data.currentUser.id,
+        message:
+          joinRequestMessage.trim() ||
+          "便乗を希望します。よろしくお願いします。",
+        status: "requested",
+      });
+
+      await updateClientAppData(
+        (current) => ({
+          ...current,
+          joinRequests: [request, ...(current.joinRequests ?? [])],
+        }),
+        data,
+      );
+      setJoinRequestMessage("");
+      setJoinRequestResult("便乗希望を送信しました。");
+    } catch {
+      setJoinRequestResult("便乗希望の送信に失敗しました。通信状態を確認してください。");
+    } finally {
+      setJoinRequestState("");
+    }
+  }
+
   async function deleteReservation(reservationId: string) {
     if (!window.confirm("この予約を削除しますか？関連するチェックや航行ログは残ります。")) {
       return;
@@ -308,6 +372,13 @@ export default function ReservationsPage() {
                         +{day.reservations.length - 2}件
                       </p>
                     ) : null}
+                    <button
+                      type="button"
+                      onClick={() => startReservationForDate(day.dateKey)}
+                      className="mt-1 flex min-h-8 w-full items-center justify-center rounded-md border border-sky-200 bg-white px-1 text-[10px] font-black text-blue-800"
+                    >
+                      + 予約
+                    </button>
                   </div>
                 </div>
               ))}
@@ -540,6 +611,18 @@ export default function ReservationsPage() {
               const postCheckDone = data.postReturnChecks.some(
                 (check) => check.reservationId === reservation.id,
               );
+              const joinRequests = data.joinRequests.filter(
+                (request) => request.reservationId === reservation.id,
+              );
+              const currentUserJoinRequest = joinRequests.find(
+                (request) => request.userId === data.currentUser.id,
+              );
+              const canRequestJoin =
+                phase !== "past" &&
+                reservation.joinAllowed &&
+                reservation.availableSeats > 0 &&
+                reservation.userId !== data.currentUser.id &&
+                !currentUserJoinRequest;
 
               return (
                 <div id={`reservation-${reservation.id}`} key={reservation.id}>
@@ -606,6 +689,87 @@ export default function ReservationsPage() {
                       </p>
                       {reservation.comment ? <p>{reservation.comment}</p> : null}
                     </div>
+
+                    {joinRequests.length > 0 ? (
+                      <div className="mt-4 rounded-lg border border-sky-100 bg-sky-50 p-3">
+                        <p className="text-sm font-black text-blue-950">
+                          便乗希望 {joinRequests.length}件
+                        </p>
+                        <div className="mt-2 space-y-2">
+                          {joinRequests.map((request) => {
+                            const requester = data.users.find(
+                              (item) => item.id === request.userId,
+                            );
+
+                            return (
+                              <div
+                                key={request.id}
+                                className="rounded-lg bg-white p-3 text-sm leading-6 text-slate-700"
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="font-black text-slate-900">
+                                    {requester?.name ?? "メンバー"}
+                                  </span>
+                                  <Badge
+                                    className={
+                                      request.status === "approved"
+                                        ? "bg-emerald-100 text-emerald-800 ring-emerald-200"
+                                        : request.status === "declined"
+                                          ? "bg-slate-100 text-slate-700 ring-slate-200"
+                                          : "bg-amber-100 text-amber-900 ring-amber-200"
+                                    }
+                                  >
+                                    {request.status === "approved"
+                                      ? "承認済み"
+                                      : request.status === "declined"
+                                        ? "見送り"
+                                        : "希望中"}
+                                  </Badge>
+                                </div>
+                                <p className="mt-1">{request.message}</p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {canRequestJoin ? (
+                      <div className="mt-4 rounded-lg border border-emerald-100 bg-emerald-50 p-3">
+                        <p className="text-sm font-black text-emerald-900">
+                          この釣行に便乗希望を送る
+                        </p>
+                        <textarea
+                          value={joinRequestMessage}
+                          onChange={(event) =>
+                            setJoinRequestMessage(event.target.value)
+                          }
+                          placeholder="例: 同乗希望です。準備と片付けも手伝います。"
+                          className="mt-2 min-h-20 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm outline-none ring-emerald-600 focus:ring-2"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => requestJoin(reservation)}
+                          disabled={joinRequestState === reservation.id}
+                          className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 text-sm font-black text-white disabled:bg-slate-300"
+                        >
+                          <UserPlus size={17} aria-hidden="true" />
+                          {joinRequestState === reservation.id
+                            ? "送信中..."
+                            : "便乗希望を送る"}
+                        </button>
+                      </div>
+                    ) : currentUserJoinRequest ? (
+                      <div className="mt-4 rounded-lg bg-emerald-50 p-3 text-sm font-bold text-emerald-900">
+                        この予約には便乗希望を送信済みです。
+                      </div>
+                    ) : null}
+
+                    {joinRequestResult ? (
+                      <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm font-bold text-slate-700">
+                        {joinRequestResult}
+                      </p>
+                    ) : null}
 
                     {phase === "past" ? (
                       <div className="mt-4 rounded-lg bg-slate-50 p-3">

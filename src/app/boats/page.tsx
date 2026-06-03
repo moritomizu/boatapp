@@ -7,8 +7,10 @@ import {
   Camera,
   Edit3,
   MessageSquareWarning,
+  PlusCircle,
   Save,
   ShieldCheck,
+  Ship,
   UploadCloud,
   Wrench,
   X,
@@ -34,13 +36,15 @@ import {
   uploadBoatImage,
   uploadQueuedBoatImage,
 } from "@/lib/storage";
-import type { BoatStatus } from "@/types/domain";
+import type { Boat, BoatStatus } from "@/types/domain";
 
 export default function BoatsPage() {
   const initialData = getInitialAppData();
   const appData = useClientAppData(initialData);
   const canEdit = appData.currentUser.role === "admin";
+  const managedBoats = appData.boats?.length ? appData.boats : [appData.boat];
   const [isEditing, setIsEditing] = useState(false);
+  const [isAddingBoat, setIsAddingBoat] = useState(false);
   const [saveState, setSaveState] = useState<
     "idle" | "saving" | "saved" | "queued" | "error"
   >("idle");
@@ -60,6 +64,14 @@ export default function BoatsPage() {
     fuelType: appData.boat.fuelType,
     engineInfo: appData.boat.engineInfo,
     notes: appData.boat.notes,
+  });
+  const [newBoatForm, setNewBoatForm] = useState({
+    name: "",
+    mooringLocation: "",
+    capacity: "6",
+    fuelType: "ガソリン",
+    engineInfo: "",
+    notes: "",
   });
   const unresolvedHandovers = appData.handoverNotes
     .filter((note) => note.status !== "resolved")
@@ -99,6 +111,27 @@ export default function BoatsPage() {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
+  function updateNewBoatForm<T extends keyof typeof newBoatForm>(
+    key: T,
+    value: (typeof newBoatForm)[T],
+  ) {
+    setNewBoatForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function upsertBoatList(current: typeof appData, boat: Boat) {
+    const currentBoats = current.boats?.length ? current.boats : [current.boat];
+    const exists = currentBoats.some((item) => item.id === boat.id);
+    const boats = exists
+      ? currentBoats.map((item) => (item.id === boat.id ? boat : item))
+      : [...currentBoats, boat];
+
+    return {
+      ...current,
+      boat: current.boat.id === boat.id ? boat : current.boat,
+      boats,
+    };
+  }
+
   async function saveBoat(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saveState === "saving") return;
@@ -122,7 +155,7 @@ export default function BoatsPage() {
       };
 
       const savePromise = updateClientAppData(
-        (current) => ({ ...current, boat: nextBoat }),
+        (current) => upsertBoatList(current, nextBoat),
         appData,
       );
       setSaveState("saved");
@@ -164,14 +197,12 @@ export default function BoatsPage() {
       });
 
       await updateClientAppData(
-        (current) => ({
-          ...current,
-          boat: {
+        (current) =>
+          upsertBoatList(current, {
             ...current.boat,
             imageUrl,
             updatedAt: new Date().toISOString(),
-          },
-        }),
+          }),
         appData,
       );
       setImageFile(undefined);
@@ -203,14 +234,12 @@ export default function BoatsPage() {
       }
 
       await updateClientAppData(
-        (current) => ({
-          ...current,
-          boat: {
+        (current) =>
+          upsertBoatList(current, {
             ...current.boat,
             imageUrl,
             updatedAt: new Date().toISOString(),
-          },
-        }),
+          }),
         appData,
       );
       setHasQueuedImage(false);
@@ -232,6 +261,61 @@ export default function BoatsPage() {
     clearQueuedBoatImage();
     setHasQueuedImage(false);
     setSaveState("idle");
+  }
+
+  async function selectBoat(boat: Boat) {
+    await updateClientAppData(
+      (current) => ({
+        ...current,
+        boat,
+        boats: current.boats?.length ? current.boats : managedBoats,
+      }),
+      appData,
+    );
+  }
+
+  async function addBoat(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saveState === "saving") return;
+    setSaveState("saving");
+
+    const now = new Date().toISOString();
+    const boat: Boat = {
+      id: `boat-${crypto.randomUUID()}`,
+      organizationId: appData.organization.id,
+      name: newBoatForm.name,
+      status: "available",
+      mooringLocation: newBoatForm.mooringLocation,
+      capacity: Number(newBoatForm.capacity) || 1,
+      fuelType: newBoatForm.fuelType,
+      engineInfo: newBoatForm.engineInfo,
+      imageUrl: appData.boat.imageUrl,
+      notes: newBoatForm.notes,
+      updatedAt: now,
+    };
+
+    try {
+      await updateClientAppData(
+        (current) => ({
+          ...current,
+          boat,
+          boats: [...(current.boats?.length ? current.boats : [current.boat]), boat],
+        }),
+        appData,
+      );
+      setNewBoatForm({
+        name: "",
+        mooringLocation: "",
+        capacity: "6",
+        fuelType: "ガソリン",
+        engineInfo: "",
+        notes: "",
+      });
+      setIsAddingBoat(false);
+      setSaveState("saved");
+    } catch {
+      setSaveState("error");
+    }
   }
 
   return (
@@ -341,6 +425,72 @@ export default function BoatsPage() {
             ) : null}
           </div>
         ) : null}
+
+        <Section
+          title="管理船舶"
+          action={
+            canEdit ? (
+              <button
+                type="button"
+                onClick={() => setIsAddingBoat(true)}
+                className="inline-flex items-center gap-1 text-sm font-bold text-blue-800"
+              >
+                <PlusCircle size={16} aria-hidden="true" />
+                船を追加
+              </button>
+            ) : null
+          }
+        >
+          <div className="space-y-3">
+            {managedBoats.map((boat) => (
+              <Card key={boat.id}>
+                <div className="flex items-start gap-3">
+                  <span className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-lg bg-sky-100 text-blue-800">
+                    {boat.imageUrl ? (
+                      <Image
+                        src={boat.imageUrl}
+                        alt=""
+                        width={44}
+                        height={44}
+                        className="h-full w-full object-cover"
+                        unoptimized={boat.imageUrl.startsWith("data:")}
+                      />
+                    ) : (
+                      <Ship size={22} aria-hidden="true" />
+                    )}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-base font-black text-slate-950">
+                        {boat.name}
+                      </p>
+                      {boat.id === appData.boat.id ? (
+                        <Badge className="bg-blue-100 text-blue-900 ring-blue-200">
+                          表示中
+                        </Badge>
+                      ) : null}
+                      <Badge className={boatStatusTone[boat.status]}>
+                        {boatStatusLabels[boat.status]}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {boat.mooringLocation} / 定員{boat.capacity}名
+                    </p>
+                  </div>
+                </div>
+                {canEdit && boat.id !== appData.boat.id ? (
+                  <button
+                    type="button"
+                    onClick={() => selectBoat(boat)}
+                    className="mt-3 flex min-h-11 w-full items-center justify-center rounded-lg border border-sky-200 bg-sky-50 px-4 text-sm font-black text-blue-900"
+                  >
+                    この船を表示
+                  </button>
+                ) : null}
+              </Card>
+            ))}
+          </div>
+        </Section>
 
         <Section
           title="申し送り"
@@ -518,6 +668,109 @@ export default function BoatsPage() {
             <p className="text-sm leading-7 text-slate-700">{appData.boat.notes}</p>
           </Card>
         </Section>
+
+        {isAddingBoat ? (
+          <div className="fixed inset-0 z-40 flex items-end bg-slate-950/45 p-0 sm:items-center sm:p-4">
+            <form
+              onSubmit={addBoat}
+              className="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white p-4 shadow-2xl sm:mx-auto sm:max-w-2xl sm:rounded-lg sm:p-5"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black text-blue-700">管理者編集</p>
+                  <h2 className="mt-1 text-xl font-black text-blue-950">
+                    船を追加
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAddingBoat(false)}
+                  className="grid size-10 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-700"
+                  aria-label="追加を閉じる"
+                >
+                  <X size={21} aria-hidden="true" />
+                </button>
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="text-sm font-bold text-slate-700">船名</span>
+                  <input
+                    value={newBoatForm.name}
+                    onChange={(event) =>
+                      updateNewBoatForm("name", event.target.value)
+                    }
+                    className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
+                    required
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-sm font-bold text-slate-700">係留場所</span>
+                  <input
+                    value={newBoatForm.mooringLocation}
+                    onChange={(event) =>
+                      updateNewBoatForm("mooringLocation", event.target.value)
+                    }
+                    className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-sm font-bold text-slate-700">定員</span>
+                  <input
+                    value={newBoatForm.capacity}
+                    type="number"
+                    min="1"
+                    onChange={(event) =>
+                      updateNewBoatForm("capacity", event.target.value)
+                    }
+                    className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-sm font-bold text-slate-700">燃料種別</span>
+                  <input
+                    value={newBoatForm.fuelType}
+                    onChange={(event) =>
+                      updateNewBoatForm("fuelType", event.target.value)
+                    }
+                    className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
+                  />
+                </label>
+              </div>
+
+              <label className="mt-3 block">
+                <span className="text-sm font-bold text-slate-700">エンジン情報</span>
+                <input
+                  value={newBoatForm.engineInfo}
+                  onChange={(event) =>
+                    updateNewBoatForm("engineInfo", event.target.value)
+                  }
+                  className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
+                />
+              </label>
+
+              <label className="mt-3 block">
+                <span className="text-sm font-bold text-slate-700">備考</span>
+                <textarea
+                  value={newBoatForm.notes}
+                  onChange={(event) =>
+                    updateNewBoatForm("notes", event.target.value)
+                  }
+                  className="mt-2 min-h-28 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-base outline-none ring-blue-600 focus:ring-2"
+                />
+              </label>
+
+              <button
+                type="submit"
+                disabled={saveState === "saving"}
+                className="mt-5 flex h-14 w-full items-center justify-center gap-2 rounded-lg bg-blue-800 px-5 text-base font-black text-white disabled:bg-slate-300"
+              >
+                <PlusCircle size={21} aria-hidden="true" />
+                {saveState === "saving" ? "追加中..." : "船を追加する"}
+              </button>
+            </form>
+          </div>
+        ) : null}
 
         {isEditing ? (
           <div className="fixed inset-0 z-40 flex items-end bg-slate-950/45 p-0 sm:items-center sm:p-4">
