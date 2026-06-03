@@ -71,6 +71,7 @@ export default function ReservationsPage() {
   });
   const [editingId, setEditingId] = useState("");
   const [deleteState, setDeleteState] = useState("");
+  const [deleteMessage, setDeleteMessage] = useState("");
   const [saveState, setSaveState] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
@@ -216,7 +217,9 @@ export default function ReservationsPage() {
     }
 
     setDeleteState(reservationId);
+    setDeleteMessage("");
     try {
+      await deleteFirestoreDocument("reservations", reservationId);
       await updateClientAppData(
         (current) => ({
           ...current,
@@ -226,8 +229,16 @@ export default function ReservationsPage() {
         }),
         data,
       );
-      await deleteFirestoreDocument("reservations", reservationId);
       if (editingId === reservationId) cancelEdit();
+      setDeleteMessage("予約を削除しました。");
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "予約の削除に失敗しました。";
+      setDeleteMessage(
+        `予約を削除できませんでした: ${message} Firestore Rulesでreservationsのdelete権限を確認してください。`,
+      );
     } finally {
       setDeleteState("");
     }
@@ -501,6 +512,17 @@ export default function ReservationsPage() {
         </Section>
 
         <Section title="予約一覧">
+          {deleteMessage ? (
+            <div
+              className={`mb-3 rounded-lg border p-3 text-sm font-bold leading-6 ${
+                deleteMessage.startsWith("予約を削除しました")
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : "border-rose-200 bg-rose-50 text-rose-800"
+              }`}
+            >
+              {deleteMessage}
+            </div>
+          ) : null}
           <div className="space-y-3">
             {reservations.map((reservation) => {
               const user = data.users.find((item) => item.id === reservation.userId);
