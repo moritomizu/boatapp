@@ -9,19 +9,34 @@ import {
   MapPin,
   Navigation,
   Route,
+  Save,
   ShipWheel,
 } from "lucide-react";
 import { Badge, Card, Section } from "@/components/ui";
+import { VoyageMap } from "@/components/voyages/voyage-map";
 import { updateClientAppData, useClientAppData } from "@/lib/client-store";
-import { targetFishLabels, voyageStatusLabels, voyageStatusTone } from "@/lib/labels";
+import {
+  targetFishLabels,
+  voyageReviewStatusLabels,
+  voyageReviewStatusTone,
+  voyageStatusLabels,
+  voyageStatusTone,
+} from "@/lib/labels";
 import { formatDate, formatTime } from "@/lib/reservations";
 import {
+  calculateAverageSpeedKmh,
   calculateDistanceKm,
   calculateDurationMinutes,
+  calculateMaxSpeedKmh,
   createVoyageLog,
   formatDuration,
 } from "@/lib/voyages";
-import type { AppData, TrackPoint, VoyageLog } from "@/types/domain";
+import type {
+  AppData,
+  TrackPoint,
+  VoyageLog,
+  VoyageReviewStatus,
+} from "@/types/domain";
 
 type VoyageBoardProps = {
   data: AppData;
@@ -59,7 +74,14 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
   );
   const [memo, setMemo] = useState("");
   const [locationMessage, setLocationMessage] = useState("");
+  const [selectedVoyageId, setSelectedVoyageId] = useState("");
+  const [reviewStatus, setReviewStatus] =
+    useState<VoyageReviewStatus>("unreviewed");
+  const [reviewMemo, setReviewMemo] = useState("");
   const [actionState, setActionState] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const [reviewState, setReviewState] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
 
@@ -75,6 +97,23 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
   const sortedVoyages = [...appData.voyageLogs].sort(
     (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
   );
+  const detailVoyage =
+    sortedVoyages.find((voyage) => voyage.id === selectedVoyageId) ??
+    sortedVoyages[0];
+  const detailReservation = detailVoyage
+    ? voyageReservation(detailVoyage)
+    : undefined;
+  const averageSpeedKmh = detailVoyage
+    ? calculateAverageSpeedKmh(
+        detailVoyage.distanceKm,
+        detailVoyage.durationMinutes,
+      )
+    : 0;
+  const maxSpeedKmh = detailVoyage
+    ? calculateMaxSpeedKmh(detailVoyage.trackPoints)
+    : 0;
+  const canReview =
+    appData.currentUser.role === "admin" || appData.currentUser.role === "owner";
   const skillSummary = useMemo(() => {
     const completed = appData.voyageLogs.filter(
       (voyage) => voyage.status === "completed",
@@ -203,6 +242,42 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
     return appData.reservations.find(
       (reservation) => reservation.id === voyage.reservationId,
     );
+  }
+
+  function openVoyageDetail(voyage: VoyageLog) {
+    setSelectedVoyageId(voyage.id);
+    setReviewStatus(voyage.reviewStatus ?? "unreviewed");
+    setReviewMemo(voyage.reviewMemo ?? "");
+    setReviewState("idle");
+  }
+
+  async function saveReview() {
+    if (!detailVoyage || !canReview || reviewState === "saving") return;
+    setReviewState("saving");
+
+    const now = nowIso();
+    const nextVoyages = appData.voyageLogs.map((voyage) =>
+      voyage.id === detailVoyage.id
+        ? {
+            ...voyage,
+            reviewStatus,
+            reviewMemo,
+            reviewedBy: appData.currentUser.id,
+            reviewedAt: now,
+            updatedAt: now,
+          }
+        : voyage,
+    );
+
+    try {
+      await updateClientAppData(
+        (current) => ({ ...current, voyageLogs: nextVoyages }),
+        appData,
+      );
+      setReviewState("saved");
+    } catch {
+      setReviewState("error");
+    }
   }
 
   return (
@@ -417,7 +492,17 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
             const reservation = voyageReservation(voyage);
 
             return (
-              <Card key={voyage.id}>
+              <button
+                key={voyage.id}
+                type="button"
+                onClick={() => openVoyageDetail(voyage)}
+                className={`w-full rounded-lg text-left ${
+                  detailVoyage?.id === voyage.id
+                    ? "ring-2 ring-blue-200"
+                    : ""
+                }`}
+              >
+                <Card>
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-black text-blue-950">
@@ -461,11 +546,160 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
                     {voyage.memo}
                   </p>
                 ) : null}
+                <p className="mt-3 text-sm font-black text-blue-800">
+                  航跡を確認
+                </p>
               </Card>
+              </button>
             );
           })}
         </div>
       </Section>
+
+      {detailVoyage ? (
+        <Section
+          title="航跡レビュー"
+          action={
+            <Badge
+              className={
+                voyageReviewStatusTone[
+                  detailVoyage.reviewStatus ?? "unreviewed"
+                ]
+              }
+            >
+              {
+                voyageReviewStatusLabels[
+                  detailVoyage.reviewStatus ?? "unreviewed"
+                ]
+              }
+            </Badge>
+          }
+        >
+          <Card>
+            <div className="space-y-4">
+              <div>
+                <p className="text-lg font-black text-blue-950">
+                  {detailReservation
+                    ? `${formatDate(detailReservation.startAt)} ${detailReservation.destinationArea}`
+                    : "航行ログ詳細"}
+                </p>
+                <p className="mt-1 text-sm leading-6 text-slate-600">
+                  地図上の航跡はGPS記録点を直線で結んだレビュー用の表示です。
+                </p>
+              </div>
+
+              <VoyageMap points={detailVoyage.trackPoints} />
+
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="rounded-lg bg-slate-50 p-3">
+                  <p className="text-xs font-bold text-slate-500">時間</p>
+                  <p className="mt-1 font-black text-slate-950">
+                    {formatDuration(detailVoyage.durationMinutes)}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-slate-50 p-3">
+                  <p className="text-xs font-bold text-slate-500">距離</p>
+                  <p className="mt-1 font-black text-slate-950">
+                    {detailVoyage.distanceKm !== undefined
+                      ? `${detailVoyage.distanceKm.toFixed(1)}km`
+                      : "-"}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-slate-50 p-3">
+                  <p className="text-xs font-bold text-slate-500">平均速度</p>
+                  <p className="mt-1 font-black text-slate-950">
+                    {averageSpeedKmh.toFixed(1)}km/h
+                  </p>
+                </div>
+                <div className="rounded-lg bg-slate-50 p-3">
+                  <p className="text-xs font-bold text-slate-500">最大速度</p>
+                  <p className="mt-1 font-black text-slate-950">
+                    {maxSpeedKmh.toFixed(1)}km/h
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2 rounded-lg bg-slate-50 p-3">
+                <p className="text-sm font-black text-slate-900">記録点</p>
+                {detailVoyage.trackPoints.map((point, index) => (
+                  <div
+                    key={`${point.capturedAt}-${index}`}
+                    className="grid gap-1 rounded-lg bg-white p-3 text-xs font-semibold text-slate-600 sm:grid-cols-[auto_1fr_auto]"
+                  >
+                    <span className="font-black text-blue-900">
+                      #{index + 1}
+                    </span>
+                    <span>
+                      緯度 {point.latitude.toFixed(5)} / 経度{" "}
+                      {point.longitude.toFixed(5)}
+                    </span>
+                    <span>{formatTime(point.capturedAt)}</span>
+                  </div>
+                ))}
+              </div>
+
+              {canReview ? (
+                <div className="space-y-3 rounded-lg border border-sky-100 bg-sky-50 p-4">
+                  <p className="text-sm font-black text-blue-950">
+                    管理者評価
+                  </p>
+                  <label className="block">
+                    <span className="text-sm font-bold text-slate-700">
+                      評価ステータス
+                    </span>
+                    <select
+                      value={reviewStatus}
+                      onChange={(event) =>
+                        setReviewStatus(
+                          event.target.value as VoyageReviewStatus,
+                        )
+                      }
+                      className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-white px-3 text-base outline-none ring-blue-600 focus:ring-2"
+                    >
+                      {(
+                        ["unreviewed", "safe", "needs_review"] as VoyageReviewStatus[]
+                      ).map((status) => (
+                        <option key={status} value={status}>
+                          {voyageReviewStatusLabels[status]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="text-sm font-bold text-slate-700">
+                      評価メモ
+                    </span>
+                    <textarea
+                      value={reviewMemo}
+                      onChange={(event) => setReviewMemo(event.target.value)}
+                      className="mt-2 min-h-24 w-full rounded-lg border border-slate-200 bg-white px-3 py-3 text-base outline-none ring-blue-600 focus:ring-2"
+                      placeholder="航行エリア、時間、サポート要請、帰港判断などを踏まえた評価メモ"
+                    />
+                  </label>
+                  {reviewState === "error" ? (
+                    <p className="rounded-lg bg-rose-50 p-3 text-sm font-bold text-rose-800">
+                      評価の保存に失敗しました。
+                    </p>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={saveReview}
+                    disabled={reviewState === "saving"}
+                    className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white disabled:bg-slate-300"
+                  >
+                    <Save size={18} aria-hidden="true" />
+                    {reviewState === "saving"
+                      ? "保存中..."
+                      : reviewState === "saved"
+                        ? "保存しました"
+                        : "評価を保存"}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </Card>
+        </Section>
+      ) : null}
     </div>
   );
 }

@@ -24,6 +24,36 @@ export function calculateDistanceKm(points: TrackPoint[]) {
   }, 0);
 }
 
+export function calculateSegmentSpeeds(points: TrackPoint[]) {
+  if (points.length < 2) return [];
+
+  return points.slice(1).map((point, index) => {
+    const previous = points[index];
+    const distanceKm = calculateDistanceKm([previous, point]);
+    const hours =
+      (new Date(point.capturedAt).getTime() -
+        new Date(previous.capturedAt).getTime()) /
+      3600000;
+
+    return hours > 0 ? distanceKm / hours : 0;
+  });
+}
+
+export function calculateAverageSpeedKmh(
+  distanceKm?: number,
+  durationMinutes?: number,
+) {
+  if (!distanceKm || !durationMinutes) return 0;
+
+  return distanceKm / (durationMinutes / 60);
+}
+
+export function calculateMaxSpeedKmh(points: TrackPoint[]) {
+  const speeds = calculateSegmentSpeeds(points);
+
+  return speeds.length > 0 ? Math.max(...speeds) : 0;
+}
+
 export function calculateDurationMinutes(startAt?: string, endAt?: string) {
   if (!startAt || !endAt) return undefined;
 

@@ -52,6 +52,8 @@ export type SupportStatus = "open" | "in_progress" | "resolved" | "closed";
 
 export type VoyageStatus = "planned" | "underway" | "completed";
 
+export type VoyageReviewStatus = "unreviewed" | "safe" | "needs_review";
+
 export type SupportLocation = {
   latitude: number;
   longitude: number;
@@ -258,6 +260,10 @@ export type VoyageLog = {
   trackPoints: TrackPoint[];
   passengerCount: number;
   memo: string;
+  reviewStatus?: VoyageReviewStatus;
+  reviewMemo?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
   createdAt: string;
   updatedAt: string;
 };
