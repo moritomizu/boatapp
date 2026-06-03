@@ -21,7 +21,11 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Badge, Card, Field, Section } from "@/components/ui";
-import { updateClientAppData, useClientAppData } from "@/lib/client-store";
+import {
+  selectCurrentBoat,
+  updateClientAppData,
+  useClientAppData,
+} from "@/lib/client-store";
 import { getInitialAppData } from "@/lib/data-source";
 import {
   boatStatusLabels,
@@ -122,16 +126,9 @@ export default function BoatsPage() {
 
   const selectBoat = useCallback(
     async (boat: Boat) => {
-      await updateClientAppData(
-        (current) => ({
-          ...current,
-          boat,
-          boats: current.boats?.length ? current.boats : managedBoats,
-        }),
-        appData,
-      );
+      await selectCurrentBoat(boat.id, appData);
     },
-    [appData, managedBoats],
+    [appData],
   );
 
   useEffect(() => {

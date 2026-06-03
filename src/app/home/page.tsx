@@ -18,7 +18,7 @@ import { AppShell } from "@/components/app-shell";
 import { Badge, Card, Section } from "@/components/ui";
 import { canUseBoat, getBoats } from "@/lib/boat-utils";
 import { useClientAppData } from "@/lib/client-store";
-import { getInitialAppData, useMockData } from "@/lib/data-source";
+import { getInitialAppData } from "@/lib/data-source";
 import {
   boatStatusLabels,
   boatStatusTone,
@@ -170,9 +170,7 @@ export default function HomePage() {
             </Badge>
           </div>
           <p className="mt-4 text-sm leading-6 text-sky-100">
-            {useMockData
-              ? "モックデータで表示中。Firebase接続後も同じ画面構造で運用できます。"
-              : "Firebaseデータで表示中。"}
+            選択中の船舶に紐づく予約、チェック、申し送り、サポート要請を表示します。
           </p>
         </section>
 
@@ -248,6 +246,13 @@ export default function HomePage() {
                 </Link>
               );
             })}
+            {boats.length === 0 ? (
+              <Card>
+                <p className="text-sm font-semibold leading-6 text-slate-600">
+                  利用可能な船舶がありません。管理者に船舶登録または利用権限の設定を依頼してください。
+                </p>
+              </Card>
+            ) : null}
           </div>
         </Section>
 

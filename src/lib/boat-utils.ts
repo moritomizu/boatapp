@@ -1,7 +1,9 @@
 import type { AppData, AppUser, Boat, MemberBoatPermission } from "@/types/domain";
 
 export function getBoats(data: AppData): Boat[] {
-  return data.boats?.length ? data.boats : [data.boat];
+  if (data.boats?.length) return data.boats;
+  if (data.boat.id === "boat-unselected") return [];
+  return [data.boat];
 }
 
 export function findBoat(data: AppData, boatId?: string) {

@@ -12,6 +12,8 @@ import type { AppData } from "@/types/domain";
 
 const STORAGE_KEY = "tapiyota-grand-boat-club:app-data:v1";
 const STORE_EVENT = "tapiyota-grand-boat-club:app-data-updated";
+const LAST_ORGANIZATION_KEY = "tapiyota-grand-boat-club:last-organization-id";
+const LAST_BOAT_KEY = "tapiyota-grand-boat-club:last-boat-id";
 
 const isBrowser = () => typeof window !== "undefined";
 const shouldUseFirestore = () => !useMockData && canUseFirestore;
@@ -22,18 +24,87 @@ let firestoreLoaded = false;
 let firestoreRefreshPromise: Promise<AppData> | undefined;
 
 function normalizeAppData(data: AppData, fallback: AppData): AppData {
-  const boats = data.boats?.length ? data.boats : fallback.boats?.length ? fallback.boats : [data.boat];
+  const organizations = data.organization;
+  const organizationId =
+    (isBrowser() && window.localStorage.getItem(LAST_ORGANIZATION_KEY)) ||
+    data.currentOrganizationId ||
+    organizations.id ||
+    fallback.organization.id;
+  const users = data.users?.length ? data.users : fallback.users;
+  const currentUser =
+    users.find((user) => user.id === data.currentUserId) ??
+    users.find((user) => user.email === data.currentUser?.email) ??
+    data.currentUser ??
+    fallback.currentUser;
+  const boats = (data.boats?.length ? data.boats : fallback.boats?.length ? fallback.boats : [data.boat])
+    .filter((boat) => boat.organizationId === organizationId);
+  const availableBoats = boats.filter((boat) => {
+    if (currentUser.role === "admin" || currentUser.role === "owner") return true;
+    return data.memberBoatPermissions?.some(
+      (permission) =>
+        permission.organizationId === organizationId &&
+        permission.boatId === boat.id &&
+        permission.userId === currentUser.id &&
+        permission.canReserve,
+    );
+  });
+  const lastBoatId = isBrowser() ? window.localStorage.getItem(LAST_BOAT_KEY) : undefined;
+  const requestedBoatId = lastBoatId || data.currentBoatId || data.boat?.id;
+  const selectedBoat =
+    availableBoats.find((boat) => boat.id === requestedBoatId) ??
+    availableBoats[0] ??
+    boats[0] ??
+    data.boat ??
+    fallback.boat;
+
+  if (isBrowser()) {
+    window.localStorage.setItem(LAST_ORGANIZATION_KEY, organizationId);
+    window.localStorage.setItem(LAST_BOAT_KEY, selectedBoat.id);
+  }
 
   return {
     ...fallback,
     ...data,
+    organization: {
+      ...fallback.organization,
+      ...data.organization,
+    },
+    currentOrganizationId: organizationId,
+    currentBoatId: selectedBoat.id,
+    currentUserId: currentUser.id,
+    currentUser,
+    boat: selectedBoat,
     boats,
+    users,
+    organizationMembers:
+      data.organizationMembers ?? fallback.organizationMembers ?? [],
     memberBoatPermissions:
       data.memberBoatPermissions ?? fallback.memberBoatPermissions ?? [],
     joinRequests: data.joinRequests ?? fallback.joinRequests ?? [],
     memberTripRatings: data.memberTripRatings ?? fallback.memberTripRatings ?? [],
     skillAssessments: data.skillAssessments ?? fallback.skillAssessments ?? [],
   };
+}
+
+export async function selectCurrentBoat(boatId: string, fallback: AppData = getInitialAppData()) {
+  if (isBrowser()) window.localStorage.setItem(LAST_BOAT_KEY, boatId);
+
+  return updateClientAppData(
+    (current) => {
+      const boat = (current.boats?.length ? current.boats : [current.boat]).find(
+        (item) => item.id === boatId,
+      );
+      if (!boat) return current;
+
+      return {
+        ...current,
+        boat,
+        currentBoatId: boat.id,
+        currentOrganizationId: boat.organizationId,
+      };
+    },
+    fallback,
+  );
 }
 
 export function loadClientAppData(fallback: AppData = getInitialAppData()) {

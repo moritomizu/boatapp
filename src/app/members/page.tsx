@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Badge, Card, Section } from "@/components/ui";
+import { getBoats } from "@/lib/boat-utils";
 import { updateClientAppData, useClientAppData } from "@/lib/client-store";
 import { getInitialAppData } from "@/lib/data-source";
 import { deleteFirestoreDocument } from "@/lib/firebase-repository";
@@ -23,6 +24,8 @@ import {
 } from "@/lib/mock-data";
 import type {
   AppUser,
+  BoatSkillLevel,
+  MemberBoatPermission,
   SkillAssessmentStatus,
   UserRole,
 } from "@/types/domain";
@@ -52,6 +55,14 @@ const skillStatusLabels: Record<SkillAssessmentStatus, string> = {
 };
 
 const scoreOptions = [1, 2, 3, 4, 5];
+const skillLevelLabels: Record<BoatSkillLevel, string> = {
+  trainee: "研修中",
+  beginner: "初心者",
+  normal: "通常",
+  advanced: "上級",
+  owner: "オーナー",
+};
+const skillLevels = Object.keys(skillLevelLabels) as BoatSkillLevel[];
 
 function ScoreSelect({
   label,
@@ -84,6 +95,9 @@ export default function MembersPage() {
   const initialData = getInitialAppData();
   const data = useClientAppData(initialData);
   const canEdit = data.currentUser.role === "admin";
+  const canManagePermissions =
+    data.currentUser.role === "admin" || data.currentUser.role === "owner";
+  const boats = getBoats(data);
   const [editingMember, setEditingMember] = useState<AppUser | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "error">(
     "idle",
@@ -147,6 +161,49 @@ export default function MembersPage() {
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       )
       .slice(0, 2);
+  }
+
+  function permissionFor(userId: string, boatId: string) {
+    return data.memberBoatPermissions.find(
+      (permission) => permission.userId === userId && permission.boatId === boatId,
+    );
+  }
+
+  async function updateBoatPermission(
+    userId: string,
+    boatId: string,
+    patch: Partial<MemberBoatPermission>,
+  ) {
+    const now = new Date().toISOString();
+    const existing = permissionFor(userId, boatId);
+    const nextPermission: MemberBoatPermission = {
+      id: existing?.id ?? `permission-${crypto.randomUUID()}`,
+      organizationId: data.organization.id,
+      userId,
+      boatId,
+      canReserve: existing?.canReserve ?? false,
+      canSolo: existing?.canSolo ?? false,
+      canNightUse: existing?.canNightUse ?? false,
+      canUseAsGuestHost: existing?.canUseAsGuestHost ?? false,
+      skillLevel: existing?.skillLevel ?? "trainee",
+      notes: existing?.notes ?? "",
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+      ...patch,
+    };
+
+    await updateClientAppData(
+      (current) => ({
+        ...current,
+        memberBoatPermissions: [
+          nextPermission,
+          ...current.memberBoatPermissions.filter(
+            (permission) => permission.id !== nextPermission.id,
+          ),
+        ],
+      }),
+      data,
+    );
   }
 
   async function saveRating(event: React.FormEvent<HTMLFormElement>) {
@@ -400,6 +457,108 @@ export default function MembersPage() {
                     </div>
                   </div>
                 ) : null}
+
+                <details className="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
+                  <summary className="cursor-pointer text-sm font-black text-slate-700">
+                    船ごとの利用権限
+                  </summary>
+                  <div className="mt-3 space-y-3">
+                    {boats.map((boat) => {
+                      const permission = permissionFor(user.id, boat.id);
+
+                      return (
+                        <div key={boat.id} className="rounded-lg bg-white p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-black text-blue-950">{boat.name}</p>
+                            <Badge
+                              className={
+                                permission?.canReserve
+                                  ? "bg-emerald-100 text-emerald-800 ring-emerald-200"
+                                  : "bg-slate-100 text-slate-700 ring-slate-200"
+                              }
+                            >
+                              {permission?.canReserve ? "予約可" : "予約不可"}
+                            </Badge>
+                          </div>
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                            {[
+                              ["canReserve", "予約可能"],
+                              ["canSolo", "単独利用"],
+                              ["canNightUse", "夜間利用"],
+                              ["canUseAsGuestHost", "ゲスト主催"],
+                            ].map(([key, label]) => (
+                              <label
+                                key={key}
+                                className="flex min-h-10 items-center gap-2 rounded-lg bg-slate-50 px-3 text-sm font-bold text-slate-800"
+                              >
+                                <input
+                                  type="checkbox"
+                                  disabled={!canManagePermissions}
+                                  checked={
+                                    Boolean(
+                                      permission?.[
+                                        key as keyof Pick<
+                                          MemberBoatPermission,
+                                          | "canReserve"
+                                          | "canSolo"
+                                          | "canNightUse"
+                                          | "canUseAsGuestHost"
+                                        >
+                                      ],
+                                    )
+                                  }
+                                  onChange={(event) =>
+                                    updateBoatPermission(user.id, boat.id, {
+                                      [key]: event.target.checked,
+                                    })
+                                  }
+                                  className="size-5 accent-blue-800"
+                                />
+                                {label}
+                              </label>
+                            ))}
+                          </div>
+                          <label className="mt-3 block">
+                            <span className="text-xs font-bold text-slate-500">
+                              スキルレベル
+                            </span>
+                            <select
+                              disabled={!canManagePermissions}
+                              value={permission?.skillLevel ?? "trainee"}
+                              onChange={(event) =>
+                                updateBoatPermission(user.id, boat.id, {
+                                  skillLevel: event.target.value as BoatSkillLevel,
+                                })
+                              }
+                              className="mt-2 h-11 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-bold"
+                            >
+                              {skillLevels.map((level) => (
+                                <option key={level} value={level}>
+                                  {skillLevelLabels[level]}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="mt-3 block">
+                            <span className="text-xs font-bold text-slate-500">
+                              備考
+                            </span>
+                            <input
+                              disabled={!canManagePermissions}
+                              value={permission?.notes ?? ""}
+                              onChange={(event) =>
+                                updateBoatPermission(user.id, boat.id, {
+                                  notes: event.target.value,
+                                })
+                              }
+                              className="mt-2 h-11 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-bold"
+                            />
+                          </label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </details>
 
                 {canEdit && (ratings.length > 0 || skill?.recommendation) ? (
                   <details className="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-3">

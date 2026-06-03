@@ -100,7 +100,10 @@ export type TargetFish =
 export type Organization = {
   id: string;
   name: string;
+  description?: string;
+  ownerUserId?: string;
   createdAt: string;
+  updatedAt?: string;
 };
 
 export type Boat = {
@@ -129,10 +132,25 @@ export type AppUser = {
   name: string;
   email: string;
   role: UserRole;
+  phone?: string;
+  emergencyContact?: string;
+  licenseMemo?: string;
   canSolo: boolean;
   canNightUse: boolean;
   notes: string;
   createdAt: string;
+};
+
+export type OrganizationMember = {
+  id: string;
+  organizationId: string;
+  userId: string;
+  role: UserRole;
+  displayName: string;
+  email: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type MemberBoatPermission = {
@@ -383,6 +401,10 @@ export type AppData = {
   boats?: Boat[];
   users: AppUser[];
   currentUser: AppUser;
+  currentOrganizationId?: string;
+  currentBoatId?: string;
+  currentUserId?: string;
+  organizationMembers: OrganizationMember[];
   memberBoatPermissions: MemberBoatPermission[];
   reservations: Reservation[];
   joinRequests: JoinRequest[];

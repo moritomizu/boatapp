@@ -6,15 +6,21 @@ import { usePathname } from "next/navigation";
 import {
   Bell,
   CalendarDays,
+  Check,
+  ChevronDown,
   Home,
   LifeBuoy,
+  LogOut,
   Navigation,
+  User,
   Ship,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui";
-import { useClientAppData } from "@/lib/client-store";
+import { selectCurrentBoat, useClientAppData } from "@/lib/client-store";
 import { getInitialAppData } from "@/lib/data-source";
+import { firebaseAuth } from "@/lib/firebase";
+import { canUseBoat, getBoats } from "@/lib/boat-utils";
 import { roleLabels } from "@/lib/labels";
 
 const navItems = [
@@ -37,7 +43,11 @@ const isSameDateKey = (value: string) => {
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const data = useClientAppData(getInitialAppData());
-  const activeVoyage = data.voyageLogs.find((voyage) => voyage.status === "underway");
+  const boats = getBoats(data);
+  const usableBoats = boats.filter((boat) => canUseBoat(data, data.currentUser, boat));
+  const activeVoyage = data.voyageLogs.find(
+    (voyage) => voyage.boatId === data.boat.id && voyage.status === "underway",
+  );
   const todaysReservation = data.reservations.find((reservation) =>
     reservation.boatId === data.boat.id && isSameDateKey(reservation.startAt),
   );
@@ -71,6 +81,14 @@ export function AppShell({ children }: { children: ReactNode }) {
       ? "帰港"
       : "出船";
 
+  async function logout() {
+    if (firebaseAuth) {
+      const { signOut } = await import("firebase/auth");
+      await signOut(firebaseAuth);
+    }
+    window.location.href = "/login";
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950">
       <header className="sticky top-0 z-20 border-b border-sky-100 bg-white/95 backdrop-blur">
@@ -96,23 +114,49 @@ export function AppShell({ children }: { children: ReactNode }) {
             </span>
           </Link>
           <div className="flex items-center gap-2">
-            <Link
-              href="/boats"
-              className="hidden min-w-0 items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-2 text-blue-950 sm:flex"
-              aria-label={`対象船舶: ${data.boat.name}`}
-            >
-              <Ship size={17} aria-hidden="true" />
-              <span className="max-w-32 truncate text-xs font-black">
-                {data.boat.name}
-              </span>
-            </Link>
-            <Link
-              href="/boats"
-              className="grid size-10 place-items-center rounded-full border border-sky-200 bg-sky-50 text-blue-900 sm:hidden"
-              aria-label={`対象船舶: ${data.boat.name}`}
-            >
-              <Ship size={19} aria-hidden="true" />
-            </Link>
+            <details className="relative">
+              <summary
+                className="flex min-h-10 min-w-0 cursor-pointer list-none items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-2 text-blue-950 marker:hidden"
+                aria-label={`対象船舶: ${data.boat.name}`}
+              >
+                <Ship size={17} aria-hidden="true" />
+                <span className="hidden max-w-32 truncate text-xs font-black sm:block">
+                  {data.boat.name}
+                </span>
+                <ChevronDown size={15} aria-hidden="true" />
+              </summary>
+              <div className="absolute right-0 top-12 z-50 w-72 rounded-lg border border-sky-100 bg-white p-3 shadow-xl">
+                <p className="text-xs font-black text-slate-500">
+                  {data.organization.name}
+                </p>
+                <div className="mt-2 space-y-2">
+                  {boats.map((boat) => {
+                    const usable = usableBoats.some((item) => item.id === boat.id);
+                    const selected = boat.id === data.boat.id;
+
+                    return (
+                      <button
+                        key={boat.id}
+                        type="button"
+                        disabled={!usable}
+                        onClick={() => void selectCurrentBoat(boat.id, data)}
+                        className="flex min-h-12 w-full items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 text-left disabled:opacity-50"
+                      >
+                        <span>
+                          <span className="block text-sm font-black text-slate-900">
+                            {boat.name}
+                          </span>
+                          <span className="block text-xs font-bold text-slate-500">
+                            {usable ? "利用可能" : "利用不可"}
+                          </span>
+                        </span>
+                        {selected ? <Check size={18} className="text-blue-800" /> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </details>
             <Link
               href="/notifications"
               className="relative grid size-10 place-items-center rounded-full border border-sky-200 text-blue-900"
@@ -121,26 +165,57 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Bell size={19} aria-hidden="true" />
               <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-rose-500" />
             </Link>
-            <Link
-              href="/members"
-              className="hidden rounded-full border border-sky-200 px-3 py-2 text-left text-xs font-semibold text-blue-900 sm:block"
-            >
-              <span className="block max-w-32 truncate">
-                {data.currentUser.name}
-              </span>
-              <span className="block text-[10px] text-slate-500">
-                {roleLabels[data.currentUser.role]}
-              </span>
-            </Link>
-            <Link
-              href="/members"
-              className="sm:hidden"
-              aria-label={`現在の利用者: ${data.currentUser.name}`}
-            >
-              <Badge className="bg-sky-100 text-blue-800 ring-sky-200">
-                {data.currentUser.name.slice(0, 2)}
-              </Badge>
-            </Link>
+            <details className="relative">
+              <summary
+                className="flex cursor-pointer list-none items-center gap-2 rounded-full border border-sky-200 px-3 py-2 text-left text-xs font-semibold text-blue-900 marker:hidden"
+                aria-label={`現在の利用者: ${data.currentUser.name}`}
+              >
+                <Badge className="bg-sky-100 text-blue-800 ring-sky-200">
+                  {data.currentUser.name.slice(0, 2)}
+                </Badge>
+                <span className="hidden sm:block">
+                  <span className="block max-w-32 truncate">
+                    {data.currentUser.name}
+                  </span>
+                  <span className="block text-[10px] text-slate-500">
+                    {roleLabels[data.currentUser.role]}
+                  </span>
+                </span>
+                <ChevronDown size={15} aria-hidden="true" />
+              </summary>
+              <div className="absolute right-0 top-12 z-50 w-64 rounded-lg border border-sky-100 bg-white p-3 shadow-xl">
+                <p className="text-sm font-black text-blue-950">
+                  {data.currentUser.name}
+                </p>
+                <p className="mt-1 text-xs font-bold text-slate-500">
+                  {data.organization.name}
+                </p>
+                <div className="mt-3 space-y-2">
+                  <Link
+                    href="/profile"
+                    className="flex min-h-11 items-center gap-2 rounded-lg bg-slate-50 px-3 text-sm font-black text-slate-800"
+                  >
+                    <User size={17} aria-hidden="true" />
+                    プロフィール編集
+                  </Link>
+                  <Link
+                    href="/members"
+                    className="flex min-h-11 items-center gap-2 rounded-lg bg-slate-50 px-3 text-sm font-black text-slate-800"
+                  >
+                    <Ship size={17} aria-hidden="true" />
+                    所属組織
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => void logout()}
+                    className="flex min-h-11 w-full items-center gap-2 rounded-lg bg-rose-50 px-3 text-sm font-black text-rose-800"
+                  >
+                    <LogOut size={17} aria-hidden="true" />
+                    ログアウト
+                  </button>
+                </div>
+              </div>
+            </details>
           </div>
         </div>
       </header>
