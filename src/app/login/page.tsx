@@ -4,6 +4,18 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Anchor, LogIn, UserPlus } from "lucide-react";
+import {
+  browserLocalPersistence,
+  createUserWithEmailAndPassword,
+  getRedirectResult,
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  setPersistence,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signInWithRedirect,
+  updateProfile,
+} from "firebase/auth";
 import { firebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
 import { resetClientAppData } from "@/lib/client-store";
 
@@ -27,7 +39,7 @@ export default function LoginPage() {
     async function completeRedirectLogin() {
       if (!firebaseAuth || !isFirebaseConfigured) return;
       try {
-        const { getRedirectResult, onAuthStateChanged } = await import("firebase/auth");
+        await setPersistence(firebaseAuth, browserLocalPersistence);
         unsubscribe = onAuthStateChanged(firebaseAuth, (user) => {
           if (!user || cancelled) return;
           resetClientAppData();
@@ -65,14 +77,13 @@ export default function LoginPage() {
     try {
       if (firebaseAuth && isFirebaseConfigured) {
         resetClientAppData();
+        await setPersistence(firebaseAuth, browserLocalPersistence);
         if (authMode === "signup") {
-          const { createUserWithEmailAndPassword, updateProfile } = await import("firebase/auth");
           const credential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
           if (displayName.trim()) {
             await updateProfile(credential.user, { displayName: displayName.trim() });
           }
         } else {
-          const { signInWithEmailAndPassword } = await import("firebase/auth");
           await signInWithEmailAndPassword(firebaseAuth, email, password);
         }
       }
@@ -96,15 +107,34 @@ export default function LoginPage() {
     setAuthState("saving");
     try {
       if (firebaseAuth && isFirebaseConfigured) {
-        const { GoogleAuthProvider, signInWithRedirect, signOut } = await import("firebase/auth");
         resetClientAppData();
-        await signOut(firebaseAuth);
+        await setPersistence(firebaseAuth, browserLocalPersistence);
         const provider = new GoogleAuthProvider();
         provider.addScope("email");
         provider.addScope("profile");
         provider.setCustomParameters({ prompt: "select_account" });
-        await signInWithRedirect(firebaseAuth, provider);
-        return;
+        try {
+          await signInWithPopup(firebaseAuth, provider);
+          resetClientAppData();
+          setMessage("Googleログインでログインしました。");
+          router.replace("/home");
+          return;
+        } catch (popupError) {
+          const code =
+            typeof popupError === "object" &&
+            popupError !== null &&
+            "code" in popupError
+              ? String((popupError as { code?: unknown }).code)
+              : "";
+          if (
+            code === "auth/popup-blocked" ||
+            code === "auth/operation-not-supported-in-this-environment"
+          ) {
+            await signInWithRedirect(firebaseAuth, provider);
+            return;
+          }
+          throw popupError;
+        }
       }
 
       resetClientAppData();
