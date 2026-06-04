@@ -557,6 +557,7 @@ export default function ReservationsPage() {
                 <span className="text-sm font-bold text-slate-700">開始</span>
                 <input
                   type="time"
+                  step={1800}
                   value={form.startTime}
                   onChange={(event) =>
                     updateForm("startTime", event.target.value)
@@ -569,6 +570,7 @@ export default function ReservationsPage() {
                 <span className="text-sm font-bold text-slate-700">終了</span>
                 <input
                   type="time"
+                  step={1800}
                   value={form.endTime}
                   onChange={(event) =>
                     updateForm("endTime", event.target.value)

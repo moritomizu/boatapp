@@ -208,6 +208,9 @@ export function NotificationCenter({ data }: { data: AppData }) {
 
       <Section title="通知設定">
         <Card>
+          <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-bold leading-6 text-rose-900">
+            緊急度「高」のサポート要請は、安全確認を優先するため、サポート要請通知がOFFでも全通知チャンネルへ送信対象になります。
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {notificationSettingItems.map(({ label, key }) => {
               const enabled = preference[key];

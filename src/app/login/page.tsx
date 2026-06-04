@@ -3,13 +3,16 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Anchor, LogIn } from "lucide-react";
+import { Anchor, LogIn, UserPlus } from "lucide-react";
 import { firebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
 
 export default function LoginPage() {
   const router = useRouter();
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("admin@example.com");
   const [password, setPassword] = useState("password");
+  const [displayName, setDisplayName] = useState("");
+  const [authState, setAuthState] = useState<"idle" | "saving">("idle");
   const [message, setMessage] = useState(
     isFirebaseConfigured
       ? "Firebase Authentication接続設定を検出しました。"
@@ -18,25 +21,58 @@ export default function LoginPage() {
 
   async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (authState === "saving") return;
+    setAuthState("saving");
 
-    if (firebaseAuth && isFirebaseConfigured) {
-      const { signInWithEmailAndPassword } = await import("firebase/auth");
-      await signInWithEmailAndPassword(firebaseAuth, email, password);
+    try {
+      if (firebaseAuth && isFirebaseConfigured) {
+        if (authMode === "signup") {
+          const { createUserWithEmailAndPassword, updateProfile } = await import("firebase/auth");
+          const credential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
+          if (displayName.trim()) {
+            await updateProfile(credential.user, { displayName: displayName.trim() });
+          }
+        } else {
+          const { signInWithEmailAndPassword } = await import("firebase/auth");
+          await signInWithEmailAndPassword(firebaseAuth, email, password);
+        }
+      }
+
+      setMessage(authMode === "signup" ? "会員登録しました。" : "ログインしました。");
+      router.push("/home");
+    } catch (error) {
+      setMessage(
+        error instanceof Error && error.message
+          ? `認証に失敗しました: ${error.message}`
+          : "認証に失敗しました。",
+      );
+    } finally {
+      setAuthState("idle");
     }
-
-    setMessage("ログインしました。");
-    router.push("/home");
   }
 
   async function handleGoogleLogin() {
-    if (firebaseAuth && isFirebaseConfigured) {
-      const { GoogleAuthProvider, signInWithPopup } = await import("firebase/auth");
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(firebaseAuth, provider);
-    }
+    if (authState === "saving") return;
+    setAuthState("saving");
+    try {
+      if (firebaseAuth && isFirebaseConfigured) {
+        const { GoogleAuthProvider, signInWithPopup } = await import("firebase/auth");
+        const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: "select_account" });
+        await signInWithPopup(firebaseAuth, provider);
+      }
 
-    setMessage("Googleログインでログインしました。");
-    router.push("/home");
+      setMessage("Googleログインでログインしました。");
+      router.push("/home");
+    } catch (error) {
+      setMessage(
+        error instanceof Error && error.message
+          ? `Googleログインに失敗しました: ${error.message}`
+          : "Googleログインに失敗しました。",
+      );
+    } finally {
+      setAuthState("idle");
+    }
   }
 
   return (
@@ -63,6 +99,38 @@ export default function LoginPage() {
           onSubmit={handleLogin}
           className="space-y-4 rounded-lg border border-sky-100 bg-white p-5 shadow-xl shadow-sky-950/10"
         >
+          <div className="grid grid-cols-2 gap-2 rounded-lg bg-slate-100 p-1">
+            <button
+              type="button"
+              onClick={() => setAuthMode("login")}
+              className={`h-11 rounded-md text-sm font-black ${
+                authMode === "login" ? "bg-white text-blue-900 shadow-sm" : "text-slate-600"
+              }`}
+            >
+              ログイン
+            </button>
+            <button
+              type="button"
+              onClick={() => setAuthMode("signup")}
+              className={`h-11 rounded-md text-sm font-black ${
+                authMode === "signup" ? "bg-white text-blue-900 shadow-sm" : "text-slate-600"
+              }`}
+            >
+              新規会員登録
+            </button>
+          </div>
+          {authMode === "signup" ? (
+            <label className="block">
+              <span className="text-sm font-bold text-slate-700">お名前</span>
+              <input
+                value={displayName}
+                onChange={(event) => setDisplayName(event.target.value)}
+                className="mt-2 h-14 w-full rounded-lg border border-slate-200 bg-slate-50 px-4 text-base outline-none ring-blue-600 transition focus:ring-2"
+                autoComplete="name"
+                placeholder="例: 山田 太郎"
+              />
+            </label>
+          ) : null}
           <label className="block">
             <span className="text-sm font-bold text-slate-700">
               メールアドレス
@@ -89,20 +157,30 @@ export default function LoginPage() {
           </label>
           <button
             type="submit"
-            className="flex h-14 w-full items-center justify-center gap-2 rounded-lg bg-blue-800 px-5 text-base font-black text-white shadow-lg shadow-blue-900/20"
+            disabled={authState === "saving"}
+            className="flex h-14 w-full items-center justify-center gap-2 rounded-lg bg-blue-800 px-5 text-base font-black text-white shadow-lg shadow-blue-900/20 disabled:bg-slate-300"
           >
-            <LogIn size={22} aria-hidden="true" />
-            ログイン
+            {authMode === "signup" ? (
+              <UserPlus size={22} aria-hidden="true" />
+            ) : (
+              <LogIn size={22} aria-hidden="true" />
+            )}
+            {authState === "saving"
+              ? "処理中..."
+              : authMode === "signup"
+                ? "会員登録する"
+                : "ログイン"}
           </button>
           <button
             type="button"
             onClick={handleGoogleLogin}
-            className="flex h-14 w-full items-center justify-center gap-3 rounded-lg border border-slate-200 bg-white px-5 text-base font-black text-slate-800 shadow-sm"
+            disabled={authState === "saving"}
+            className="flex h-14 w-full items-center justify-center gap-3 rounded-lg border border-slate-200 bg-white px-5 text-base font-black text-slate-800 shadow-sm disabled:bg-slate-100 disabled:text-slate-400"
           >
             <span className="grid size-7 place-items-center rounded-full bg-white text-lg font-black text-blue-700 ring-1 ring-slate-200">
               G
             </span>
-            Googleでログイン
+            Googleでログイン/登録
           </button>
           <p className="rounded-lg bg-sky-50 px-3 py-3 text-sm leading-6 text-blue-900">
             {message}

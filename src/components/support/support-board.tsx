@@ -11,6 +11,7 @@ import {
   MessageSquarePlus,
   Send,
   ShieldAlert,
+  Trash2,
 } from "lucide-react";
 import { Badge, Card, Section } from "@/components/ui";
 import { getBoatName } from "@/lib/boat-utils";
@@ -25,6 +26,7 @@ import {
   targetFishLabels,
 } from "@/lib/labels";
 import { createSupportMessage, createSupportRequest } from "@/lib/mock-data";
+import { deleteFirestoreDocument } from "@/lib/firebase-repository";
 import { formatDate, formatTime } from "@/lib/reservations";
 import { uploadSupportAttachment } from "@/lib/storage";
 import type {
@@ -77,6 +79,7 @@ export function SupportBoard({
   >("idle");
   const [commentState, setCommentState] = useState<"idle" | "saving">("idle");
   const [statusState, setStatusState] = useState<SupportStatus | "">("");
+  const [deleteState, setDeleteState] = useState("");
   const [form, setForm] = useState({
     title: "",
     category: "other" as SupportCategory,
@@ -91,6 +94,8 @@ export function SupportBoard({
   const canChangeAllStatuses =
     appData.currentUser.role === "admin" || appData.currentUser.role === "owner";
   const canResolveSelected =
+    canChangeAllStatuses || selectedRequest?.createdBy === appData.currentUser.id;
+  const canDeleteSelected =
     canChangeAllStatuses || selectedRequest?.createdBy === appData.currentUser.id;
   const selectedMessages = messages
     .filter((message) => message.supportRequestId === selectedId)
@@ -310,6 +315,44 @@ export function SupportBoard({
       );
     } finally {
       setStatusState("");
+    }
+  }
+
+  async function deleteSupportRequest() {
+    if (!selectedRequest || !canDeleteSelected || deleteState) return;
+    if (!window.confirm("このサポート要請を削除しますか？関連コメントも削除されます。")) {
+      return;
+    }
+
+    setDeleteState(selectedRequest.id);
+    const relatedMessages = messages.filter(
+      (message) => message.supportRequestId === selectedRequest.id,
+    );
+    const nextRequests = requests.filter(
+      (request) => request.id !== selectedRequest.id,
+    );
+    const nextMessages = messages.filter(
+      (message) => message.supportRequestId !== selectedRequest.id,
+    );
+
+    try {
+      await deleteFirestoreDocument("supportRequests", selectedRequest.id);
+      await Promise.all(
+        relatedMessages.map((message) =>
+          deleteFirestoreDocument("supportMessages", message.id),
+        ),
+      );
+      await updateClientAppData(
+        (current) => ({
+          ...current,
+          supportRequests: nextRequests,
+          supportMessages: nextMessages,
+        }),
+        appData,
+      );
+      setSelectedId(nextRequests[0]?.id ?? "");
+    } finally {
+      setDeleteState("");
     }
   }
 
@@ -944,6 +987,17 @@ export function SupportBoard({
                         className="flex h-12 items-center justify-center rounded-lg border border-slate-200 px-4 text-sm font-black text-slate-700 disabled:bg-slate-100 disabled:text-slate-400"
                       >
                         {statusState === "closed" ? "変更中..." : "クローズ"}
+                      </button>
+                    ) : null}
+                    {canDeleteSelected ? (
+                      <button
+                        type="button"
+                        onClick={deleteSupportRequest}
+                        disabled={Boolean(deleteState)}
+                        className="flex h-12 items-center justify-center gap-2 rounded-lg border border-rose-200 bg-white px-4 text-sm font-black text-rose-700 disabled:bg-slate-100 disabled:text-slate-400"
+                      >
+                        <Trash2 size={17} aria-hidden="true" />
+                        {deleteState ? "削除中..." : "削除"}
                       </button>
                     ) : null}
                   </div>

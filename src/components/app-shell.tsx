@@ -210,7 +210,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     className="flex min-h-11 items-center gap-2 rounded-lg bg-slate-50 px-3 text-sm font-black text-slate-800"
                   >
                     <Ship size={17} aria-hidden="true" />
-                    所属組織
+                    メンバー管理
                   </Link>
                   <button
                     type="button"
