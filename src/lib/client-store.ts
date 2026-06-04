@@ -111,22 +111,27 @@ function normalizeAppData(data: AppData, fallback: AppData): AppData {
 export async function selectCurrentBoat(boatId: string, fallback: AppData = getInitialAppData()) {
   if (isBrowser()) window.localStorage.setItem(LAST_BOAT_KEY, boatId);
 
-  return updateClientAppData(
-    (current) => {
-      const boat = (current.boats?.length ? current.boats : [current.boat]).find(
-        (item) => item.id === boatId,
-      );
-      if (!boat) return current;
-
-      return {
-        ...current,
-        boat,
-        currentBoatId: boat.id,
-        currentOrganizationId: boat.organizationId,
-      };
-    },
-    fallback,
+  const current = loadClientAppData(fallback);
+  const boat = (current.boats?.length ? current.boats : [current.boat]).find(
+    (item) => item.id === boatId,
   );
+  if (!boat) return current;
+
+  const next = {
+    ...current,
+    boat,
+    currentBoatId: boat.id,
+    currentOrganizationId: boat.organizationId,
+  };
+
+  if (shouldUseFirestore()) {
+    cachedSnapshot = next;
+    if (isBrowser()) window.dispatchEvent(new Event(STORE_EVENT));
+    return next;
+  }
+
+  await saveClientAppData(next);
+  return next;
 }
 
 export function loadClientAppData(fallback: AppData = getInitialAppData()) {

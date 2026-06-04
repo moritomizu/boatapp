@@ -14,7 +14,6 @@ import {
   Star,
   Save,
   ShieldCheck,
-  Ship,
   UploadCloud,
   Wrench,
   X,
@@ -48,18 +47,26 @@ import {
 } from "@/lib/storage";
 import type { Boat, BoatStatus } from "@/types/domain";
 
+const fallbackBoatImage = "/tapiyota_icon.jpg";
+
+function safeBoatImageUrl(imageUrl?: string) {
+  return imageUrl?.trim() || fallbackBoatImage;
+}
+
 export default function BoatsPage() {
   const initialData = getInitialAppData();
   const appData = useClientAppData(initialData);
   const searchParams = useSearchParams();
   const canEdit = appData.currentUser.role === "admin";
   const managedBoats = useMemo(
-    () =>
-      (appData.boats?.length ? appData.boats : [appData.boat]).sort(
+    () => {
+      const boats = appData.boats?.length ? appData.boats : [appData.boat];
+      return [...boats].sort(
         (a, b) =>
           new Date(a.createdAt ?? a.updatedAt).getTime() -
           new Date(b.createdAt ?? b.updatedAt).getTime(),
-      ),
+      );
+    },
     [appData.boat, appData.boats],
   );
   const [isEditing, setIsEditing] = useState(false);
@@ -143,6 +150,7 @@ export default function BoatsPage() {
       ? boatRatings.reduce((total, rating) => total + rating.overallScore, 0) /
         boatRatings.length
       : undefined;
+  const currentBoatImage = safeBoatImageUrl(appData.boat.imageUrl);
 
   const selectBoat = useCallback(
     async (boat: Boat) => {
@@ -347,7 +355,7 @@ export default function BoatsPage() {
       capacity: Number(newBoatForm.capacity) || 1,
       fuelType: newBoatForm.fuelType,
       engineInfo: newBoatForm.engineInfo,
-      imageUrl: appData.boat.imageUrl,
+      imageUrl: safeBoatImageUrl(appData.boat.imageUrl),
       notes: newBoatForm.notes,
       updatedAt: now,
     };
@@ -392,12 +400,12 @@ export default function BoatsPage() {
         <div className="overflow-hidden rounded-lg border border-sky-100 bg-white shadow-sm">
           <div className="relative aspect-[4/3] w-full sm:aspect-[16/9]">
             <Image
-              src={appData.boat.imageUrl}
+              src={currentBoatImage}
               alt={`${appData.boat.name}のイメージ`}
               fill
               sizes="(min-width: 768px) 960px, 100vw"
               className="object-cover"
-              unoptimized={appData.boat.imageUrl.startsWith("data:")}
+              unoptimized={currentBoatImage.startsWith("data:")}
               priority
             />
           </div>
@@ -500,53 +508,53 @@ export default function BoatsPage() {
           }
         >
           <div className="grid gap-3 sm:grid-cols-2">
-            {managedBoats.map((boat) => (
-              <button
-                key={boat.id}
-                type="button"
-                onClick={() => selectBoat(boat)}
-                className={`rounded-lg border p-3 text-left shadow-sm ${
-                  boat.id === appData.boat.id
-                    ? "border-blue-300 bg-sky-50 ring-2 ring-blue-100"
-                    : "border-sky-100 bg-white"
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <span className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-lg bg-sky-100 text-blue-800">
-                    {boat.imageUrl ? (
+            {managedBoats.map((boat) => {
+              const boatImage = safeBoatImageUrl(boat.imageUrl);
+
+              return (
+                <button
+                  key={boat.id}
+                  type="button"
+                  onClick={() => selectBoat(boat)}
+                  className={`rounded-lg border p-3 text-left shadow-sm ${
+                    boat.id === appData.boat.id
+                      ? "border-blue-300 bg-sky-50 ring-2 ring-blue-100"
+                      : "border-sky-100 bg-white"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-lg bg-sky-100 text-blue-800">
                       <Image
-                        src={boat.imageUrl}
+                        src={boatImage}
                         alt=""
                         width={44}
                         height={44}
                         className="h-full w-full object-cover"
-                        unoptimized={boat.imageUrl.startsWith("data:")}
+                        unoptimized={boatImage.startsWith("data:")}
                       />
-                    ) : (
-                      <Ship size={22} aria-hidden="true" />
-                    )}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-base font-black text-slate-950">
-                        {boat.name}
-                      </p>
-                      {boat.id === appData.boat.id ? (
-                        <Badge className="bg-blue-100 text-blue-900 ring-blue-200">
-                          閲覧中
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-base font-black text-slate-950">
+                          {boat.name}
+                        </p>
+                        {boat.id === appData.boat.id ? (
+                          <Badge className="bg-blue-100 text-blue-900 ring-blue-200">
+                            閲覧中
+                          </Badge>
+                        ) : null}
+                        <Badge className={boatStatusTone[boat.status]}>
+                          {boatStatusLabels[boat.status]}
                         </Badge>
-                      ) : null}
-                      <Badge className={boatStatusTone[boat.status]}>
-                        {boatStatusLabels[boat.status]}
-                      </Badge>
+                      </div>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {boat.mooringLocation} / 定員{boat.capacity}名
+                      </p>
                     </div>
-                    <p className="mt-1 text-sm text-slate-600">
-                      {boat.mooringLocation} / 定員{boat.capacity}名
-                    </p>
                   </div>
-                </div>
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
         </Section>
 
