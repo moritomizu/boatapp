@@ -98,6 +98,7 @@ export function SupportBoard({
     canChangeAllStatuses || selectedRequest?.createdBy === appData.currentUser.id;
   const canDeleteSelected =
     canChangeAllStatuses || selectedRequest?.createdBy === appData.currentUser.id;
+  const canCreateAsOther = appData.currentUser.role === "admin";
   const selectedMessages = messages
     .filter((message) => message.supportRequestId === selectedId)
     .sort(
@@ -168,6 +169,7 @@ export function SupportBoard({
     event.preventDefault();
     if (createState === "saving") return;
     setCreateState("saving");
+    const createdBy = canCreateAsOther ? form.createdBy : appData.currentUser.id;
 
     const request = createSupportRequest({
       organizationId: data.organization.id,
@@ -178,7 +180,7 @@ export function SupportBoard({
       urgency: form.urgency,
       body: form.body,
       status: "open",
-      createdBy: form.createdBy,
+      createdBy,
       location: form.location,
       attachments: [],
     });
@@ -191,7 +193,7 @@ export function SupportBoard({
             uploadSupportAttachment({
               file,
               supportRequestId: request.id,
-              userId: form.createdBy,
+              userId: createdBy,
             }),
           ),
         );
@@ -226,6 +228,7 @@ export function SupportBoard({
         body: "",
         category: "other",
         urgency: initialDraft.urgency ?? "medium",
+        createdBy: appData.currentUser.id,
         location: undefined,
       }));
       setSelectedFiles([]);
@@ -271,6 +274,9 @@ export function SupportBoard({
 
   async function updateStatus(status: SupportStatus, resolution?: string) {
     if (!selectedRequest) return;
+    if (status === "in_progress" && !canChangeAllStatuses) return;
+    if (status === "closed" && !canChangeAllStatuses) return;
+    if (status === "resolved" && !canResolveSelected) return;
     if (statusState) return;
     setStatusState(status);
     const now = new Date().toISOString();
@@ -519,9 +525,10 @@ export function SupportBoard({
               <select
                 value={form.createdBy}
                 onChange={(event) => updateForm("createdBy", event.target.value)}
+                disabled={!canCreateAsOther}
                 className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
               >
-                {appData.users.map((user) => (
+                {(canCreateAsOther ? appData.users : [appData.currentUser]).map((user) => (
                   <option key={user.id} value={user.id}>
                     {user.name}
                   </option>

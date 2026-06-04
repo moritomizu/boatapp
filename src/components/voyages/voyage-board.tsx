@@ -95,7 +95,24 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
     (reservation) => reservation.id === selectedReservationId,
   );
   const activeVoyage = appData.voyageLogs.find(
-    (voyage) => voyage.status === "underway",
+    (voyage) => voyage.boatId === appData.boat.id && voyage.status === "underway",
+  );
+  const activeVoyageUser = activeVoyage
+    ? appData.users.find((user) => user.id === activeVoyage.userId)
+    : undefined;
+  const canOperateActiveVoyage = activeVoyage
+    ? activeVoyage.userId === appData.currentUser.id ||
+      appData.currentUser.role === "admin"
+    : false;
+  const canStartSelectedVoyage = selectedReservation
+    ? selectedReservation.userId === appData.currentUser.id ||
+      appData.currentUser.role === "admin"
+    : false;
+  const startableReservations = appData.reservations.filter(
+    (reservation) =>
+      reservation.boatId === appData.boat.id &&
+      (reservation.userId === appData.currentUser.id ||
+        appData.currentUser.role === "admin"),
   );
   const selectedVoyage = appData.voyageLogs.find(
     (voyage) => voyage.reservationId === selectedReservationId,
@@ -141,7 +158,7 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
   }, [appData.voyageLogs]);
 
   async function startVoyage() {
-    if (!selectedReservation || actionState === "saving") return;
+    if (!selectedReservation || !canStartSelectedVoyage || actionState === "saving") return;
     setActionState("saving");
     setLocationMessage("現在地を取得しています...");
 
@@ -180,7 +197,7 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
   }
 
   async function recordPoint() {
-    if (!activeVoyage || actionState === "saving") return;
+    if (!activeVoyage || !canOperateActiveVoyage || actionState === "saving") return;
     setActionState("saving");
     setLocationMessage("現在地を記録しています...");
 
@@ -209,7 +226,7 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
   }
 
   async function completeVoyage() {
-    if (!activeVoyage || actionState === "saving") return;
+    if (!activeVoyage || !canOperateActiveVoyage || actionState === "saving") return;
     setActionState("saving");
     setLocationMessage("帰港位置を記録しています...");
 
@@ -359,10 +376,18 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
                 <textarea
                   value={memo}
                   onChange={(event) => setMemo(event.target.value)}
+                  disabled={!canOperateActiveVoyage}
                   className="mt-2 min-h-24 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-base outline-none ring-blue-600 focus:ring-2"
                   placeholder="海況、操船で気になったこと、帰港後に残すメモ"
                 />
               </label>
+
+              {!canOperateActiveVoyage ? (
+                <p className="rounded-lg bg-amber-50 p-3 text-sm font-bold leading-6 text-amber-900">
+                  {activeVoyageUser?.name ?? "他メンバー"}さんが出船中です。
+                  状況確認とサポート要請はできますが、帰港や航行ログの操作は本人または管理者のみ行えます。
+                </p>
+              ) : null}
 
               {locationMessage ? (
                 <p className="rounded-lg bg-sky-50 p-3 text-sm font-bold leading-6 text-blue-900">
@@ -374,7 +399,7 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
                 <button
                   type="button"
                   onClick={recordPoint}
-                  disabled={actionState === "saving"}
+                  disabled={!canOperateActiveVoyage || actionState === "saving"}
                   className="flex min-h-12 items-center justify-center gap-2 rounded-lg border border-sky-200 px-4 text-sm font-black text-blue-900 disabled:bg-slate-100 disabled:text-slate-400"
                 >
                   <MapPin size={18} aria-hidden="true" />
@@ -390,7 +415,7 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
                 <button
                   type="button"
                   onClick={completeVoyage}
-                  disabled={actionState === "saving"}
+                  disabled={!canOperateActiveVoyage || actionState === "saving"}
                   className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 text-sm font-black text-white disabled:bg-slate-300"
                 >
                   <Anchor size={18} aria-hidden="true" />
@@ -413,7 +438,10 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
                   onChange={(event) => setSelectedReservationId(event.target.value)}
                   className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
                 >
-                  {appData.reservations.map((reservation) => (
+                  {startableReservations.length === 0 ? (
+                    <option value="">操作できる予約がありません</option>
+                  ) : null}
+                  {startableReservations.map((reservation) => (
                     <option key={reservation.id} value={reservation.id}>
                       {formatDate(reservation.startAt)}{" "}
                       {formatTime(reservation.startAt)} /{" "}
@@ -432,6 +460,12 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
                 </div>
               ) : null}
 
+              {selectedReservation && !canStartSelectedVoyage ? (
+                <p className="rounded-lg bg-amber-50 p-3 text-sm font-bold leading-6 text-amber-900">
+                  この予約は他メンバーの利用です。出船開始は予約者本人または管理者のみ行えます。
+                </p>
+              ) : null}
+
               {selectedVoyage ? (
                 <p className="rounded-lg bg-emerald-50 p-3 text-sm font-bold leading-6 text-emerald-800">
                   この予約には航行ログがあります。履歴から確認できます。
@@ -447,7 +481,7 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
               <button
                 type="button"
                 onClick={startVoyage}
-                disabled={!selectedReservation || actionState === "saving"}
+                disabled={!selectedReservation || !canStartSelectedVoyage || actionState === "saving"}
                 className="flex h-14 w-full items-center justify-center gap-2 rounded-lg bg-blue-800 px-5 text-base font-black text-white shadow-lg shadow-blue-900/20 disabled:bg-slate-300 disabled:shadow-none"
               >
                 <ShipWheel size={22} aria-hidden="true" />

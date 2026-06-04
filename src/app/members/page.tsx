@@ -95,8 +95,7 @@ export default function MembersPage() {
   const initialData = getInitialAppData();
   const data = useClientAppData(initialData);
   const canEdit = data.currentUser.role === "admin";
-  const canManagePermissions =
-    data.currentUser.role === "admin" || data.currentUser.role === "owner";
+  const canManagePermissions = canEdit;
   const boats = getBoats(data);
   const [editingMember, setEditingMember] = useState<AppUser | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "error">(
@@ -174,6 +173,8 @@ export default function MembersPage() {
     boatId: string,
     patch: Partial<MemberBoatPermission>,
   ) {
+    if (!canManagePermissions) return;
+
     const now = new Date().toISOString();
     const existing = permissionFor(userId, boatId);
     const nextPermission: MemberBoatPermission = {
@@ -208,7 +209,7 @@ export default function MembersPage() {
 
   async function saveRating(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (ratingState === "saving") return;
+    if (!canEdit || ratingState === "saving") return;
     setRatingState("saving");
 
     const overallScore =
@@ -248,7 +249,7 @@ export default function MembersPage() {
 
   async function saveSkillAssessment(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (skillState === "saving") return;
+    if (!canEdit || skillState === "saving") return;
     setSkillState("saving");
 
     const now = new Date().toISOString();
@@ -303,7 +304,7 @@ export default function MembersPage() {
 
   async function saveMember(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!editingMember || saveState === "saving") return;
+    if (!canEdit || !editingMember || saveState === "saving") return;
     setSaveState("saving");
 
     const exists = data.users.some((user) => user.id === editingMember.id);
@@ -333,6 +334,7 @@ export default function MembersPage() {
   }
 
   async function deleteMember(userId: string) {
+    if (!canEdit) return;
     if (userId === data.currentUser.id) return;
 
     const nextUsers = data.users.filter((user) => user.id !== userId);

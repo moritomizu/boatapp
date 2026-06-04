@@ -53,6 +53,13 @@ export default function HomePage() {
   const activeVoyage = data.voyageLogs.find(
     (voyage) => voyage.boatId === data.boat.id && voyage.status === "underway",
   );
+  const activeVoyageUser = activeVoyage
+    ? data.users.find((user) => user.id === activeVoyage.userId)
+    : undefined;
+  const canOperateActiveVoyage = activeVoyage
+    ? activeVoyage.userId === data.currentUser.id ||
+      data.currentUser.role === "admin"
+    : false;
   const primaryReservation =
     (activeVoyage
       ? data.reservations.find(
@@ -89,6 +96,15 @@ export default function HomePage() {
   const unresolvedSupportRequests = data.supportRequests.filter(
     (request) => request.boatId === data.boat.id && request.status === "open",
   );
+  const activeVoyageSupportRequests = activeVoyage
+    ? data.supportRequests.filter(
+        (request) =>
+          request.boatId === activeVoyage.boatId &&
+          request.reservationId === activeVoyage.reservationId &&
+          request.status !== "resolved" &&
+          request.status !== "closed",
+      )
+    : [];
   const highUrgencySupportRequests = data.supportRequests.filter(
     (request) =>
       request.boatId === data.boat.id &&
@@ -146,7 +162,9 @@ export default function HomePage() {
       ? "本日の流れを進めます"
       : "まずは予約を登録します";
   const nextTaskDescription = activeVoyage
-    ? `${activeVoyage.trackPoints.length}件の位置を記録中。帰港したら航行ログを完了してください。`
+    ? canOperateActiveVoyage
+      ? `${activeVoyage.trackPoints.length}件の位置を記録中。帰港したら航行ログを完了してください。`
+      : `${activeVoyageUser?.name ?? "他メンバー"}さんが出船中です。出船操作は本人または管理者のみ行えます。`
     : primaryReservation
       ? `${data.boat.name} / ${formatDate(primaryReservation.startAt)} ${formatTime(primaryReservation.startAt)} / ${primaryReservation.destinationArea}`
       : "予約からチェック、出船、帰港後チェック、申し送りまでを順番に進めます。";
@@ -181,7 +199,7 @@ export default function HomePage() {
               </div>
 
               {activeVoyage ? (
-                <div className="grid gap-2 sm:grid-cols-3">
+                <div className={`grid gap-2 ${canOperateActiveVoyage ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
                   <Link
                     href={`/voyages?reservationId=${activeVoyage.reservationId}`}
                     className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 text-sm font-black text-white"
@@ -196,13 +214,15 @@ export default function HomePage() {
                     <LifeBuoy size={18} aria-hidden="true" />
                     サポート要請
                   </Link>
-                  <Link
-                    href={`/checks/post-return?reservationId=${activeVoyage.reservationId}`}
-                    className="flex min-h-12 items-center justify-center gap-2 rounded-lg border border-sky-200 px-4 text-sm font-black text-blue-900"
-                  >
-                    <ClipboardCheck size={18} aria-hidden="true" />
-                    帰港後チェック
-                  </Link>
+                  {canOperateActiveVoyage ? (
+                    <Link
+                      href={`/checks/post-return?reservationId=${activeVoyage.reservationId}`}
+                      className="flex min-h-12 items-center justify-center gap-2 rounded-lg border border-sky-200 px-4 text-sm font-black text-blue-900"
+                    >
+                      <ClipboardCheck size={18} aria-hidden="true" />
+                      帰港後チェック
+                    </Link>
+                  ) : null}
                 </div>
               ) : primaryReservation ? (
                 <div className="grid gap-2 sm:grid-cols-4">
@@ -255,6 +275,33 @@ export default function HomePage() {
             </div>
           </Card>
         </Section>
+
+        {activeVoyage && !canOperateActiveVoyage ? (
+          <Card>
+            <div className="flex items-start gap-3">
+              <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-amber-100 text-amber-800">
+                <Navigation size={22} aria-hidden="true" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-black text-blue-950">
+                  {data.boat.name} は出船中です
+                </p>
+                <p className="mt-1 text-sm leading-6 text-slate-600">
+                  利用者: {activeVoyageUser?.name ?? "不明"} / 未解決サポート
+                  {activeVoyageSupportRequests.length}件
+                </p>
+                {activeVoyageSupportRequests.length > 0 ? (
+                  <Link
+                    href="/support"
+                    className="mt-3 flex min-h-11 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-black text-rose-800"
+                  >
+                    サポート要請を確認
+                  </Link>
+                ) : null}
+              </div>
+            </div>
+          </Card>
+        ) : null}
 
         <Section title="利用する船を選ぶ">
           <div className="space-y-3">

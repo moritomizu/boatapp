@@ -94,6 +94,7 @@ export function HandoverBoard({
     appData.currentUser.role === "admin" ||
     appData.currentUser.role === "owner";
   const canPromote = canResolve;
+  const canCreateAsOther = appData.currentUser.role === "admin";
   const selectedMaintenanceLog = selectedNote
     ? appData.maintenanceLogs.find(
         (log) => log.handoverNoteId === selectedNote.id,
@@ -112,6 +113,8 @@ export function HandoverBoard({
     event.preventDefault();
     if (saveState === "saving") return;
     setSaveState("saving");
+    const createdBy = canCreateAsOther ? form.createdBy : appData.currentUser.id;
+    const status = canResolve ? form.status : "unconfirmed";
 
     const note = createHandoverNote({
       organizationId: data.organization.id,
@@ -121,11 +124,11 @@ export function HandoverBoard({
       body: form.body,
       category: form.category,
       priority: form.priority,
-      status: form.status,
-      createdBy: form.createdBy,
+      status,
+      createdBy,
       estimatedCost: form.estimatedCost > 0 ? form.estimatedCost : undefined,
       attachments: [],
-      resolvedAt: form.status === "resolved" ? new Date().toISOString() : undefined,
+      resolvedAt: status === "resolved" ? new Date().toISOString() : undefined,
     });
 
     try {
@@ -136,7 +139,7 @@ export function HandoverBoard({
             uploadHandoverAttachment({
               file,
               handoverNoteId: note.id,
-              userId: form.createdBy,
+              userId: createdBy,
             }),
           ),
         );
@@ -174,6 +177,7 @@ export function HandoverBoard({
         priority: "medium",
         status: "unconfirmed",
         category: "other",
+        createdBy: appData.currentUser.id,
         estimatedCost: 0,
       }));
     } catch (error) {
@@ -421,6 +425,7 @@ export function HandoverBoard({
                 onChange={(event) =>
                   updateForm("status", event.target.value as HandoverStatus)
                 }
+                disabled={!canResolve}
                 className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
               >
                 {statuses.map((status) => (
@@ -461,9 +466,10 @@ export function HandoverBoard({
               <select
                 value={form.createdBy}
                 onChange={(event) => updateForm("createdBy", event.target.value)}
+                disabled={!canCreateAsOther}
                 className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
               >
-                {appData.users.map((user) => (
+                {(canCreateAsOther ? appData.users : [appData.currentUser]).map((user) => (
                   <option key={user.id} value={user.id}>
                     {user.name}
                   </option>

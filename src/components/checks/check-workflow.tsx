@@ -97,6 +97,10 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
     (reservation) => reservation.id === reservationId,
   );
   const selectedBoat = findBoat(appData, selectedReservation?.boatId ?? appData.boat.id);
+  const canOperateSelectedReservation = selectedReservation
+    ? selectedReservation.userId === appData.currentUser.id ||
+      appData.currentUser.role === "admin"
+    : false;
   const existingRecord = useMemo(
     () =>
       history
@@ -130,7 +134,7 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (saveState === "saving") return;
+    if (!canOperateSelectedReservation || saveState === "saving") return;
     setSaveState("saving");
 
     const baseInput = {
@@ -270,9 +274,13 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
               <select
                 value={userId}
                 onChange={(event) => setUserId(event.target.value)}
+                disabled={appData.currentUser.role !== "admin"}
                 className="mt-2 h-13 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
               >
-                {appData.users.map((user) => (
+                {(appData.currentUser.role === "admin"
+                  ? appData.users
+                  : [appData.currentUser]
+                ).map((user) => (
                   <option key={user.id} value={user.id}>
                     {user.name}
                   </option>
@@ -299,6 +307,12 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
               {formatTime(selectedReservation.endAt)} /{" "}
               {selectedReservation.destinationArea} /{" "}
               {targetFishLabels[selectedReservation.targetFish]} /{" "}
+            </div>
+          ) : null}
+
+          {selectedReservation && !canOperateSelectedReservation ? (
+            <div className="mt-4 rounded-lg bg-amber-50 p-3 text-sm font-bold leading-6 text-amber-900">
+              この予約は他メンバーの利用です。チェック記録の保存は予約者本人または管理者のみ行えます。
             </div>
           ) : null}
         </Card>
@@ -470,7 +484,7 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
         <div className="sticky bottom-20 z-10 rounded-lg border border-sky-100 bg-white/95 p-3 shadow-xl shadow-slate-950/10 backdrop-blur md:bottom-4">
           <button
             type="submit"
-            disabled={saveState === "saving"}
+            disabled={!canOperateSelectedReservation || saveState === "saving"}
             className="flex h-14 w-full items-center justify-center gap-2 rounded-lg bg-blue-800 px-5 text-base font-black text-white disabled:bg-slate-300"
           >
             {existingRecord ? (

@@ -105,6 +105,14 @@ export default function ReservationsPage() {
   const [joinRequestState, setJoinRequestState] = useState("");
   const [joinRequestMessage, setJoinRequestMessage] = useState("");
   const [joinRequestResult, setJoinRequestResult] = useState("");
+  const canAssignReservationUser = data.currentUser.role === "admin";
+
+  function canOperateReservation(reservation: Reservation) {
+    return (
+      data.currentUser.role === "admin" ||
+      reservation.userId === data.currentUser.id
+    );
+  }
 
   const draftReservation = useMemo(
     () => ({
@@ -164,12 +172,17 @@ export default function ReservationsPage() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saveState === "saving") return;
+    const existingReservation = data.reservations.find((item) => item.id === editingId);
+    if (existingReservation && !canOperateReservation(existingReservation)) return;
     setSaveState("saving");
+    const targetUserId = canAssignReservationUser
+      ? form.userId
+      : data.currentUser.id;
 
     const reservationInput = {
       organizationId: data.organization.id,
       boatId: form.boatId,
-      userId: form.userId,
+      userId: targetUserId,
       startAt: `${form.date}T${form.startTime}:00.000+09:00`,
       endAt: `${form.date}T${form.endTime}:00.000+09:00`,
       targetFish: form.targetFish,
@@ -180,7 +193,6 @@ export default function ReservationsPage() {
       comment: form.comment,
     };
 
-    const existingReservation = data.reservations.find((item) => item.id === editingId);
     const reservation: Reservation = editingId && existingReservation
       ? {
           ...existingReservation,
@@ -214,6 +226,7 @@ export default function ReservationsPage() {
     if (!reservation) return;
     const sessionStatus = getReservationSessionStatus(reservation, data);
     if (sessionStatus === "closed" && data.currentUser.role !== "admin") return;
+    if (!canOperateReservation(reservation)) return;
     setEditingId(reservationId);
     setSaveState("idle");
     setForm({
@@ -313,6 +326,9 @@ export default function ReservationsPage() {
   }
 
   async function deleteReservation(reservationId: string) {
+    const reservation = data.reservations.find((item) => item.id === reservationId);
+    if (!reservation || !canOperateReservation(reservation)) return;
+
     if (!window.confirm("この予約を削除しますか？関連するチェックや航行ログは残ります。")) {
       return;
     }
@@ -346,9 +362,7 @@ export default function ReservationsPage() {
   }
 
   async function closeReservation(reservation: Reservation) {
-    if (data.currentUser.role !== "admin" && data.currentUser.role !== "owner") {
-      return;
-    }
+    if (!canOperateReservation(reservation)) return;
 
     setSaveState("saving");
     setCloseMessage("");
@@ -630,9 +644,10 @@ export default function ReservationsPage() {
                 <select
                   value={form.userId}
                   onChange={(event) => updateForm("userId", event.target.value)}
+                  disabled={!canAssignReservationUser}
                   className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
                 >
-                  {data.users.map((user) => (
+                  {(canAssignReservationUser ? data.users : [data.currentUser]).map((user) => (
                     <option key={user.id} value={user.id}>
                       {user.name}
                     </option>
@@ -787,6 +802,7 @@ export default function ReservationsPage() {
               const phase = reservationPhase(reservation.startAt);
               const sessionStatus = getReservationSessionStatus(reservation, data);
               const isClosed = sessionStatus === "closed";
+              const canOperate = canOperateReservation(reservation);
               const voyage = data.voyageLogs.find(
                 (item) => item.reservationId === reservation.id,
               );
@@ -1015,7 +1031,7 @@ export default function ReservationsPage() {
                           >
                             申し送り確認
                           </Link>
-                          {!isClosed ? (
+                          {!isClosed && canOperate ? (
                             <Link
                               href={`/checks/post-return?reservationId=${reservation.id}`}
                               className="flex min-h-11 items-center justify-center rounded-lg border border-sky-200 px-4 text-sm font-black text-blue-900"
@@ -1026,7 +1042,7 @@ export default function ReservationsPage() {
                         </>
                       ) : phase === "today" ? (
                         <>
-                          {sessionStatus === "scheduled" ? (
+                          {sessionStatus === "scheduled" && canOperate ? (
                             <Link
                               href={`/checks/pre-departure?reservationId=${reservation.id}`}
                               className="flex min-h-11 items-center justify-center rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
@@ -1034,7 +1050,7 @@ export default function ReservationsPage() {
                               出船前チェック
                             </Link>
                           ) : null}
-                          {sessionStatus === "pre_checked" ? (
+                          {sessionStatus === "pre_checked" && canOperate ? (
                             <Link
                               href={`/voyages?reservationId=${reservation.id}`}
                               className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
@@ -1051,15 +1067,17 @@ export default function ReservationsPage() {
                               >
                                 サポート要請
                               </Link>
-                              <Link
-                                href={`/checks/post-return?reservationId=${reservation.id}`}
-                                className="flex min-h-11 items-center justify-center rounded-lg bg-emerald-700 px-4 text-sm font-black text-white"
-                              >
-                                帰港後チェック
-                              </Link>
+                              {canOperate ? (
+                                <Link
+                                  href={`/checks/post-return?reservationId=${reservation.id}`}
+                                  className="flex min-h-11 items-center justify-center rounded-lg bg-emerald-700 px-4 text-sm font-black text-white"
+                                >
+                                  帰港後チェック
+                                </Link>
+                              ) : null}
                             </>
                           ) : null}
-                          {sessionStatus === "returned" ? (
+                          {sessionStatus === "returned" && canOperate ? (
                             <button
                               type="button"
                               onClick={() => closeReservation(reservation)}
@@ -1073,6 +1091,11 @@ export default function ReservationsPage() {
                               利用終了
                             </div>
                           ) : null}
+                          {!canOperate ? (
+                            <div className="flex min-h-11 items-center justify-center rounded-lg bg-slate-100 px-4 text-sm font-black text-slate-500">
+                              他メンバーの予約
+                            </div>
+                          ) : null}
                         </>
                       ) : (
                         <>
@@ -1084,7 +1107,7 @@ export default function ReservationsPage() {
                           </div>
                         </>
                       )}
-                      {isClosed && data.currentUser.role !== "admin" ? null : (
+                      {(isClosed && data.currentUser.role !== "admin") || !canOperate ? null : (
                         <button
                           type="button"
                           onClick={() => startEdit(reservation.id)}
@@ -1094,15 +1117,17 @@ export default function ReservationsPage() {
                           編集
                         </button>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => deleteReservation(reservation.id)}
-                        disabled={deleteState === reservation.id}
-                        className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-rose-200 px-4 text-sm font-black text-rose-700 disabled:bg-slate-100 disabled:text-slate-400"
-                      >
-                        <Trash2 size={16} aria-hidden="true" />
-                        {deleteState === reservation.id ? "削除中" : "削除"}
-                      </button>
+                      {canOperate ? (
+                        <button
+                          type="button"
+                          onClick={() => deleteReservation(reservation.id)}
+                          disabled={deleteState === reservation.id}
+                          className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-rose-200 px-4 text-sm font-black text-rose-700 disabled:bg-slate-100 disabled:text-slate-400"
+                        >
+                          <Trash2 size={16} aria-hidden="true" />
+                          {deleteState === reservation.id ? "削除中" : "削除"}
+                        </button>
+                      ) : null}
                     </div>
                   </Card>
                 </div>
