@@ -392,7 +392,7 @@ export default function ReservationsPage() {
       <div className="space-y-6">
         <div className="space-y-2">
           <p className="text-sm font-bold text-blue-700">予約カレンダー</p>
-          <h1 className="text-3xl font-black tracking-normal text-blue-950">
+          <h1 className="text-2xl font-black tracking-normal text-blue-950">
             釣行予定と空き席
           </h1>
           <p className="text-sm leading-6 text-slate-600">

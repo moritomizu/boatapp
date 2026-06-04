@@ -379,7 +379,7 @@ export function SupportBoard({
     <div className="space-y-6">
       <div className="space-y-2">
         <p className="text-sm font-bold text-blue-700">サポート要請</p>
-        <h1 className="text-3xl font-black tracking-normal text-blue-950">
+        <h1 className="text-2xl font-black tracking-normal text-blue-950">
           仲間に相談する
         </h1>
         <p className="text-sm leading-6 text-slate-600">
@@ -715,8 +715,8 @@ export function SupportBoard({
       </Section>
 
       {selectedRequest ? (
-        <div className="fixed inset-0 z-50 bg-slate-950/45 px-3 py-4 backdrop-blur-sm">
-          <div className="mx-auto flex max-h-[calc(100vh-32px)] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-slate-50 shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-slate-950/45 px-3 pb-24 pt-4 backdrop-blur-sm sm:pb-4">
+          <div className="mx-auto flex max-h-[calc(100dvh-112px)] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-slate-50 shadow-2xl sm:max-h-[calc(100dvh-32px)]">
             <div className="flex items-center justify-between gap-3 border-b border-sky-100 bg-white px-4 py-3">
               <div>
                 <p className="text-xs font-black text-blue-700">サポート要請</p>
@@ -733,7 +733,7 @@ export function SupportBoard({
                 <X size={18} aria-hidden="true" />
               </button>
             </div>
-            <div className="space-y-4 overflow-y-auto p-4">
+            <div className="space-y-4 overflow-y-auto p-4 pb-28 sm:pb-4">
         <Section title="サポート要請詳細">
           <Card>
             {(() => {
@@ -1075,7 +1075,7 @@ export function SupportBoard({
 
           <form
             onSubmit={addMessage}
-            className="sticky bottom-0 z-10 mt-3 space-y-3 rounded-lg border border-sky-100 bg-white p-4 shadow-lg shadow-slate-950/10"
+            className="sticky bottom-20 z-10 mt-3 space-y-3 rounded-lg border border-sky-100 bg-white p-4 shadow-lg shadow-slate-950/10 sm:bottom-0"
           >
             <label className="block">
               <span className="text-sm font-bold text-slate-700">コメント</span>

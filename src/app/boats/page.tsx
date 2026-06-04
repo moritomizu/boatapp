@@ -376,7 +376,7 @@ export default function BoatsPage() {
       <div className="space-y-6">
         <div className="space-y-2">
           <p className="text-sm font-bold text-blue-700">船舶情報</p>
-          <h1 className="text-3xl font-black tracking-normal text-blue-950">
+          <h1 className="text-2xl font-black tracking-normal text-blue-950">
             {appData.boat.name}
           </h1>
           <p className="text-sm leading-6 text-slate-600">

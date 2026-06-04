@@ -353,7 +353,7 @@ export default function MembersPage() {
       <div className="space-y-6">
         <div className="space-y-2">
           <p className="text-sm font-bold text-blue-700">メンバー管理</p>
-          <h1 className="text-3xl font-black tracking-normal text-blue-950">
+          <h1 className="text-2xl font-black tracking-normal text-blue-950">
             権限と利用条件
           </h1>
           <p className="text-sm leading-6 text-slate-600">

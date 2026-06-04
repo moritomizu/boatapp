@@ -117,7 +117,6 @@ export default function HomePage() {
   );
   const highUrgencySupportRequests = data.supportRequests.filter(
     (request) =>
-      request.boatId === data.boat.id &&
       request.status !== "resolved" &&
       request.status !== "closed" &&
       request.urgency === "high",
