@@ -7,11 +7,16 @@ function serviceAccount() {
   const base64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
   if (base64) {
     const parsed = JSON.parse(Buffer.from(base64, "base64").toString("utf8"));
+    const projectId = parsed.project_id ?? parsed.projectId;
+    const clientEmail = parsed.client_email ?? parsed.clientEmail;
+    const privateKey = parsed.private_key ?? parsed.privateKey;
+
+    if (!projectId || !clientEmail || !privateKey) return undefined;
 
     return {
-      projectId: parsed.project_id ?? parsed.projectId,
-      clientEmail: parsed.client_email ?? parsed.clientEmail,
-      privateKey: parsed.private_key ?? parsed.privateKey,
+      projectId,
+      clientEmail,
+      privateKey,
     };
   }
 

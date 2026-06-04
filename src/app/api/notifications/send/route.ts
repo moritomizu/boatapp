@@ -38,7 +38,23 @@ function chunk<T>(items: T[], size: number) {
 }
 
 export async function POST(request: Request) {
-  const admin = getFirebaseAdminServices();
+  let admin: ReturnType<typeof getFirebaseAdminServices>;
+  try {
+    admin = getFirebaseAdminServices();
+  } catch (error) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "firebase_admin_init_failed",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Firebase Admin SDKの初期化に失敗しました。",
+      },
+      { status: 500 },
+    );
+  }
+
   if (!admin) {
     return NextResponse.json({
       ok: false,
@@ -74,93 +90,123 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "invalid_payload" }, { status: 400 });
   }
 
-  const snapshot = await admin.firestore
-    .collection("notificationTokens")
-    .where("organizationId", "==", payload.organizationId)
-    .get();
+  try {
+    const snapshot = await admin.firestore
+      .collection("notificationTokens")
+      .where("organizationId", "==", payload.organizationId)
+      .get();
 
-  const recipientSet = payload.recipientUserIds?.length
-    ? new Set(payload.recipientUserIds)
-    : undefined;
-  const tokenDocs = snapshot.docs
-    .map((document) => ({
+    const recipientSet = payload.recipientUserIds?.length
+      ? new Set(payload.recipientUserIds)
+      : undefined;
+    const allTokenDocs = snapshot.docs.map((document) => ({
       id: document.id,
       data: document.data() as NotificationToken,
-    }))
-    .filter(({ data }) => !data.disabledAt)
-    .filter(({ data }) => data.userId !== payload.excludeUserId)
-    .filter(({ data }) => (recipientSet ? recipientSet.has(data.userId) : true));
-  const tokens = Array.from(new Set(tokenDocs.map(({ data }) => data.token)));
+    }));
+    const tokenDocs = allTokenDocs
+      .filter(({ data }) => !data.disabledAt)
+      .filter(({ data }) => data.userId !== payload.excludeUserId)
+      .filter(({ data }) => (recipientSet ? recipientSet.has(data.userId) : true));
+    const tokens = Array.from(new Set(tokenDocs.map(({ data }) => data.token)));
 
-  if (tokens.length === 0) {
-    return NextResponse.json({ ok: true, sent: 0 });
-  }
+    if (tokens.length === 0) {
+      return NextResponse.json({
+        ok: true,
+        sent: 0,
+        tokenCount: allTokenDocs.length,
+        matchedTokenCount: tokenDocs.length,
+        recipientUserIds: payload.recipientUserIds ?? [],
+      });
+    }
 
-  const link = absoluteLink(request, payload.relatedPath);
-  let sent = 0;
-  const invalidTokens = new Set<string>();
+    const link = absoluteLink(request, payload.relatedPath);
+    let sent = 0;
+    const invalidTokens = new Set<string>();
+    const errors: { code?: string; message?: string }[] = [];
 
-  for (const tokenChunk of chunk(tokens, 500)) {
-    const response = await admin.messaging.sendEachForMulticast({
-      tokens: tokenChunk,
-      notification: {
-        title: payload.title,
-        body: payload.body,
-      },
-      data: {
-        title: payload.title,
-        body: payload.body,
-        relatedPath: payload.relatedPath,
-        link,
-        category: payload.category,
-        priority: payload.priority,
-      },
-      webpush: {
-        fcmOptions: {
-          link,
-        },
+    for (const tokenChunk of chunk(tokens, 500)) {
+      const response = await admin.messaging.sendEachForMulticast({
+        tokens: tokenChunk,
         notification: {
-          icon: "/tapoyota_logo.png",
-          badge: "/tapoyota_logo.png",
-          tag: payload.relatedPath,
-          renotify: payload.priority === "urgent",
-          requireInteraction: payload.priority === "urgent",
+          title: payload.title,
+          body: payload.body,
         },
-      },
-    });
+        data: {
+          title: payload.title,
+          body: payload.body,
+          relatedPath: payload.relatedPath,
+          link,
+          category: payload.category,
+          priority: payload.priority,
+        },
+        webpush: {
+          fcmOptions: {
+            link,
+          },
+          notification: {
+            icon: "/tapoyota_logo.png",
+            badge: "/tapoyota_logo.png",
+            tag: payload.relatedPath,
+            renotify: payload.priority === "urgent",
+            requireInteraction: payload.priority === "urgent",
+          },
+        },
+      });
 
-    sent += response.successCount;
-    response.responses.forEach((result, index) => {
-      const code = result.error?.code;
-      if (
-        code === "messaging/registration-token-not-registered" ||
-        code === "messaging/invalid-registration-token"
-      ) {
-        invalidTokens.add(tokenChunk[index]);
-      }
-    });
-  }
+      sent += response.successCount;
+      response.responses.forEach((result, index) => {
+        const code = result.error?.code;
+        if (result.error) {
+          errors.push({
+            code,
+            message: result.error.message,
+          });
+        }
+        if (
+          code === "messaging/registration-token-not-registered" ||
+          code === "messaging/invalid-registration-token"
+        ) {
+          invalidTokens.add(tokenChunk[index]);
+        }
+      });
+    }
 
-  if (invalidTokens.size > 0) {
-    const now = new Date().toISOString();
-    await Promise.all(
-      tokenDocs
-        .filter(({ data }) => invalidTokens.has(data.token))
-        .map(({ id }) =>
-          admin.firestore.collection("notificationTokens").doc(id).set(
-            {
-              disabledAt: now,
-              updatedAt: now,
-            },
-            { merge: true },
+    if (invalidTokens.size > 0) {
+      const now = new Date().toISOString();
+      await Promise.all(
+        tokenDocs
+          .filter(({ data }) => invalidTokens.has(data.token))
+          .map(({ id }) =>
+            admin.firestore.collection("notificationTokens").doc(id).set(
+              {
+                disabledAt: now,
+                updatedAt: now,
+              },
+              { merge: true },
+            ),
           ),
-        ),
+      );
+    }
+
+    return NextResponse.json({
+      ok: sent > 0,
+      sent,
+      disabled: invalidTokens.size,
+      tokenCount: allTokenDocs.length,
+      matchedTokenCount: tokenDocs.length,
+      errors: errors.slice(0, 5),
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "push_send_failed",
+        message:
+          error instanceof Error
+            ? error.message
+            : "プッシュ通知の送信処理に失敗しました。",
+      },
+      { status: 500 },
     );
   }
-
-  return NextResponse.json({
-    ok: true,
-    sent,
-    disabled: invalidTokens.size,
-  });
 }

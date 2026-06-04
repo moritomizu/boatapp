@@ -219,9 +219,17 @@ export function NotificationCenter({ data }: { data: AppData }) {
       setTestMessage(
         "送信APIは動いていますが、Firebase Admin SDKの環境変数が未設定です。VercelのFIREBASE_SERVICE_ACCOUNT_BASE64などを確認してください。",
       );
+    } else if (result?.error === "firebase_admin_init_failed") {
+      setTestMessage(
+        `Firebase Admin SDKの初期化に失敗しました。サービスアカウントの秘密鍵形式を確認してください。詳細: ${result.message ?? "不明"}`,
+      );
+    } else if (result?.error === "push_send_failed") {
+      setTestMessage(
+        `FCM送信処理に失敗しました。Vercelの環境変数とFirebase Cloud Messaging設定を確認してください。詳細: ${result.message ?? "不明"}`,
+      );
     } else if (result?.sent === 0) {
       setTestMessage(
-        "送信対象の端末トークンが見つかりませんでした。この端末で再度「プッシュ通知を有効化する」を押してください。",
+        `送信対象の端末トークンが見つかりませんでした。この端末で再度「プッシュ通知を有効化する」を押してください。保存済みトークン: ${result.tokenCount ?? 0}件 / 一致: ${result.matchedTokenCount ?? 0}件`,
       );
     } else if (result?.error === "unauthorized") {
       setTestMessage("送信APIの認証に失敗しました。ログインし直して再度試してください。");
