@@ -17,7 +17,11 @@ import {
 import { AppShell } from "@/components/app-shell";
 import { Badge, Card, Section } from "@/components/ui";
 import { canUseBoat, getBoats } from "@/lib/boat-utils";
-import { selectCurrentBoat, useClientAppData } from "@/lib/client-store";
+import {
+  selectCurrentBoat,
+  updateClientAppData,
+  useClientAppData,
+} from "@/lib/client-store";
 import { getInitialAppData } from "@/lib/data-source";
 import {
   boatStatusLabels,
@@ -35,8 +39,13 @@ import {
   voyageStatusLabels,
   voyageStatusTone,
 } from "@/lib/labels";
-import { findNextReservation, formatDate, formatTime, isSameDay } from "@/lib/reservations";
-import { updateClientAppData } from "@/lib/client-store";
+import {
+  findNextReservation,
+  formatDate,
+  formatTime,
+  getReservationSessionStatus,
+  isSameDay,
+} from "@/lib/reservations";
 import type { JoinRequestStatus } from "@/types/domain";
 
 export default function HomePage() {
@@ -44,8 +53,25 @@ export default function HomePage() {
   const data = useClientAppData(initialData);
   const boats = getBoats(data);
   const isAdmin = data.currentUser.role === "admin";
+  const canSwitchBoat = isAdmin;
 
   const todayIso = new Date().toISOString();
+  const myReservations = data.reservations.filter(
+    (reservation) => reservation.userId === data.currentUser.id,
+  );
+  const myTodaysReservations = myReservations.filter((reservation) =>
+    isSameDay(reservation.startAt, todayIso),
+  );
+  const myNextReservation = findNextReservation(myReservations);
+  const myActiveVoyage = data.voyageLogs.find(
+    (voyage) =>
+      voyage.userId === data.currentUser.id && voyage.status === "underway",
+  );
+  const myActiveReservation = myActiveVoyage
+    ? data.reservations.find(
+        (reservation) => reservation.id === myActiveVoyage.reservationId,
+      )
+    : undefined;
   const todaysReservations = data.reservations.filter((reservation) =>
     reservation.boatId === data.boat.id && isSameDay(reservation.startAt, todayIso),
   );
@@ -53,25 +79,15 @@ export default function HomePage() {
     (reservation) => reservation.boatId === data.boat.id,
   );
   const nextReservation = findNextReservation(selectedBoatReservations);
-  const activeVoyage = data.voyageLogs.find(
-    (voyage) => voyage.boatId === data.boat.id && voyage.status === "underway",
-  );
-  const activeVoyageUser = activeVoyage
-    ? data.users.find((user) => user.id === activeVoyage.userId)
-    : undefined;
-  const canOperateActiveVoyage = activeVoyage
-    ? activeVoyage.userId === data.currentUser.id ||
-      data.currentUser.role === "admin"
-    : false;
   const primaryReservation =
-    (activeVoyage
-      ? data.reservations.find(
-          (reservation) => reservation.id === activeVoyage.reservationId,
-        )
-      : undefined) ??
-    todaysReservations[0] ??
-    nextReservation;
+    myActiveReservation ?? myTodaysReservations[0] ?? myNextReservation;
   const primaryReservationId = primaryReservation?.id;
+  const primaryReservationIsToday = primaryReservation
+    ? isSameDay(primaryReservation.startAt, todayIso)
+    : false;
+  const primarySessionStatus = primaryReservation
+    ? getReservationSessionStatus(primaryReservation, data)
+    : undefined;
   const primaryPreCheckDone = primaryReservationId
     ? data.preDepartureChecks.some(
         (check) => check.reservationId === primaryReservationId,
@@ -99,15 +115,6 @@ export default function HomePage() {
   const unresolvedSupportRequests = data.supportRequests.filter(
     (request) => request.boatId === data.boat.id && request.status === "open",
   );
-  const activeVoyageSupportRequests = activeVoyage
-    ? data.supportRequests.filter(
-        (request) =>
-          request.boatId === activeVoyage.boatId &&
-          request.reservationId === activeVoyage.reservationId &&
-          request.status !== "resolved" &&
-          request.status !== "closed",
-      )
-    : [];
   const highUrgencySupportRequests = data.supportRequests.filter(
     (request) =>
       request.boatId === data.boat.id &&
@@ -157,7 +164,7 @@ export default function HomePage() {
       href: primaryReservationId
         ? `/voyages?reservationId=${primaryReservationId}`
         : "/voyages",
-      label: activeVoyage ? "航行中画面を開く" : "出船を開始",
+      label: myActiveVoyage ? "出船状況を開く" : "出船を開始",
       icon: Navigation,
     },
     {
@@ -174,17 +181,17 @@ export default function HomePage() {
     { href: "/members", label: "メンバーを見る", icon: Users },
   ];
 
-  const nextTaskTitle = activeVoyage
-    ? "航行中です"
+  const nextTaskTitle = myActiveVoyage
+    ? "出船中の操作"
     : primaryReservation
-      ? "本日の流れを進めます"
+      ? primaryReservationIsToday
+        ? "今日の予約を進めます"
+        : "次回予約があります"
       : "まずは予約を登録します";
-  const nextTaskDescription = activeVoyage
-    ? canOperateActiveVoyage
-      ? `${activeVoyage.trackPoints.length}件の位置を記録中。帰港したら航行ログを完了してください。`
-      : `${activeVoyageUser?.name ?? "他メンバー"}さんが出船中です。出船操作は本人または管理者のみ行えます。`
+  const nextTaskDescription = myActiveVoyage
+    ? "帰港したら出船状況画面から帰港を記録し、帰港後チェックへ進みます。"
     : primaryReservation
-      ? `${data.boat.name} / ${formatDate(primaryReservation.startAt)} ${formatTime(primaryReservation.startAt)} / ${primaryReservation.destinationArea}`
+      ? `${boats.find((boat) => boat.id === primaryReservation.boatId)?.name ?? data.boat.name} / ${formatDate(primaryReservation.startAt)} ${formatTime(primaryReservation.startAt)} / ${primaryReservation.destinationArea}`
       : "予約からチェック、出船、帰港後チェック、申し送りまでを順番に進めます。";
 
   async function updateJoinRequestStatus(
@@ -225,7 +232,7 @@ export default function HomePage() {
 
         <div className="space-y-2">
           <p className="text-sm font-bold text-blue-700">ホーム</p>
-          <h1 className="text-3xl font-black tracking-normal text-blue-950">
+          <h1 className="text-2xl font-black tracking-normal text-blue-950">
             こんにちは {data.currentUser.name}さん
           </h1>
           <div className="rounded-lg bg-sky-50 p-3 text-sm font-bold leading-6 text-blue-900">
@@ -250,78 +257,87 @@ export default function HomePage() {
                     {nextTaskDescription}
                   </p>
                 </div>
-                {activeVoyage ? (
-                  <Badge className={voyageStatusTone[activeVoyage.status]}>
-                    {voyageStatusLabels[activeVoyage.status]}
+                {myActiveVoyage ? (
+                  <Badge className={voyageStatusTone[myActiveVoyage.status]}>
+                    {voyageStatusLabels[myActiveVoyage.status]}
                   </Badge>
                 ) : null}
               </div>
 
-              {activeVoyage ? (
-                <div className={`grid gap-2 ${canOperateActiveVoyage ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+              {myActiveVoyage ? (
+                <div className="grid gap-2">
                   <Link
-                    href={`/voyages?reservationId=${activeVoyage.reservationId}`}
-                    className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 text-sm font-black text-white"
-                  >
-                    <Navigation size={18} aria-hidden="true" />
-                    航行ログを開く
-                  </Link>
-                  <Link
-                    href={`/support?reservationId=${activeVoyage.reservationId}&urgency=high#new`}
-                    className="flex min-h-12 items-center justify-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-black text-rose-800"
-                  >
-                    <LifeBuoy size={18} aria-hidden="true" />
-                    サポート要請
-                  </Link>
-                  {canOperateActiveVoyage ? (
-                    <Link
-                      href={`/checks/post-return?reservationId=${activeVoyage.reservationId}`}
-                      className="flex min-h-12 items-center justify-center gap-2 rounded-lg border border-sky-200 px-4 text-sm font-black text-blue-900"
-                    >
-                      <ClipboardCheck size={18} aria-hidden="true" />
-                      帰港後チェック
-                    </Link>
-                  ) : null}
-                </div>
-              ) : primaryReservation ? (
-                <div className="grid gap-2 sm:grid-cols-4">
-                  <Link
-                    href={`/checks/pre-departure?reservationId=${primaryReservation.id}`}
-                    className={`flex min-h-12 items-center justify-center gap-2 rounded-lg px-4 text-sm font-black ${
-                      primaryPreCheckDone
-                        ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
-                        : "bg-blue-800 text-white"
-                    }`}
-                  >
-                    <ClipboardCheck size={18} aria-hidden="true" />
-                    {primaryPreCheckDone ? "出船前完了" : "出船前チェック"}
-                  </Link>
-                  <Link
-                    href={`/voyages?reservationId=${primaryReservation.id}`}
+                    href={`/voyages?reservationId=${myActiveVoyage.reservationId}`}
                     className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
                   >
-                    <Compass size={18} aria-hidden="true" />
-                    出船開始
-                  </Link>
-                  <Link
-                    href={`/checks/post-return?reservationId=${primaryReservation.id}`}
-                    className={`flex min-h-12 items-center justify-center gap-2 rounded-lg px-4 text-sm font-black ${
-                      primaryPostCheckDone
-                        ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
-                        : "border border-sky-200 text-blue-900"
-                    }`}
-                  >
-                    <ClipboardCheck size={18} aria-hidden="true" />
-                    {primaryPostCheckDone ? "帰港後完了" : "帰港後チェック"}
-                  </Link>
-                  <Link
-                    href={`/handovers?reservationId=${primaryReservation.id}#new`}
-                    className="flex min-h-12 items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 text-sm font-black text-amber-900"
-                  >
-                    <MessageSquareWarning size={18} aria-hidden="true" />
-                    申し送り
+                    <Navigation size={18} aria-hidden="true" />
+                    出船状況を開く
                   </Link>
                 </div>
+              ) : primaryReservation ? (
+                primaryReservationIsToday ? (
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {primarySessionStatus === "scheduled" ? (
+                      <Link
+                        href={`/checks/pre-departure?reservationId=${primaryReservation.id}`}
+                        className={`flex min-h-12 items-center justify-center gap-2 rounded-lg px-4 text-sm font-black ${
+                          primaryPreCheckDone
+                            ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
+                            : "bg-blue-800 text-white"
+                        }`}
+                      >
+                        <ClipboardCheck size={18} aria-hidden="true" />
+                        {primaryPreCheckDone ? "出船前完了" : "出船前チェック"}
+                      </Link>
+                    ) : null}
+                    {primarySessionStatus === "pre_checked" ? (
+                      <Link
+                        href={`/voyages?reservationId=${primaryReservation.id}`}
+                        className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
+                      >
+                        <Compass size={18} aria-hidden="true" />
+                        出船開始
+                      </Link>
+                    ) : null}
+                    {primarySessionStatus === "underway" || primarySessionStatus === "returned" ? (
+                      <Link
+                        href={`/checks/post-return?reservationId=${primaryReservation.id}`}
+                        className={`flex min-h-12 items-center justify-center gap-2 rounded-lg px-4 text-sm font-black ${
+                          primaryPostCheckDone
+                            ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
+                            : "bg-emerald-700 text-white"
+                        }`}
+                      >
+                        <ClipboardCheck size={18} aria-hidden="true" />
+                        {primaryPostCheckDone ? "帰港後完了" : "帰港後チェック"}
+                      </Link>
+                    ) : null}
+                    <Link
+                      href={`/reservations#reservation-${primaryReservation.id}`}
+                      className="flex min-h-12 items-center justify-center gap-2 rounded-lg border border-sky-200 px-4 text-sm font-black text-blue-900"
+                    >
+                      <CalendarDays size={18} aria-hidden="true" />
+                      予約を確認
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Link
+                      href={`/reservations#reservation-${primaryReservation.id}`}
+                      className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
+                    >
+                      <CalendarDays size={18} aria-hidden="true" />
+                      次回予約を確認
+                    </Link>
+                    <Link
+                      href="/reservations#new"
+                      className="flex min-h-12 items-center justify-center gap-2 rounded-lg border border-sky-200 px-4 text-sm font-black text-blue-900"
+                    >
+                      <CalendarDays size={18} aria-hidden="true" />
+                      新しく予約する
+                    </Link>
+                  </div>
+                )
               ) : (
                 <Link
                   href="/reservations#new"
@@ -419,38 +435,8 @@ export default function HomePage() {
           </Section>
         ) : null}
 
-        {activeVoyage && !canOperateActiveVoyage ? (
-          <Card>
-            <div className="flex items-start gap-3">
-              <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-amber-100 text-amber-800">
-                <Navigation size={22} aria-hidden="true" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="font-black text-blue-950">
-                  {data.boat.name} は出船中です
-                </p>
-                <p className="mt-1 text-sm leading-6 text-slate-600">
-                  利用者: {activeVoyageUser?.name ?? "不明"} / 未解決サポート
-                  {activeVoyageSupportRequests.length}件
-                </p>
-                {activeVoyageSupportRequests.length > 0 ? (
-                  <Link
-                    href="/support"
-                    className="mt-3 flex min-h-11 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-black text-rose-800"
-                  >
-                    サポート要請を確認
-                  </Link>
-                ) : null}
-              </div>
-            </div>
-          </Card>
-        ) : null}
-
-        <Section title="利用する船を選ぶ">
+        <Section title="船舶の状況">
           <div className="space-y-3">
-            <p className="rounded-lg bg-sky-50 p-3 text-sm font-bold text-blue-900">
-              所属組織: {data.organization.name}
-            </p>
             {boats.map((boat) => {
               const available = canUseBoat(data, data.currentUser, boat);
               const boatTodaysReservations = data.reservations.filter(
@@ -485,7 +471,64 @@ export default function HomePage() {
                 ? data.users.find((user) => user.id === boatActiveVoyage.userId)
                 : undefined;
 
-              return (
+              const cardContent = (
+                <div className="flex gap-3">
+                  <span className="relative size-20 shrink-0 overflow-hidden rounded-lg bg-sky-100">
+                    <Image
+                      src={boat.imageUrl}
+                      alt=""
+                      fill
+                      sizes="80px"
+                      className="object-cover"
+                      unoptimized={boat.imageUrl.startsWith("data:")}
+                    />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-lg font-black text-blue-950">
+                        {boat.name}
+                      </p>
+                      <Badge className={boatStatusTone[boat.status]}>
+                        {boatStatusLabels[boat.status]}
+                      </Badge>
+                      <Badge
+                        className={
+                          available
+                            ? "bg-emerald-100 text-emerald-800 ring-emerald-200"
+                            : "bg-slate-100 text-slate-700 ring-slate-200"
+                        }
+                      >
+                        {available ? "利用可" : "権限確認"}
+                      </Badge>
+                      {canSwitchBoat && boat.id === data.boat.id ? (
+                        <Badge className="bg-blue-100 text-blue-900 ring-blue-200">
+                          管理表示中
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <div className="mt-2 grid grid-cols-3 gap-2 text-center text-xs font-bold text-slate-600">
+                      <div className="rounded-lg bg-slate-50 p-2">
+                        今日 {boatTodaysReservations.length}
+                      </div>
+                      <div className="rounded-lg bg-slate-50 p-2">
+                        申し送り {boatHandovers.length}
+                      </div>
+                      <div className="rounded-lg bg-slate-50 p-2">
+                        相談 {boatSupports.length}
+                      </div>
+                    </div>
+                    <div className="mt-2 rounded-lg bg-white/80 p-2 text-xs font-bold leading-5 text-slate-600">
+                      {boatActiveVoyage
+                        ? `航行中: ${boatActiveUser?.name ?? "不明"} / ${boatActiveReservation ? `${formatTime(boatActiveReservation.startAt)} ${boatActiveReservation.destinationArea}` : "予約未確認"}`
+                        : boatNextReservation
+                          ? `次回: ${formatDate(boatNextReservation.startAt)} ${formatTime(boatNextReservation.startAt)}`
+                          : "次回予約なし"}
+                    </div>
+                  </div>
+                </div>
+              );
+
+              return canSwitchBoat ? (
                 <button
                   key={boat.id}
                   type="button"
@@ -496,56 +539,15 @@ export default function HomePage() {
                       : "border-sky-100 bg-white"
                   }`}
                 >
-                  <div className="flex gap-3">
-                    <span className="relative size-20 shrink-0 overflow-hidden rounded-lg bg-sky-100">
-                      <Image
-                        src={boat.imageUrl}
-                        alt=""
-                        fill
-                        sizes="80px"
-                        className="object-cover"
-                        unoptimized={boat.imageUrl.startsWith("data:")}
-                      />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-lg font-black text-blue-950">
-                          {boat.name}
-                        </p>
-                        <Badge className={boatStatusTone[boat.status]}>
-                          {boatStatusLabels[boat.status]}
-                        </Badge>
-                        <Badge
-                          className={
-                            available
-                              ? "bg-emerald-100 text-emerald-800 ring-emerald-200"
-                              : "bg-slate-100 text-slate-700 ring-slate-200"
-                          }
-                        >
-                          {available ? "利用可" : "権限確認"}
-                        </Badge>
-                      </div>
-                      <div className="mt-2 grid grid-cols-3 gap-2 text-center text-xs font-bold text-slate-600">
-                        <div className="rounded-lg bg-slate-50 p-2">
-                          今日 {boatTodaysReservations.length}
-                        </div>
-                        <div className="rounded-lg bg-slate-50 p-2">
-                          申し送り {boatHandovers.length}
-                        </div>
-                        <div className="rounded-lg bg-slate-50 p-2">
-                          相談 {boatSupports.length}
-                        </div>
-                      </div>
-                      <div className="mt-2 rounded-lg bg-white/80 p-2 text-xs font-bold leading-5 text-slate-600">
-                        {boatActiveVoyage
-                          ? `航行中: ${boatActiveUser?.name ?? "不明"} / ${boatActiveReservation ? `${formatTime(boatActiveReservation.startAt)} ${boatActiveReservation.destinationArea}` : "予約未確認"}`
-                          : boatNextReservation
-                            ? `次回: ${formatDate(boatNextReservation.startAt)} ${formatTime(boatNextReservation.startAt)}`
-                            : "次回予約なし"}
-                      </div>
-                    </div>
-                  </div>
+                  {cardContent}
                 </button>
+              ) : (
+                <div
+                  key={boat.id}
+                  className="block w-full rounded-lg border border-sky-100 bg-white p-3 text-left shadow-sm"
+                >
+                  {cardContent}
+                </div>
               );
             })}
             {boats.length === 0 ? (

@@ -75,7 +75,6 @@ export function SupportBoard({
   const [statusFilter, setStatusFilter] = useState<"all" | SupportStatus>("all");
   const [locationMessage, setLocationMessage] = useState("");
   const [comment, setComment] = useState("");
-  const [resolveComment, setResolveComment] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [attachmentMessage, setAttachmentMessage] = useState("");
   const [createState, setCreateState] = useState<
@@ -313,7 +312,6 @@ export function SupportBoard({
           createdBy: appData.currentUser.id,
         }),
       ];
-      setResolveComment("");
     }
 
     try {
@@ -1016,7 +1014,7 @@ export function SupportBoard({
                     selectedRequest.status !== "closed" ? (
                       <button
                         type="button"
-                        onClick={() => updateStatus("resolved", resolveComment)}
+                        onClick={() => updateStatus("resolved")}
                         disabled={Boolean(statusState)}
                         className="flex h-12 items-center justify-center rounded-lg bg-emerald-700 px-4 text-sm font-black text-white disabled:bg-slate-300"
                       >
@@ -1048,17 +1046,6 @@ export function SupportBoard({
                     ) : null}
                   </div>
 
-                  <label className="block">
-                    <span className="text-sm font-bold text-slate-700">
-                      解決コメント
-                    </span>
-                    <textarea
-                      value={resolveComment}
-                      onChange={(event) => setResolveComment(event.target.value)}
-                      className="mt-2 min-h-20 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-base outline-none ring-blue-600 focus:ring-2"
-                      placeholder="解決済みにする時のメモ。任意です。"
-                    />
-                  </label>
                 </div>
               );
             })()}
@@ -1088,7 +1075,7 @@ export function SupportBoard({
 
           <form
             onSubmit={addMessage}
-            className="mt-3 space-y-3 rounded-lg border border-sky-100 bg-white p-4 shadow-sm"
+            className="sticky bottom-0 z-10 mt-3 space-y-3 rounded-lg border border-sky-100 bg-white p-4 shadow-lg shadow-slate-950/10"
           >
             <label className="block">
               <span className="text-sm font-bold text-slate-700">コメント</span>
