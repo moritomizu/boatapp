@@ -137,14 +137,24 @@ export default function HomePage() {
       request.status !== "resolved" &&
       request.status !== "closed",
   );
-  const mySupportReplyAlerts = myOpenSupportRequests
+  const supportReplyAlerts = data.supportRequests
+    .filter(
+      (request) =>
+        request.status !== "resolved" && request.status !== "closed",
+    )
     .map((request) => ({
       request,
       replies: data.supportMessages.filter(
         (message) => message.supportRequestId === request.id,
       ),
+      isMine: currentUserIds.has(request.createdBy),
     }))
-    .filter((item) => item.replies.length > 0);
+    .filter((item) => item.replies.length > 0)
+    .sort(
+      (a, b) =>
+        new Date(b.request.updatedAt).getTime() -
+        new Date(a.request.updatedAt).getTime(),
+    );
   const joinRequestsForMe = data.joinRequests.filter((request) => {
     if (request.status !== "requested") return false;
     const reservation = data.reservations.find(
@@ -236,7 +246,7 @@ export default function HomePage() {
       <div className="space-y-6">
         {highUrgencySupportRequests.length > 0 ? (
           <Link
-            href={`/support?supportId=${highUrgencySupportRequests[0].id}`}
+            href={`/support?supportId=${highUrgencySupportRequests[0].id}#support-detail`}
             className="flex items-start gap-3 rounded-lg border border-rose-300 bg-rose-50 p-4 text-rose-900 shadow-sm ring-2 ring-rose-100"
           >
             <LifeBuoy className="mt-0.5 shrink-0" size={24} aria-hidden="true" />
@@ -251,18 +261,20 @@ export default function HomePage() {
           </Link>
         ) : null}
 
-        {mySupportReplyAlerts.length > 0 ? (
+        {supportReplyAlerts.length > 0 ? (
           <Link
-            href={`/support?supportId=${mySupportReplyAlerts[0].request.id}`}
+            href={`/support?supportId=${supportReplyAlerts[0].request.id}#support-detail`}
             className="flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 p-4 text-blue-950 shadow-sm"
           >
             <Bell className="mt-0.5 shrink-0 text-blue-800" size={22} aria-hidden="true" />
             <span>
               <span className="block text-base font-black">
-                あなたのサポート要請にコメントがあります
+                {supportReplyAlerts[0].isMine
+                  ? "あなたのサポート要請にコメントがあります"
+                  : "サポート要請にコメントがあります"}
               </span>
               <span className="mt-1 block text-sm font-semibold leading-6">
-                {mySupportReplyAlerts.reduce(
+                {supportReplyAlerts.reduce(
                   (total, item) => total + item.replies.length,
                   0,
                 )}
