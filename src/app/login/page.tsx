@@ -22,16 +22,23 @@ export default function LoginPage() {
 
   useEffect(() => {
     let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
 
     async function completeRedirectLogin() {
       if (!firebaseAuth || !isFirebaseConfigured) return;
       try {
-        const { getRedirectResult } = await import("firebase/auth");
+        const { getRedirectResult, onAuthStateChanged } = await import("firebase/auth");
+        unsubscribe = onAuthStateChanged(firebaseAuth, (user) => {
+          if (!user || cancelled) return;
+          resetClientAppData();
+          setMessage("ログインしました。ホームへ移動します。");
+          router.replace("/home");
+        });
         const result = await getRedirectResult(firebaseAuth);
         if (!result || cancelled) return;
         resetClientAppData();
         setMessage("Googleログインでログインしました。");
-        router.push("/home");
+        router.replace("/home");
       } catch (error) {
         if (cancelled) return;
         setMessage(
@@ -46,6 +53,7 @@ export default function LoginPage() {
 
     return () => {
       cancelled = true;
+      unsubscribe?.();
     };
   }, [router]);
 
