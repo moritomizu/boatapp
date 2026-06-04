@@ -50,7 +50,11 @@ import type { JoinRequestStatus } from "@/types/domain";
 export default function HomePage() {
   const initialData = getInitialAppData();
   const data = useClientAppData(initialData);
-  const boats = getBoats(data);
+  const boats = getBoats(data).sort(
+    (a, b) =>
+      new Date(a.createdAt ?? a.updatedAt).getTime() -
+      new Date(b.createdAt ?? b.updatedAt).getTime(),
+  );
   const isAdmin = data.currentUser.role === "admin";
 
   const todayIso = new Date().toISOString();
@@ -528,11 +532,6 @@ export default function HomePage() {
                       >
                         {available ? "利用可" : "権限確認"}
                       </Badge>
-                      {boat.id === data.boat.id ? (
-                        <Badge className="bg-blue-100 text-blue-900 ring-blue-200">
-                          表示中
-                        </Badge>
-                      ) : null}
                     </div>
                     <div className="mt-2 grid grid-cols-3 gap-2 text-center text-xs font-bold text-slate-600">
                       <div className="rounded-lg bg-slate-50 p-2">
@@ -559,11 +558,7 @@ export default function HomePage() {
               return (
                 <div
                   key={boat.id}
-                  className={`block w-full rounded-lg border p-3 text-left shadow-sm ${
-                    boat.id === data.boat.id
-                      ? "border-blue-300 bg-sky-50 ring-2 ring-blue-100"
-                      : "border-sky-100 bg-white"
-                  }`}
+                  className="block w-full rounded-lg border border-sky-100 bg-white p-3 text-left shadow-sm"
                 >
                   {cardContent}
                 </div>
