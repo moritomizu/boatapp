@@ -122,6 +122,28 @@ export function SupportBoard({
   const highOpenCount = requests.filter(
     (request) => request.status !== "resolved" && request.urgency === "high",
   ).length;
+  const urgentRequests = requests
+    .filter(
+      (request) =>
+        request.status !== "resolved" &&
+        request.status !== "closed" &&
+        request.urgency === "high",
+    )
+    .sort(
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+    );
+  const myActiveRequests = requests
+    .filter(
+      (request) =>
+        request.createdBy === appData.currentUser.id &&
+        request.status !== "resolved" &&
+        request.status !== "closed",
+    )
+    .sort(
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+    );
 
   function supportPushRecipients(
     request: SupportRequest,
@@ -348,7 +370,7 @@ export function SupportBoard({
       id:
         typeof crypto !== "undefined" && "randomUUID" in crypto
           ? `notif-${crypto.randomUUID()}`
-          : `notif-${Date.now()}`,
+          : `notif-${message.id}`,
       organizationId: data.organization.id,
       boatId: selectedRequest.boatId,
       category: "support",
@@ -513,19 +535,88 @@ export function SupportBoard({
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Card>
-          <p className="text-sm font-black text-blue-950">相談サポート</p>
-          <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-            現在進行形の困りごとを共有します。出船中の給油相談、ライト不具合、帰港判断などに使います。
-          </p>
-        </Card>
-        <Card>
-          <p className="text-sm font-black text-blue-950">申し送り</p>
-          <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-            次回以降の利用者へ残す共有事項です。サポートで得た知見は申し送り化できます。
-          </p>
-        </Card>
+      <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
+        <section
+          className={`rounded-lg border p-4 shadow-sm ${
+            urgentRequests.length > 0
+              ? "border-rose-300 bg-rose-50 ring-2 ring-rose-100"
+              : "border-sky-100 bg-white"
+          }`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black text-rose-700">緊急対応</p>
+              <h2 className="mt-1 text-lg font-black text-slate-950">
+                いま確認すべきサポート
+              </h2>
+            </div>
+            <Badge
+              className={
+                urgentRequests.length > 0
+                  ? "bg-rose-100 text-rose-800 ring-rose-200"
+                  : "bg-slate-100 text-slate-700 ring-slate-200"
+              }
+            >
+              {urgentRequests.length}件
+            </Badge>
+          </div>
+          <div className="mt-3 space-y-2">
+            {urgentRequests.slice(0, 3).map((request) => {
+              const { author } = requestMeta(request);
+
+              return (
+                <button
+                  key={request.id}
+                  type="button"
+                  onClick={() => setSelectedId(request.id)}
+                  className="w-full rounded-lg bg-white p-3 text-left shadow-sm"
+                >
+                  <p className="font-black text-rose-950">{request.title}</p>
+                  <p className="mt-1 text-xs font-bold text-rose-800">
+                    {author?.name ?? "メンバー"} /{" "}
+                    {supportStatusLabels[request.status]}
+                  </p>
+                </button>
+              );
+            })}
+            {urgentRequests.length === 0 ? (
+              <p className="rounded-lg bg-slate-50 p-3 text-sm font-bold text-slate-600">
+                緊急度高の未解決サポートはありません。
+              </p>
+            ) : null}
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-sky-100 bg-white p-4 shadow-sm">
+          <p className="text-xs font-black text-blue-700">自分の操作</p>
+          <h2 className="mt-1 text-lg font-black text-blue-950">
+            相談を出す・確認する
+          </h2>
+          <div className="mt-3 grid gap-2">
+            <a
+              href="#new"
+              onClick={() => updateForm("urgency", "high")}
+              className="flex min-h-12 items-center justify-center rounded-lg bg-rose-700 px-4 text-sm font-black text-white"
+            >
+              緊急サポートを作成
+            </a>
+            <a
+              href="#new"
+              className="flex min-h-12 items-center justify-center rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
+            >
+              通常の相談を作成
+            </a>
+            {myActiveRequests[0] ? (
+              <button
+                type="button"
+                onClick={() => setSelectedId(myActiveRequests[0].id)}
+                className="flex min-h-12 items-center justify-center rounded-lg border border-sky-200 px-4 text-sm font-black text-blue-900"
+              >
+                自分の相談を確認
+              </button>
+            ) : null}
+          </div>
+        </section>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -550,10 +641,32 @@ export function SupportBoard({
       {selectedRequest ? (
         <Section title="選択中のサポート">
           <div id="support-detail" className="scroll-mt-24 space-y-3">
+            {(() => {
+              const { author, reservation } = requestMeta(selectedRequest);
+              const assigned = appData.users.find(
+                (user) => user.id === selectedRequest.assignedTo,
+              );
+              const contactNumber =
+                author?.phone || author?.emergencyContact || "";
+              const mapUrl = selectedRequest.location
+                ? `https://www.google.com/maps?q=${selectedRequest.location.latitude},${selectedRequest.location.longitude}`
+                : "";
+              const handoverParams = new URLSearchParams({
+                reservationId: selectedRequest.reservationId ?? "",
+                source: "support",
+                title: `サポート要請: ${selectedRequest.title}`,
+                body: selectedRequest.body,
+              });
+
+              return (
             <Card>
               <div className="space-y-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
+                    <p className="text-xs font-black text-blue-700">
+                      {getBoatName(appData, selectedRequest.boatId)}
+                      {reservation ? ` / ${formatDate(reservation.startAt)}` : ""}
+                    </p>
                     <p className="text-lg font-black text-blue-950">
                       {selectedRequest.title}
                     </p>
@@ -581,15 +694,95 @@ export function SupportBoard({
                   <Badge className={supportStatusTone[selectedRequest.status]}>
                     {supportStatusLabels[selectedRequest.status]}
                   </Badge>
+                  <Badge className="bg-white text-slate-700 ring-slate-200">
+                    作成者: {author?.name ?? "不明"}
+                  </Badge>
+                  <Badge className="bg-white text-slate-700 ring-slate-200">
+                    対応者: {assigned?.name ?? "未割り当て"}
+                  </Badge>
                 </div>
 
                 {selectedRequest.urgency === "high" ? (
                   <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-bold leading-6 text-rose-900">
                     緊急度が高いサポート要請です。連絡が取れない場合は、緊急連絡先や救助機関への直接連絡も検討してください。
+                    {contactNumber ? ` 連絡先: ${contactNumber}` : ""}
                   </div>
                 ) : null}
+
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {contactNumber ? (
+                    <a
+                      href={`tel:${contactNumber}`}
+                      className="flex min-h-12 items-center justify-center rounded-lg bg-rose-700 px-4 text-sm font-black text-white"
+                    >
+                      作成者に電話
+                    </a>
+                  ) : null}
+                  {mapUrl ? (
+                    <Link
+                      href={mapUrl}
+                      target="_blank"
+                      className="flex min-h-12 items-center justify-center rounded-lg border border-sky-200 bg-sky-50 px-4 text-sm font-black text-blue-900"
+                    >
+                      位置情報を開く
+                    </Link>
+                  ) : null}
+                  {canChangeAllStatuses && selectedRequest.status === "open" ? (
+                    <button
+                      type="button"
+                      onClick={() => updateStatus("in_progress")}
+                      disabled={Boolean(statusState)}
+                      className="flex min-h-12 items-center justify-center rounded-lg bg-blue-800 px-4 text-sm font-black text-white disabled:bg-slate-300"
+                    >
+                      {statusState === "in_progress" ? "変更中..." : "対応します"}
+                    </button>
+                  ) : null}
+                  {canResolveSelected &&
+                  selectedRequest.status !== "resolved" &&
+                  selectedRequest.status !== "closed" ? (
+                    <button
+                      type="button"
+                      onClick={() => updateStatus("resolved")}
+                      disabled={Boolean(statusState)}
+                      className="flex min-h-12 items-center justify-center rounded-lg bg-emerald-700 px-4 text-sm font-black text-white disabled:bg-slate-300"
+                    >
+                      {statusState === "resolved" ? "変更中..." : "解決済みにする"}
+                    </button>
+                  ) : null}
+                  {canChangeAllStatuses ? (
+                    <button
+                      type="button"
+                      onClick={() => updateStatus("closed")}
+                      disabled={Boolean(statusState)}
+                      className="flex min-h-12 items-center justify-center rounded-lg border border-slate-200 px-4 text-sm font-black text-slate-700 disabled:bg-slate-100 disabled:text-slate-400"
+                    >
+                      {statusState === "closed" ? "変更中..." : "クローズ"}
+                    </button>
+                  ) : null}
+                  {canPromoteSelected ? (
+                    <Link
+                      href={`/handovers?${handoverParams.toString()}#new`}
+                      className="flex min-h-12 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 px-4 text-sm font-black text-amber-900"
+                    >
+                      申し送りへ登録
+                    </Link>
+                  ) : null}
+                  {canDeleteSelected ? (
+                    <button
+                      type="button"
+                      onClick={deleteSupportRequest}
+                      disabled={Boolean(deleteState)}
+                      className="flex min-h-12 items-center justify-center gap-2 rounded-lg border border-rose-200 bg-white px-4 text-sm font-black text-rose-700 disabled:bg-slate-100 disabled:text-slate-400"
+                    >
+                      <Trash2 size={17} aria-hidden="true" />
+                      {deleteState ? "削除中..." : "削除"}
+                    </button>
+                  ) : null}
+                </div>
               </div>
             </Card>
+              );
+            })()}
 
             <Card>
               <div className="space-y-3">
