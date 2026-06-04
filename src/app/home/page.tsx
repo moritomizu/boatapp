@@ -36,7 +36,6 @@ import {
   supportStatusLabels,
   supportUrgencyLabels,
   supportUrgencyTone,
-  targetFishLabels,
   voyageStatusLabels,
   voyageStatusTone,
 } from "@/lib/labels";
@@ -59,7 +58,9 @@ export default function HomePage() {
   );
   const isAdmin = data.currentUser.role === "admin";
 
-  const todayIso = new Date().toISOString();
+  const now = new Date();
+  const todayIso = now.toISOString();
+  const twelveHoursAgo = now.getTime() - 12 * 60 * 60 * 1000;
   const myReservations = data.reservations.filter(
     (reservation) => reservation.userId === data.currentUser.id,
   );
@@ -79,10 +80,6 @@ export default function HomePage() {
   const todaysReservations = data.reservations.filter((reservation) =>
     reservation.boatId === data.boat.id && isSameDay(reservation.startAt, todayIso),
   );
-  const selectedBoatReservations = data.reservations.filter(
-    (reservation) => reservation.boatId === data.boat.id,
-  );
-  const nextReservation = findNextReservation(selectedBoatReservations);
   const primaryReservation =
     myActiveReservation ?? myTodaysReservations[0] ?? myNextReservation;
   const primaryReservationId = primaryReservation?.id;
@@ -115,10 +112,6 @@ export default function HomePage() {
         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
     )
     .slice(0, 3);
-  const unresolvedHandoverCount = unresolvedHandovers.length;
-  const unresolvedSupportRequests = data.supportRequests.filter(
-    (request) => request.boatId === data.boat.id && request.status === "open",
-  );
   const highUrgencySupportRequests = data.supportRequests.filter(
     (request) =>
       request.status !== "resolved" &&
@@ -145,7 +138,9 @@ export default function HomePage() {
     .map((request) => ({
       request,
       replies: data.supportMessages.filter(
-        (message) => message.supportRequestId === request.id,
+        (message) =>
+          message.supportRequestId === request.id &&
+          new Date(message.createdAt).getTime() >= twelveHoursAgo,
       ),
       isMine: currentUserIds.has(request.createdBy),
     }))
@@ -170,7 +165,6 @@ export default function HomePage() {
         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
     )
     .slice(0, 3);
-  const unresolvedSupportCount = unresolvedSupportRequests.length;
   const unreadNotifications = data.notifications.filter(
     (notification) => !notification.readBy.includes(data.currentUser.id),
   );
@@ -178,10 +172,43 @@ export default function HomePage() {
     (notification) => notification.priority === "urgent",
   );
   const unreadSupportCommentNotifications = unreadNotifications.filter(
-    (notification) =>
-      notification.category === "support" &&
-      notification.relatedPath.includes("#support-detail"),
+    (notification) => {
+      if (
+        notification.category !== "support" ||
+        !notification.relatedPath.includes("#support-detail")
+      ) {
+        return false;
+      }
+
+      const supportId = new URL(
+        notification.relatedPath,
+        "https://tapiyota.local",
+      ).searchParams.get("supportId");
+      const supportRequest = data.supportRequests.find(
+        (request) => request.id === supportId,
+      );
+      const recentlyUpdated =
+        new Date(notification.createdAt).getTime() >= twelveHoursAgo;
+
+      return (
+        recentlyUpdated &&
+        (!supportRequest ||
+          (supportRequest.status !== "resolved" &&
+            supportRequest.status !== "closed"))
+      );
+    },
   );
+  const todaysSelectedBoatUpcomingReservations = todaysReservations
+    .filter((reservation) => new Date(reservation.endAt).getTime() >= now.getTime())
+    .sort(
+      (a, b) =>
+        new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
+    );
+  const primaryReservationEnded =
+    primaryReservation && primaryReservationIsToday
+      ? new Date(primaryReservation.endAt).getTime() < now.getTime()
+      : false;
+  const selectedBoatIsFreeToday = todaysReservations.length === 0;
   const actions = [
     { href: "/reservations#new", label: "予約する", icon: CalendarDays },
     { href: "/reservations", label: "予約カレンダーを見る", icon: ClipboardCheck },
@@ -217,14 +244,22 @@ export default function HomePage() {
     ? "出船中の操作"
     : primaryReservation
       ? primaryReservationIsToday
-        ? "今日の予約を進めます"
+        ? primaryReservationEnded
+          ? "利用時間を過ぎています"
+          : "今日の予約を進めます"
         : "次回予約があります"
-      : "まずは予約を登録します";
+      : selectedBoatIsFreeToday
+        ? "本日は空きがあります"
+        : "本日の利用状況を確認できます";
   const nextTaskDescription = myActiveVoyage
     ? "帰港したら出船状況画面から帰港を記録し、帰港後チェックへ進みます。"
     : primaryReservation
-      ? `${boats.find((boat) => boat.id === primaryReservation.boatId)?.name ?? data.boat.name} / ${formatDate(primaryReservation.startAt)} ${formatTime(primaryReservation.startAt)} / ${primaryReservation.destinationArea}`
-      : "予約からチェック、出船、帰港後チェック、申し送りまでを順番に進めます。";
+      ? primaryReservationIsToday && primaryReservationEnded
+        ? `${boats.find((boat) => boat.id === primaryReservation.boatId)?.name ?? data.boat.name} / ${formatTime(primaryReservation.endAt)}終了予定でした。帰港後チェックや予約の完了状況を確認してください。`
+        : `${boats.find((boat) => boat.id === primaryReservation.boatId)?.name ?? data.boat.name} / ${formatDate(primaryReservation.startAt)} ${formatTime(primaryReservation.startAt)} / ${primaryReservation.destinationArea}`
+      : selectedBoatIsFreeToday
+        ? `${data.boat.name}は本日予約がありません。空きがあれば予約登録から利用予定を作れます。`
+        : `${data.boat.name}は本日${todaysReservations.length}件の予約があります。直近は${todaysSelectedBoatUpcomingReservations[0] ? `${formatTime(todaysSelectedBoatUpcomingReservations[0].startAt)}開始` : "すべて終了済み"}です。`;
 
   useEffect(() => {
     void refreshClientAppData(initialData, { force: true });
@@ -354,8 +389,33 @@ export default function HomePage() {
                 </div>
               ) : primaryReservation ? (
                 primaryReservationIsToday ? (
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    {primarySessionStatus === "scheduled" ? (
+                  primaryReservationEnded ? (
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      <Link
+                        href={`/reservations#reservation-${primaryReservation.id}`}
+                        className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
+                      >
+                        <CalendarDays size={18} aria-hidden="true" />
+                        予約を確認
+                      </Link>
+                      <Link
+                        href={`/checks/post-return?reservationId=${primaryReservation.id}`}
+                        className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 text-sm font-black text-white"
+                      >
+                        <ClipboardCheck size={18} aria-hidden="true" />
+                        帰港後チェック
+                      </Link>
+                      <Link
+                        href={`/my-log`}
+                        className="flex min-h-12 items-center justify-center gap-2 rounded-lg border border-sky-200 px-4 text-sm font-black text-blue-900"
+                      >
+                        <Navigation size={18} aria-hidden="true" />
+                        航海履歴
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      {primarySessionStatus === "scheduled" ? (
                       <Link
                         href={`/checks/pre-departure?reservationId=${primaryReservation.id}`}
                         className={`flex min-h-12 items-center justify-center gap-2 rounded-lg px-4 text-sm font-black ${
@@ -398,6 +458,7 @@ export default function HomePage() {
                       予約を確認
                     </Link>
                   </div>
+                  )
                 ) : (
                   <div className="grid gap-2 sm:grid-cols-2">
                     <Link
@@ -417,13 +478,22 @@ export default function HomePage() {
                   </div>
                 )
               ) : (
-                <Link
-                  href="/reservations#new"
-                  className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
-                >
-                  <CalendarDays size={18} aria-hidden="true" />
-                  予約を登録
-                </Link>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Link
+                    href="/reservations#new"
+                    className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
+                  >
+                    <CalendarDays size={18} aria-hidden="true" />
+                    {selectedBoatIsFreeToday ? "本日の予約を登録" : "予約を登録"}
+                  </Link>
+                  <Link
+                    href="/reservations"
+                    className="flex min-h-12 items-center justify-center gap-2 rounded-lg border border-sky-200 px-4 text-sm font-black text-blue-900"
+                  >
+                    <ClipboardCheck size={18} aria-hidden="true" />
+                    空き状況を見る
+                  </Link>
+                </div>
               )}
             </div>
           </Card>
@@ -513,7 +583,7 @@ export default function HomePage() {
           </Section>
         ) : null}
 
-        <Section title="船舶の状況">
+        <Section title="運行状況">
           <div className="space-y-3">
             {boats.map((boat) => {
               const available = canUseBoat(data, data.currentUser, boat);
@@ -620,37 +690,6 @@ export default function HomePage() {
           </div>
         </Section>
 
-        {isAdmin ? (
-          <Section title={`${data.boat.name}の運用ダッシュボード`}>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              <Card>
-                <p className="text-xs font-bold text-slate-500">今日の予約</p>
-                <p className="mt-2 text-3xl font-black text-blue-950">
-                  {todaysReservations.length}
-                </p>
-              </Card>
-              <Card>
-                <p className="text-xs font-bold text-slate-500">申し送り</p>
-                <p className="mt-2 text-3xl font-black text-amber-700">
-                  {unresolvedHandoverCount}
-                </p>
-              </Card>
-              <Card>
-                <p className="text-xs font-bold text-slate-500">サポート要請</p>
-                <p className="mt-2 text-3xl font-black text-rose-700">
-                  {unresolvedSupportCount}
-                </p>
-              </Card>
-              <Card>
-                <p className="text-xs font-bold text-slate-500">船の状態</p>
-                <p className="mt-2 text-lg font-black text-blue-950">
-                  {boatStatusLabels[data.boat.status]}
-                </p>
-              </Card>
-            </div>
-          </Section>
-        ) : null}
-
         <Link href="/notifications" className="block">
           <section className="rounded-lg border border-sky-100 bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between gap-3">
@@ -720,49 +759,6 @@ export default function HomePage() {
 
         {isAdmin ? (
           <>
-            <Section title={`${data.boat.name}の今日の利用状況`}>
-              <div className="space-y-3">
-                {todaysReservations.map((reservation) => {
-                  const user = data.users.find((item) => item.id === reservation.userId);
-                  return (
-                    <Card key={reservation.id}>
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="font-black text-slate-950">
-                            {formatTime(reservation.startAt)} -{" "}
-                            {formatTime(reservation.endAt)}
-                          </p>
-                          <p className="mt-1 text-sm text-slate-600">
-                            {user?.name} / {targetFishLabels[reservation.targetFish]} /{" "}
-                            {reservation.destinationArea}
-                          </p>
-                        </div>
-                        <Badge className="bg-sky-100 text-blue-800 ring-sky-200">
-                          {reservation.joinAllowed ? "便乗歓迎" : "貸切"}
-                        </Badge>
-                      </div>
-                    </Card>
-                  );
-                })}
-              </div>
-            </Section>
-
-            {nextReservation ? (
-              <Section title={`${data.boat.name}の次回予約`}>
-                <Card>
-                  <p className="text-lg font-black text-blue-950">
-                    {formatDate(nextReservation.startAt)} {formatTime(nextReservation.startAt)} -{" "}
-                    {formatTime(nextReservation.endAt)}
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
-                    {targetFishLabels[nextReservation.targetFish]} /{" "}
-                    {nextReservation.destinationArea} / 空き席
-                    {nextReservation.availableSeats}席
-                  </p>
-                </Card>
-              </Section>
-            ) : null}
-
             <Section
               title={`${data.boat.name}の最新サポート要請`}
               action={
