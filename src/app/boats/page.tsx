@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Badge, Card, Field, Section } from "@/components/ui";
+import { sortBoatsByDisplayName } from "@/lib/boat-utils";
 import {
   selectCurrentBoat,
   updateClientAppData,
@@ -42,6 +43,7 @@ import {
   clearQueuedBoatImage,
   getQueuedBoatImage,
   queueBoatImageUpload,
+  uploadBoatInspectionCertificateImage,
   uploadBoatImage,
   uploadQueuedBoatImage,
 } from "@/lib/storage";
@@ -61,11 +63,7 @@ export default function BoatsPage() {
   const managedBoats = useMemo(
     () => {
       const boats = appData.boats?.length ? appData.boats : [appData.boat];
-      return [...boats].sort(
-        (a, b) =>
-          new Date(a.createdAt ?? a.updatedAt).getTime() -
-          new Date(b.createdAt ?? b.updatedAt).getTime(),
-      );
+      return sortBoatsByDisplayName(boats);
     },
     [appData.boat, appData.boats],
   );
@@ -79,6 +77,8 @@ export default function BoatsPage() {
   >("idle");
   const [imageFile, setImageFile] = useState<File | undefined>();
   const [imageMessage, setImageMessage] = useState("");
+  const [inspectionFiles, setInspectionFiles] = useState<File[]>([]);
+  const [inspectionMessage, setInspectionMessage] = useState("");
   const [hasQueuedImage, setHasQueuedImage] = useState(
     () => Boolean(getQueuedBoatImage()),
   );
@@ -89,6 +89,7 @@ export default function BoatsPage() {
     capacity: String(appData.boat.capacity),
     fuelType: appData.boat.fuelType,
     engineInfo: appData.boat.engineInfo,
+    nextInspectionDate: appData.boat.nextInspectionDate ?? "",
     notes: appData.boat.notes,
   });
   const [newBoatForm, setNewBoatForm] = useState({
@@ -97,6 +98,7 @@ export default function BoatsPage() {
     capacity: "6",
     fuelType: "ガソリン",
     engineInfo: "",
+    nextInspectionDate: "",
     notes: "",
   });
   const [usageFilter, setUsageFilter] = useState<"this_month" | "last_month" | "all">(
@@ -174,8 +176,11 @@ export default function BoatsPage() {
       capacity: String(appData.boat.capacity),
       fuelType: appData.boat.fuelType,
       engineInfo: appData.boat.engineInfo,
+      nextInspectionDate: appData.boat.nextInspectionDate ?? "",
       notes: appData.boat.notes,
     });
+    setInspectionFiles([]);
+    setInspectionMessage("");
     setSaveState("idle");
     setIsEditing(true);
   }
@@ -215,6 +220,7 @@ export default function BoatsPage() {
     setSaveState("saving");
 
     setImageMessage("");
+    setInspectionMessage("");
     setImageState("idle");
 
     try {
@@ -227,6 +233,7 @@ export default function BoatsPage() {
         capacity: Number(form.capacity) || appData.boat.capacity,
         fuelType: form.fuelType,
         engineInfo: form.engineInfo,
+        nextInspectionDate: form.nextInspectionDate || undefined,
         notes: form.notes,
         updatedAt,
       };
@@ -242,8 +249,56 @@ export default function BoatsPage() {
       if (imageFile) {
         await saveBoatImage(imageFile);
       }
+      if (inspectionFiles.length > 0) {
+        await saveInspectionImages(inspectionFiles);
+      }
     } catch {
       setSaveState("error");
+    }
+  }
+
+  async function saveInspectionImages(files: File[]) {
+    const existingUrls = appData.boat.inspectionCertificateImageUrls ?? [];
+    const remainingSlots = Math.max(0, 3 - existingUrls.length);
+    const targets = files.slice(0, remainingSlots);
+    if (targets.length === 0) {
+      setInspectionMessage("船検査証の写真は最大3枚まで登録できます。");
+      return;
+    }
+
+    setInspectionMessage("船検査証の写真を圧縮してアップロードしています。");
+
+    try {
+      const urls = await Promise.all(
+        targets.map((file) =>
+          uploadBoatInspectionCertificateImage({
+            file,
+            boatId: appData.boat.id,
+            userId: appData.currentUser.id,
+          }),
+        ),
+      );
+
+      await updateClientAppData(
+        (current) =>
+          upsertBoatList(current, {
+            ...current.boat,
+            inspectionCertificateImageUrls: [
+              ...(current.boat.inspectionCertificateImageUrls ?? []),
+              ...urls,
+            ].slice(0, 3),
+            updatedAt: new Date().toISOString(),
+          }),
+        appData,
+      );
+      setInspectionFiles([]);
+      setInspectionMessage("船検査証の写真を保存しました。");
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "船検査証の写真保存に失敗しました。";
+      setInspectionMessage(message);
     }
   }
 
@@ -356,6 +411,7 @@ export default function BoatsPage() {
       fuelType: newBoatForm.fuelType,
       engineInfo: newBoatForm.engineInfo,
       imageUrl: safeBoatImageUrl(appData.boat.imageUrl),
+      nextInspectionDate: newBoatForm.nextInspectionDate || undefined,
       notes: newBoatForm.notes,
       updatedAt: now,
     };
@@ -375,6 +431,7 @@ export default function BoatsPage() {
         capacity: "6",
         fuelType: "ガソリン",
         engineInfo: "",
+        nextInspectionDate: "",
         notes: "",
       });
       setIsAddingBoat(false);
@@ -859,6 +916,10 @@ export default function BoatsPage() {
               <Field label="燃料種別" value={appData.boat.fuelType} />
               <Field label="エンジン情報" value={appData.boat.engineInfo} />
               <Field
+                label="次回船検年月"
+                value={appData.boat.nextInspectionDate || "未登録"}
+              />
+              <Field
                 label="最終更新日"
                 value={new Intl.DateTimeFormat("ja-JP", {
                   dateStyle: "medium",
@@ -866,6 +927,37 @@ export default function BoatsPage() {
                 }).format(new Date(appData.boat.updatedAt))}
               />
             </dl>
+          </Card>
+        </Section>
+
+        <Section title="船検査証">
+          <Card>
+            {appData.boat.inspectionCertificateImageUrls?.length ? (
+              <div className="grid grid-cols-3 gap-2">
+                {appData.boat.inspectionCertificateImageUrls.slice(0, 3).map((url) => (
+                  <a
+                    key={url}
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="relative aspect-square overflow-hidden rounded-lg border border-sky-100 bg-sky-50"
+                  >
+                    <Image
+                      src={url}
+                      alt="船検査証"
+                      fill
+                      sizes="120px"
+                      className="object-cover"
+                      unoptimized={url.startsWith("data:")}
+                    />
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm font-semibold text-slate-600">
+                船検査証の写真はまだ登録されていません。
+              </p>
+            )}
           </Card>
         </Section>
 
@@ -938,6 +1030,17 @@ export default function BoatsPage() {
                     value={newBoatForm.fuelType}
                     onChange={(event) =>
                       updateNewBoatForm("fuelType", event.target.value)
+                    }
+                    className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-sm font-bold text-slate-700">次回船検年月</span>
+                  <input
+                    value={newBoatForm.nextInspectionDate}
+                    type="month"
+                    onChange={(event) =>
+                      updateNewBoatForm("nextInspectionDate", event.target.value)
                     }
                     className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
                   />
@@ -1063,6 +1166,17 @@ export default function BoatsPage() {
                     className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
                   />
                 </label>
+                <label className="block">
+                  <span className="text-sm font-bold text-slate-700">次回船検年月</span>
+                  <input
+                    value={form.nextInspectionDate}
+                    type="month"
+                    onChange={(event) =>
+                      updateForm("nextInspectionDate", event.target.value)
+                    }
+                    className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
+                  />
+                </label>
               </div>
 
               <label className="mt-3 block">
@@ -1107,6 +1221,35 @@ export default function BoatsPage() {
                 {imageMessage ? (
                   <p className="mt-2 rounded-lg bg-amber-50 p-2 text-sm font-bold leading-6 text-amber-900">
                     {imageMessage}
+                  </p>
+                ) : null}
+              </label>
+
+              <label className="mt-3 block rounded-lg border border-dashed border-blue-200 bg-white p-4">
+                <div className="flex items-center gap-2 text-sm font-black text-blue-900">
+                  <ClipboardCheck size={20} aria-hidden="true" />
+                  船検査証写真
+                </div>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  multiple
+                  onChange={(event) =>
+                    setInspectionFiles(Array.from(event.target.files ?? []).slice(0, 3))
+                  }
+                  className="mt-3 w-full text-sm font-semibold text-blue-900 file:mr-3 file:h-10 file:rounded-lg file:border-0 file:bg-blue-800 file:px-4 file:text-sm file:font-black file:text-white"
+                />
+                <p className="mt-2 text-sm leading-6 text-blue-800">
+                  最大3枚まで登録できます。既に登録済みの写真がある場合、空き枠分だけ追加保存します。
+                </p>
+                {inspectionFiles.length > 0 ? (
+                  <p className="mt-2 text-sm font-black text-blue-900">
+                    選択中: {inspectionFiles.map((file) => file.name).join(", ")}
+                  </p>
+                ) : null}
+                {inspectionMessage ? (
+                  <p className="mt-2 rounded-lg bg-amber-50 p-2 text-sm font-bold leading-6 text-amber-900">
+                    {inspectionMessage}
                   </p>
                 ) : null}
               </label>

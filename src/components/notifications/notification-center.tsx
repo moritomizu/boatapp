@@ -68,6 +68,8 @@ export function NotificationCenter({ data }: { data: AppData }) {
     appData.notificationPreferences.find(
       (item) => item.userId === appData.currentUser.id,
     ) ?? defaultPreference(appData.currentUser.id);
+  const pushEnabled =
+    permission === "granted" && preference.channels.includes("push");
   const notifications = appData.notifications;
   const unreadNotifications = notifications.filter(
     (notification) => !notification.readBy.includes(appData.currentUser.id),
@@ -108,6 +110,22 @@ export function NotificationCenter({ data }: { data: AppData }) {
           const exists = current.notificationTokens.some(
             (item) => item.id === token.id,
           );
+          const currentPreference =
+            current.notificationPreferences.find(
+              (item) => item.userId === appData.currentUser.id,
+            ) ?? defaultPreference(appData.currentUser.id);
+          const nextPreference = {
+            ...currentPreference,
+            channels: Array.from(
+              new Set<NotificationChannel>([
+                ...currentPreference.channels,
+                "push",
+              ]),
+            ),
+          };
+          const preferenceExists = current.notificationPreferences.some(
+            (item) => item.userId === nextPreference.userId,
+          );
 
           return {
             ...current,
@@ -116,6 +134,11 @@ export function NotificationCenter({ data }: { data: AppData }) {
                   item.id === token.id ? token : item,
                 )
               : [token, ...current.notificationTokens],
+            notificationPreferences: preferenceExists
+              ? current.notificationPreferences.map((item) =>
+                  item.userId === nextPreference.userId ? nextPreference : item,
+                )
+              : [...current.notificationPreferences, nextPreference],
           };
         },
         appData,
@@ -295,11 +318,23 @@ export function NotificationCenter({ data }: { data: AppData }) {
         <button
           type="button"
           onClick={requestNotificationPermission}
-          disabled={pushState === "saving"}
-          className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-white px-4 text-sm font-black text-blue-900 disabled:bg-slate-200 disabled:text-slate-500"
+          disabled={pushState === "saving" || pushEnabled}
+          className={`mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-lg px-4 text-sm font-black disabled:bg-slate-200 disabled:text-slate-500 ${
+            pushEnabled
+              ? "bg-emerald-100 text-emerald-900"
+              : "bg-white text-blue-900"
+          }`}
         >
-          <BellRing size={20} aria-hidden="true" />
-          {pushState === "saving" ? "通知を登録中..." : "プッシュ通知を有効化する"}
+          {pushEnabled ? (
+            <CheckCircle2 size={20} aria-hidden="true" />
+          ) : (
+            <BellRing size={20} aria-hidden="true" />
+          )}
+          {pushState === "saving"
+            ? "通知を登録中..."
+            : pushEnabled
+              ? "プッシュ通知は有効です"
+              : "プッシュ通知を有効化する"}
         </button>
         {pushMessage ? (
           <p

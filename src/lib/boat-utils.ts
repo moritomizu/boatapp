@@ -1,7 +1,24 @@
 import type { AppData, AppUser, Boat, MemberBoatPermission } from "@/types/domain";
 
+const boatNameCollator = new Intl.Collator("ja-JP", {
+  numeric: true,
+  sensitivity: "base",
+});
+
+export function sortBoatsByDisplayName(boats: Boat[]) {
+  return [...boats].sort((a, b) => {
+    const byName = boatNameCollator.compare(a.name, b.name);
+    if (byName !== 0) return byName;
+
+    return (
+      new Date(a.createdAt ?? a.updatedAt).getTime() -
+      new Date(b.createdAt ?? b.updatedAt).getTime()
+    );
+  });
+}
+
 export function getBoats(data: AppData): Boat[] {
-  if (data.boats?.length) return data.boats;
+  if (data.boats?.length) return sortBoatsByDisplayName(data.boats);
   if (data.boat.id === "boat-unselected") return [];
   return [data.boat];
 }

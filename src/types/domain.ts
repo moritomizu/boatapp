@@ -123,6 +123,8 @@ export type Boat = {
   fuelType: string;
   engineInfo: string;
   imageUrl: string;
+  inspectionCertificateImageUrls?: string[];
+  nextInspectionDate?: string;
   notes: string;
   isActive?: boolean;
   allowNightUse?: boolean;
@@ -139,9 +141,11 @@ export type AppUser = {
   name: string;
   email: string;
   role: UserRole;
+  avatarUrl?: string;
   phone?: string;
   emergencyContact?: string;
   licenseMemo?: string;
+  licenseImageUrls?: string[];
   canSolo: boolean;
   canNightUse: boolean;
   notes: string;

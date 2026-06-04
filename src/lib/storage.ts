@@ -313,6 +313,87 @@ export async function uploadBoatImage({
   return getDownloadURL(snapshot.ref);
 }
 
+async function uploadCompressedImageToPath({
+  file,
+  pathBase,
+  userId,
+}: {
+  file: File;
+  pathBase: string;
+  userId: string;
+}) {
+  if (!firebaseStorage) {
+    if (useMockData) {
+      return readFileAsDataUrl(await compressImageFile(file));
+    }
+
+    throw new Error("Firebase Storage is not configured.");
+  }
+
+  await requireFirebaseStorageUser();
+  const { getDownloadURL, ref, uploadBytes } = await import("firebase/storage");
+  const uploadFile = await compressImageFile(file);
+  const safeName = uploadFile.name.replaceAll("/", "_");
+  const storageRef = ref(
+    firebaseStorage,
+    `${pathBase}/${crypto.randomUUID()}-${safeName}`,
+  );
+  const snapshot = await withTimeout(
+    uploadBytes(storageRef, uploadFile, {
+      contentType: uploadFile.type || "image/jpeg",
+      customMetadata: { uploadedBy: userId },
+    }),
+    STORAGE_UPLOAD_TIMEOUT_MS,
+    "Firebase Storageへのアップロードが30秒以内に完了しませんでした。Storage Rules、Storage Bucket、通信状態を確認してください。",
+  );
+
+  return getDownloadURL(snapshot.ref);
+}
+
+export function uploadUserProfileImage({
+  file,
+  userId,
+}: {
+  file: File;
+  userId: string;
+}) {
+  return uploadCompressedImageToPath({
+    file,
+    pathBase: `users/${userId}/profile`,
+    userId,
+  });
+}
+
+export function uploadUserLicenseImage({
+  file,
+  userId,
+}: {
+  file: File;
+  userId: string;
+}) {
+  return uploadCompressedImageToPath({
+    file,
+    pathBase: `users/${userId}/licenses`,
+    userId,
+  });
+}
+
+export function uploadBoatInspectionCertificateImage({
+  file,
+  boatId,
+  userId,
+}: {
+  file: File;
+  boatId: string;
+  userId: string;
+}) {
+  return uploadCompressedImageToPath({
+    file,
+    pathBase: `boats/${boatId}/inspectionCertificates`,
+    userId,
+  });
+}
+
 export async function queueBoatImageUpload({
   file,
   boatId,

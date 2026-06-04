@@ -1,9 +1,12 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import {
+  Camera,
   ClipboardCheck,
   Edit3,
+  IdCard,
   Plus,
   Save,
   ShieldCheck,
@@ -22,6 +25,10 @@ import {
   createMemberTripRating,
   createSkillAssessment,
 } from "@/lib/mock-data";
+import {
+  uploadUserLicenseImage,
+  uploadUserProfileImage,
+} from "@/lib/storage";
 import type {
   AppUser,
   BoatSkillLevel,
@@ -64,6 +71,10 @@ const skillLevelLabels: Record<BoatSkillLevel, string> = {
 };
 const skillLevels = Object.keys(skillLevelLabels) as BoatSkillLevel[];
 
+function userInitial(name: string) {
+  return (name.trim()[0] || "M").toUpperCase();
+}
+
 function ScoreSelect({
   label,
   value,
@@ -100,6 +111,9 @@ export default function MembersPage() {
   const canManagePermissions = canEdit;
   const boats = getBoats(data);
   const [editingMember, setEditingMember] = useState<AppUser | null>(null);
+  const [avatarFile, setAvatarFile] = useState<File | undefined>();
+  const [licenseFiles, setLicenseFiles] = useState<File[]>([]);
+  const [uploadMessage, setUploadMessage] = useState("");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "error">(
     "idle",
   );
@@ -308,29 +322,64 @@ export default function MembersPage() {
     event.preventDefault();
     if (!canEdit || !editingMember || saveState === "saving") return;
     setSaveState("saving");
+    setUploadMessage("");
 
-    const exists = data.users.some((user) => user.id === editingMember.id);
-    const nextUsers = exists
-      ? data.users.map((user) =>
-          user.id === editingMember.id ? editingMember : user,
-        )
-      : [...data.users, editingMember];
+    let nextMember = editingMember;
 
     try {
+      if (avatarFile) {
+        setUploadMessage("プロフィール画像を圧縮してアップロードしています。");
+        const avatarUrl = await uploadUserProfileImage({
+          file: avatarFile,
+          userId: editingMember.id,
+        });
+        nextMember = { ...nextMember, avatarUrl };
+      }
+
+      if (licenseFiles.length > 0) {
+        setUploadMessage("免許証写真を圧縮してアップロードしています。");
+        const urls = await Promise.all(
+          licenseFiles.map((file) =>
+            uploadUserLicenseImage({
+              file,
+              userId: editingMember.id,
+            }),
+          ),
+        );
+        nextMember = {
+          ...nextMember,
+          licenseImageUrls: [
+            ...(nextMember.licenseImageUrls ?? []),
+            ...urls,
+          ],
+        };
+      }
+
+      const exists = data.users.some((user) => user.id === nextMember.id);
+      const nextUsers = exists
+        ? data.users.map((user) =>
+            user.id === nextMember.id ? nextMember : user,
+          )
+        : [...data.users, nextMember];
+
       await updateClientAppData(
         (current) => ({
           ...current,
           users: nextUsers,
           currentUser:
-            current.currentUser.id === editingMember.id
-              ? editingMember
+            current.currentUser.id === nextMember.id
+              ? nextMember
               : current.currentUser,
         }),
         data,
       );
       setEditingMember(null);
+      setAvatarFile(undefined);
+      setLicenseFiles([]);
+      setUploadMessage("");
       setSaveState("idle");
     } catch {
+      setUploadMessage("");
       setSaveState("error");
     }
   }
@@ -376,9 +425,12 @@ export default function MembersPage() {
               </a>
               <button
                 type="button"
-                onClick={() =>
-                  setEditingMember(blankMember(data.organization.id))
-                }
+                onClick={() => {
+                  setAvatarFile(undefined);
+                  setLicenseFiles([]);
+                  setUploadMessage("");
+                  setEditingMember(blankMember(data.organization.id));
+                }}
                 className="flex h-12 items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
               >
                 <Plus size={19} aria-hidden="true" />
@@ -407,13 +459,29 @@ export default function MembersPage() {
               return (
               <Card key={user.id}>
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-lg font-black text-slate-950">
-                      {user.name}
-                    </p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {user.email}
-                    </p>
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span className="relative grid size-12 shrink-0 place-items-center overflow-hidden rounded-full bg-blue-100 text-base font-black text-blue-900">
+                      {user.avatarUrl ? (
+                        <Image
+                          src={user.avatarUrl}
+                          alt=""
+                          fill
+                          sizes="48px"
+                          className="object-cover"
+                          unoptimized={user.avatarUrl.startsWith("data:")}
+                        />
+                      ) : (
+                        userInitial(user.name)
+                      )}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-lg font-black text-slate-950">
+                        {user.name}
+                      </p>
+                      <p className="mt-1 truncate text-sm text-slate-500">
+                        {user.email}
+                      </p>
+                    </div>
                   </div>
                   <Badge className={roleTone[user.role]}>
                     {roleLabels[user.role]}
@@ -625,7 +693,12 @@ export default function MembersPage() {
                   <div className="mt-4 grid gap-2 sm:grid-cols-2">
                     <button
                       type="button"
-                      onClick={() => setEditingMember(user)}
+                      onClick={() => {
+                        setAvatarFile(undefined);
+                        setLicenseFiles([]);
+                        setUploadMessage("");
+                        setEditingMember(user);
+                      }}
                       className="flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-sky-200 text-sm font-black text-blue-900"
                     >
                       <Edit3 size={17} aria-hidden="true" />
@@ -1176,6 +1249,88 @@ export default function MembersPage() {
                 </div>
               </div>
 
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className="block rounded-lg border border-dashed border-sky-200 bg-sky-50 p-4">
+                  <div className="flex items-center gap-2 text-sm font-black text-blue-900">
+                    <Camera size={20} aria-hidden="true" />
+                    プロフィール画像
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(event) =>
+                      setAvatarFile(event.target.files?.[0] ?? undefined)
+                    }
+                    className="mt-3 w-full text-sm font-semibold text-blue-900 file:mr-3 file:h-10 file:rounded-lg file:border-0 file:bg-blue-800 file:px-4 file:text-sm file:font-black file:text-white"
+                  />
+                  {editingMember.avatarUrl ? (
+                    <div className="mt-3 flex items-center gap-3">
+                      <span className="relative size-14 overflow-hidden rounded-full bg-white">
+                        <Image
+                          src={editingMember.avatarUrl}
+                          alt=""
+                          fill
+                          sizes="56px"
+                          className="object-cover"
+                          unoptimized={editingMember.avatarUrl.startsWith("data:")}
+                        />
+                      </span>
+                      <p className="text-xs font-bold text-blue-800">
+                        現在の画像
+                      </p>
+                    </div>
+                  ) : null}
+                  {avatarFile ? (
+                    <p className="mt-2 text-sm font-black text-blue-900">
+                      選択中: {avatarFile.name}
+                    </p>
+                  ) : null}
+                </label>
+
+                <label className="block rounded-lg border border-dashed border-sky-200 bg-white p-4">
+                  <div className="flex items-center gap-2 text-sm font-black text-blue-900">
+                    <IdCard size={20} aria-hidden="true" />
+                    免許証写真
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    multiple
+                    onChange={(event) =>
+                      setLicenseFiles(Array.from(event.target.files ?? []))
+                    }
+                    className="mt-3 w-full text-sm font-semibold text-blue-900 file:mr-3 file:h-10 file:rounded-lg file:border-0 file:bg-blue-800 file:px-4 file:text-sm file:font-black file:text-white"
+                  />
+                  {editingMember.licenseImageUrls?.length ? (
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      {editingMember.licenseImageUrls.map((url) => (
+                        <a
+                          key={url}
+                          href={url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="relative aspect-square overflow-hidden rounded-lg border border-slate-100 bg-slate-50"
+                        >
+                          <Image
+                            src={url}
+                            alt="免許証写真"
+                            fill
+                            sizes="80px"
+                            className="object-cover"
+                            unoptimized={url.startsWith("data:")}
+                          />
+                        </a>
+                      ))}
+                    </div>
+                  ) : null}
+                  {licenseFiles.length > 0 ? (
+                    <p className="mt-2 text-sm font-black text-blue-900">
+                      選択中: {licenseFiles.map((file) => file.name).join(", ")}
+                    </p>
+                  ) : null}
+                </label>
+              </div>
+
               <label className="mt-3 block">
                 <span className="text-sm font-bold text-slate-700">備考</span>
                 <textarea
@@ -1190,6 +1345,11 @@ export default function MembersPage() {
               {saveState === "error" ? (
                 <p className="mt-3 rounded-lg bg-rose-50 p-3 text-sm font-bold text-rose-800">
                   保存に失敗しました。通信状態とFirestore Rulesを確認してください。
+                </p>
+              ) : null}
+              {uploadMessage ? (
+                <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm font-bold text-amber-900">
+                  {uploadMessage}
                 </p>
               ) : null}
 
