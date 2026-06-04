@@ -140,8 +140,8 @@ export async function POST(request: Request) {
             link,
           },
           notification: {
-            icon: "/tapoyota_logo.png",
-            badge: "/tapoyota_logo.png",
+            icon: "/icons/tapoyota-icon-192.png",
+            badge: "/icons/tapoyota-icon-192.png",
             tag: payload.relatedPath,
             renotify: payload.priority === "urgent",
             requireInteraction: payload.priority === "urgent",

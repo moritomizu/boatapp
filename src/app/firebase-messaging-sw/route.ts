@@ -37,8 +37,8 @@ messaging.onBackgroundMessage((payload) => {
   const item = notificationPayload(payload);
   self.registration.showNotification(item.title, {
     body: item.body,
-    icon: "/tapoyota_logo.png",
-    badge: "/tapoyota_logo.png",
+    icon: "/icons/tapoyota-icon-192.png",
+    badge: "/icons/tapoyota-icon-192.png",
     tag: item.relatedPath,
     renotify: item.priority === "urgent",
     requireInteraction: item.priority === "urgent",

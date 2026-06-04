@@ -104,8 +104,8 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
-      icon: "/tapoyota_logo.png",
-      badge: "/tapoyota_logo.png",
+      icon: "/icons/tapoyota-icon-192.png",
+      badge: "/icons/tapoyota-icon-192.png",
       tag: relatedPath,
       renotify: data.priority === "urgent",
       requireInteraction: data.priority === "urgent",

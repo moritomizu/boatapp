@@ -105,7 +105,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Link href="/home" className="flex items-center gap-2">
             <span className="grid size-10 place-items-center overflow-hidden rounded-full bg-blue-700 p-1 text-white">
               <Image
-                src="/tapoyota_logo.png"
+                src="/tapiyota_icon.jpg"
                 alt=""
                 width={40}
                 height={40}

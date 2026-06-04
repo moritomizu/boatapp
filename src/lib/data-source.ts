@@ -27,7 +27,7 @@ const emptyData: AppData = {
     capacity: 0,
     fuelType: "",
     engineInfo: "",
-    imageUrl: "/tapoyota_logo.png",
+    imageUrl: "/tapiyota_icon.jpg",
     notes: "",
     isActive: false,
     createdAt: new Date(0).toISOString(),

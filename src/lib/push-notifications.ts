@@ -110,8 +110,8 @@ export async function startForegroundPushListener() {
     if (Notification.permission === "granted") {
       const browserNotification = new Notification(title, {
         body,
-        icon: "/tapoyota_logo.png",
-        badge: "/tapoyota_logo.png",
+        icon: "/icons/tapoyota-icon-192.png",
+        badge: "/icons/tapoyota-icon-192.png",
         tag: data.relatedPath,
         requireInteraction: data.priority === "urgent",
       });

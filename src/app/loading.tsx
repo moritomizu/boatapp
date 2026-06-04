@@ -6,7 +6,7 @@ export default function Loading() {
       <div className="flex flex-col items-center gap-4 text-center">
         <div className="grid size-18 animate-pulse place-items-center rounded-2xl bg-blue-800 p-2 shadow-lg shadow-blue-950/20">
           <Image
-            src="/tapoyota_logo.png"
+            src="/tapiyota_icon.jpg"
             alt=""
             width={56}
             height={56}

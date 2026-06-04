@@ -13,7 +13,7 @@ export default function Error({
       <div className="w-full max-w-md rounded-lg border border-sky-100 bg-white p-5 text-center shadow-sm">
         <div className="mx-auto grid size-16 place-items-center rounded-2xl bg-blue-800 p-2">
           <Image
-            src="/tapoyota_logo.png"
+            src="/tapiyota_icon.jpg"
             alt=""
             width={48}
             height={48}
