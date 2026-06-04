@@ -77,7 +77,14 @@ export function SupportBoard({
   const [selectedId, setSelectedId] = useState(
     initialDraft.supportRequestId ?? data.supportRequests[0]?.id ?? "",
   );
-  const [scope, setScope] = useState<"current" | "all">("current");
+  const [scope, setScope] = useState<"current" | "all">("all");
+  const [listTab, setListTab] = useState<"urgent" | "open" | "mine" | "all">(
+    "open",
+  );
+  const [shouldScrollToDetail, setShouldScrollToDetail] = useState(
+    Boolean(initialDraft.supportRequestId),
+  );
+  const [showAllMessages, setShowAllMessages] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<"all" | SupportCategory>(
     "all",
   );
@@ -118,6 +125,9 @@ export function SupportBoard({
       (a, b) =>
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
     );
+  const displayedMessages = showAllMessages
+    ? selectedMessages
+    : selectedMessages.slice(-4);
   const openCount = requests.filter((request) => request.status === "open").length;
   const highOpenCount = requests.filter(
     (request) => request.status !== "resolved" && request.urgency === "high",
@@ -186,6 +196,23 @@ export function SupportBoard({
   const visibleRequests = useMemo(() => {
     return [...requests]
       .filter((request) => (scope === "current" ? request.boatId === appData.boat.id : true))
+      .filter((request) => {
+        if (listTab === "urgent") {
+          return (
+            request.urgency === "high" &&
+            request.status !== "resolved" &&
+            request.status !== "closed"
+          );
+        }
+        if (listTab === "open") {
+          return request.status === "open" || request.status === "in_progress";
+        }
+        if (listTab === "mine") {
+          return request.createdBy === appData.currentUser.id;
+        }
+
+        return true;
+      })
       .filter((request) =>
         categoryFilter === "all" ? true : request.category === categoryFilter,
       )
@@ -201,10 +228,18 @@ export function SupportBoard({
         if (urgencyDiff !== 0) return urgencyDiff;
         return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
       });
-  }, [appData.boat.id, categoryFilter, requests, scope, statusFilter]);
+  }, [
+    appData.boat.id,
+    appData.currentUser.id,
+    categoryFilter,
+    listTab,
+    requests,
+    scope,
+    statusFilter,
+  ]);
 
   useEffect(() => {
-    if (!selectedId) return;
+    if (!selectedId || !shouldScrollToDetail) return;
 
     let attempts = 0;
     let frame = 0;
@@ -214,6 +249,7 @@ export function SupportBoard({
       const detail = document.getElementById("support-detail");
       if (detail) {
         detail.scrollIntoView({ behavior: "smooth", block: "start" });
+        setShouldScrollToDetail(false);
         return;
       }
 
@@ -229,7 +265,7 @@ export function SupportBoard({
       window.clearTimeout(timer);
       window.cancelAnimationFrame(frame);
     };
-  }, [selectedId]);
+  }, [selectedId, shouldScrollToDetail]);
 
   function updateForm<T extends keyof typeof form>(
     key: T,
@@ -786,10 +822,24 @@ export function SupportBoard({
 
             <Card>
               <div className="space-y-3">
-                <p className="text-sm font-black text-blue-950">
-                  コメント・対応履歴
-                </p>
-                {selectedMessages.map((message) => {
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-black text-blue-950">
+                    コメント・対応履歴
+                  </p>
+                  <Badge className="bg-slate-100 text-slate-700 ring-slate-200">
+                    {selectedMessages.length}件
+                  </Badge>
+                </div>
+                {!showAllMessages && selectedMessages.length > displayedMessages.length ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllMessages(true)}
+                    className="flex min-h-10 w-full items-center justify-center rounded-lg bg-slate-100 px-3 text-sm font-black text-slate-700"
+                  >
+                    過去のコメントも表示
+                  </button>
+                ) : null}
+                {displayedMessages.map((message) => {
                   const author = appData.users.find(
                     (user) => user.id === message.createdBy,
                   );
@@ -817,12 +867,21 @@ export function SupportBoard({
                     コメントはまだありません。
                   </p>
                 ) : null}
+                {showAllMessages && selectedMessages.length > 4 ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllMessages(false)}
+                    className="flex min-h-10 w-full items-center justify-center rounded-lg bg-slate-100 px-3 text-sm font-black text-slate-700"
+                  >
+                    最新だけ表示
+                  </button>
+                ) : null}
               </div>
             </Card>
 
             <form
               onSubmit={addMessage}
-              className="space-y-3 rounded-lg border border-sky-100 bg-white p-4 shadow-sm"
+              className="sticky bottom-20 z-10 space-y-3 rounded-lg border border-sky-100 bg-white p-4 shadow-lg shadow-blue-950/10"
             >
               <label className="block">
                 <span className="text-sm font-bold text-slate-700">返信する</span>
@@ -1029,25 +1088,37 @@ export function SupportBoard({
       </Section>
 
       <Section title="サポート要請一覧">
-        <div className="grid gap-2 sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={() => setScope("current")}
-            className={`h-11 rounded-lg text-sm font-black ${
-              scope === "current" ? "bg-blue-800 text-white" : "bg-white text-slate-700"
-            }`}
+        <div className="grid grid-cols-4 gap-2">
+          {[
+            ["urgent", "緊急"],
+            ["open", "対応中"],
+            ["mine", "自分"],
+            ["all", "全体"],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setListTab(value as typeof listTab)}
+              className={`min-h-11 rounded-lg px-2 text-xs font-black sm:text-sm ${
+                listTab === value
+                  ? "bg-blue-800 text-white"
+                  : "bg-white text-slate-700"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+          <select
+            value={scope}
+            onChange={(event) => setScope(event.target.value as "current" | "all")}
+            className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700"
           >
-            選択中の船
-          </button>
-          <button
-            type="button"
-            onClick={() => setScope("all")}
-            className={`h-11 rounded-lg text-sm font-black ${
-              scope === "all" ? "bg-blue-800 text-white" : "bg-white text-slate-700"
-            }`}
-          >
-            全艇表示
-          </button>
+            <option value="all">全艇まとめて表示</option>
+            <option value="current">選択中の船だけ</option>
+          </select>
           <select
             value={categoryFilter}
             onChange={(event) =>
@@ -1080,6 +1151,17 @@ export function SupportBoard({
         <div className="mt-3 space-y-3">
           {visibleRequests.map((request) => {
             const { author, reservation } = requestMeta(request);
+            const relatedMessages = messages
+              .filter((message) => message.supportRequestId === request.id)
+              .sort(
+                (a, b) =>
+                  new Date(b.createdAt).getTime() -
+                  new Date(a.createdAt).getTime(),
+              );
+            const latestMessage = relatedMessages[0];
+            const latestMessageAuthor = appData.users.find(
+              (user) => user.id === latestMessage?.createdBy,
+            );
 
             return (
               <button
@@ -1120,15 +1202,29 @@ export function SupportBoard({
                   <Badge className="bg-white text-slate-700 ring-slate-200">
                     {request.location ? "位置情報あり" : "位置情報なし"}
                   </Badge>
+                  <Badge className="bg-white text-slate-700 ring-slate-200">
+                    コメント {relatedMessages.length}件
+                  </Badge>
                 </div>
                 <p className="mt-3 text-sm leading-6 text-slate-600">
                   {reservation
                     ? `${formatDate(reservation.startAt)} ${targetFishLabels[reservation.targetFish]}`
                     : "予約紐付けなし"}
                 </p>
+                {latestMessage ? (
+                  <p className="mt-2 rounded-lg bg-white/80 p-2 text-xs font-semibold leading-5 text-slate-600">
+                    最新: {latestMessageAuthor?.name ?? "メンバー"} /{" "}
+                    {compactNotificationText(latestMessage.body, 44)}
+                  </p>
+                ) : null}
               </button>
             );
           })}
+          {visibleRequests.length === 0 ? (
+            <p className="rounded-lg bg-white p-4 text-sm font-bold text-slate-600">
+              条件に合うサポート要請はありません。
+            </p>
+          ) : null}
         </div>
       </Section>
 
