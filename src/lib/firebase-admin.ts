@@ -6,7 +6,13 @@ import { getMessaging } from "firebase-admin/messaging";
 function serviceAccount() {
   const base64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
   if (base64) {
-    return JSON.parse(Buffer.from(base64, "base64").toString("utf8"));
+    const parsed = JSON.parse(Buffer.from(base64, "base64").toString("utf8"));
+
+    return {
+      projectId: parsed.project_id ?? parsed.projectId,
+      clientEmail: parsed.client_email ?? parsed.clientEmail,
+      privateKey: parsed.private_key ?? parsed.privateKey,
+    };
   }
 
   const projectId =

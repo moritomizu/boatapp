@@ -9,6 +9,7 @@ import type {
 } from "@/types/domain";
 
 const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
+let foregroundUnsubscribe: (() => void) | undefined;
 
 function tokenDocumentId(userId: string, token: string) {
   return `token-${userId}-${token.slice(-28).replace(/[^a-zA-Z0-9_-]/g, "")}`;
@@ -36,6 +37,12 @@ export function canUseWebPush() {
   );
 }
 
+async function registerMessagingServiceWorker() {
+  return navigator.serviceWorker.register("/firebase-messaging-sw", {
+    scope: "/firebase-cloud-messaging-push-scope",
+  });
+}
+
 export async function registerFcmToken(data: AppData) {
   if (!canUseWebPush() || !firebaseApp || !vapidKey) {
     throw new Error("FCMのWeb Push設定が不足しています。");
@@ -56,8 +63,7 @@ export async function registerFcmToken(data: AppData) {
     throw new Error("ブラウザ通知が許可されていません。");
   }
 
-  const registration = await navigator.serviceWorker.register("/sw.js");
-  await navigator.serviceWorker.ready;
+  const registration = await registerMessagingServiceWorker();
 
   const token = await getToken(getMessaging(firebaseApp), {
     vapidKey,
@@ -86,6 +92,39 @@ export async function registerFcmToken(data: AppData) {
   return notificationToken;
 }
 
+export async function startForegroundPushListener() {
+  if (!canUseWebPush() || !firebaseApp) return;
+  if (foregroundUnsubscribe) return;
+
+  const { getMessaging, isSupported, onMessage } = await import("firebase/messaging");
+  const supported = await isSupported();
+  if (!supported) return;
+
+  foregroundUnsubscribe = onMessage(getMessaging(firebaseApp), (payload) => {
+    const data = payload.data ?? {};
+    const notification = payload.notification ?? {};
+    const title = notification.title ?? data.title ?? "TaPiYoTa Grand Boat Club";
+    const body = notification.body ?? data.body ?? "新しい通知があります。";
+    const link = data.link ?? data.relatedPath ?? "/home";
+
+    if (Notification.permission === "granted") {
+      const browserNotification = new Notification(title, {
+        body,
+        icon: "/tapoyota_logo.png",
+        badge: "/tapoyota_logo.png",
+        tag: data.relatedPath,
+        requireInteraction: data.priority === "urgent",
+      });
+
+      browserNotification.onclick = () => {
+        window.focus();
+        window.location.href = link;
+        browserNotification.close();
+      };
+    }
+  });
+}
+
 export async function sendPushNotification(input: {
   organizationId: string;
   title: string;
@@ -100,7 +139,7 @@ export async function sendPushNotification(input: {
 
   try {
     const idToken = await firebaseAuth.currentUser.getIdToken();
-    await fetch("/api/notifications/send", {
+    const response = await fetch("/api/notifications/send", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -108,6 +147,14 @@ export async function sendPushNotification(input: {
       },
       body: JSON.stringify(input),
     });
+    const result = await response.json().catch(() => undefined);
+    if (!response.ok || result?.ok === false || result?.sent === 0) {
+      console.warn("Push notification was not delivered", {
+        status: response.status,
+        result,
+        input,
+      });
+    }
   } catch (error) {
     console.warn("Failed to send push notification", error);
   }
