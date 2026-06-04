@@ -26,6 +26,7 @@ import {
   handoverPriorityLabels,
   handoverPriorityTone,
   handoverStatusLabels,
+  roleLabels,
   supportCategoryLabels,
   supportStatusLabels,
   supportUrgencyLabels,
@@ -35,6 +36,8 @@ import {
   voyageStatusTone,
 } from "@/lib/labels";
 import { findNextReservation, formatDate, formatTime, isSameDay } from "@/lib/reservations";
+import { updateClientAppData } from "@/lib/client-store";
+import type { JoinRequestStatus } from "@/types/domain";
 
 export default function HomePage() {
   const initialData = getInitialAppData();
@@ -109,8 +112,23 @@ export default function HomePage() {
     (request) =>
       request.boatId === data.boat.id &&
       request.status !== "resolved" &&
+      request.status !== "closed" &&
       request.urgency === "high",
   );
+  const myOpenSupportRequests = data.supportRequests.filter(
+    (request) =>
+      request.createdBy === data.currentUser.id &&
+      request.status !== "resolved" &&
+      request.status !== "closed",
+  );
+  const joinRequestsForMe = data.joinRequests.filter((request) => {
+    if (request.status !== "requested") return false;
+    const reservation = data.reservations.find(
+      (item) => item.id === request.reservationId,
+    );
+    if (!reservation) return false;
+    return isAdmin || reservation.userId === data.currentUser.id;
+  });
   const latestSupportRequests = [...data.supportRequests]
     .filter((request) => request.boatId === data.boat.id)
     .sort(
@@ -169,14 +187,55 @@ export default function HomePage() {
       ? `${data.boat.name} / ${formatDate(primaryReservation.startAt)} ${formatTime(primaryReservation.startAt)} / ${primaryReservation.destinationArea}`
       : "予約からチェック、出船、帰港後チェック、申し送りまでを順番に進めます。";
 
+  async function updateJoinRequestStatus(
+    requestId: string,
+    status: JoinRequestStatus,
+  ) {
+    const now = new Date().toISOString();
+    await updateClientAppData(
+      (current) => ({
+        ...current,
+        joinRequests: current.joinRequests.map((request) =>
+          request.id === requestId ? { ...request, status, updatedAt: now } : request,
+        ),
+      }),
+      data,
+    );
+  }
+
   return (
     <AppShell>
       <div className="space-y-6">
+        {highUrgencySupportRequests.length > 0 ? (
+          <Link
+            href={`/support?supportId=${highUrgencySupportRequests[0].id}`}
+            className="flex items-start gap-3 rounded-lg border border-rose-300 bg-rose-50 p-4 text-rose-900 shadow-sm ring-2 ring-rose-100"
+          >
+            <LifeBuoy className="mt-0.5 shrink-0" size={24} aria-hidden="true" />
+            <span>
+              <span className="block text-base font-black">
+                緊急度高のサポート要請があります
+              </span>
+              <span className="mt-1 block text-sm font-semibold leading-6">
+                タップして内容を確認し、必要であればコメントしてください。
+              </span>
+            </span>
+          </Link>
+        ) : null}
+
         <div className="space-y-2">
           <p className="text-sm font-bold text-blue-700">ホーム</p>
           <h1 className="text-3xl font-black tracking-normal text-blue-950">
-            今日の出船
+            こんにちは {data.currentUser.name}さん
           </h1>
+          <div className="rounded-lg bg-sky-50 p-3 text-sm font-bold leading-6 text-blue-900">
+            現在の権限は{roleLabels[data.currentUser.role]}です。
+            {data.currentUser.role === "admin"
+              ? " 全船の管理、メンバー管理、予約補正、サポート対応ができます。"
+              : data.currentUser.role === "owner"
+                ? " 予約、出船記録、申し送り、サポート対応ができます。"
+                : " 予約、出船前後チェック、航行ログ、申し送り、サポート要請ができます。"}
+          </div>
         </div>
 
         <Section title="次にやること">
@@ -276,6 +335,90 @@ export default function HomePage() {
           </Card>
         </Section>
 
+        {myOpenSupportRequests.length > 0 ? (
+          <Section title="あなたのサポート要請">
+            <div className="space-y-3">
+              {myOpenSupportRequests.slice(0, 3).map((request) => {
+                const messageCount = data.supportMessages.filter(
+                  (message) => message.supportRequestId === request.id,
+                ).length;
+
+                return (
+                  <Link
+                    key={request.id}
+                    href={`/support?supportId=${request.id}`}
+                    className="block"
+                  >
+                    <Card>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-black text-blue-950">{request.title}</p>
+                          <p className="mt-1 text-sm text-slate-600">
+                            返信・記録 {messageCount}件 /{" "}
+                            {supportStatusLabels[request.status]}
+                          </p>
+                        </div>
+                        <Badge className={supportUrgencyTone[request.urgency]}>
+                          {supportUrgencyLabels[request.urgency].split("：")[0]}
+                        </Badge>
+                      </div>
+                    </Card>
+                  </Link>
+                );
+              })}
+            </div>
+          </Section>
+        ) : null}
+
+        {joinRequestsForMe.length > 0 ? (
+          <Section title="便乗希望の確認">
+            <div className="space-y-3">
+              {joinRequestsForMe.slice(0, 3).map((request) => {
+                const reservation = data.reservations.find(
+                  (item) => item.id === request.reservationId,
+                );
+                const requester = data.users.find((user) => user.id === request.userId);
+
+                return (
+                  <Card key={request.id}>
+                    <div className="space-y-3">
+                      <div>
+                        <p className="font-black text-blue-950">
+                          {requester?.name ?? "メンバー"}さんから便乗希望
+                        </p>
+                        <p className="mt-1 text-sm leading-6 text-slate-600">
+                          {reservation
+                            ? `${formatDate(reservation.startAt)} ${formatTime(reservation.startAt)} / ${reservation.destinationArea}`
+                            : "対象予約不明"}
+                        </p>
+                        <p className="mt-2 rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-700">
+                          {request.message}
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => updateJoinRequestStatus(request.id, "approved")}
+                          className="min-h-11 rounded-lg bg-emerald-700 px-4 text-sm font-black text-white"
+                        >
+                          承認
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateJoinRequestStatus(request.id, "declined")}
+                          className="min-h-11 rounded-lg border border-slate-200 px-4 text-sm font-black text-slate-700"
+                        >
+                          見送り
+                        </button>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          </Section>
+        ) : null}
+
         {activeVoyage && !canOperateActiveVoyage ? (
           <Card>
             <div className="flex items-start gap-3">
@@ -332,6 +475,15 @@ export default function HomePage() {
               const boatActiveVoyage = data.voyageLogs.find(
                 (voyage) => voyage.boatId === boat.id && voyage.status === "underway",
               );
+              const boatActiveReservation = boatActiveVoyage
+                ? data.reservations.find(
+                    (reservation) =>
+                      reservation.id === boatActiveVoyage.reservationId,
+                  )
+                : undefined;
+              const boatActiveUser = boatActiveVoyage
+                ? data.users.find((user) => user.id === boatActiveVoyage.userId)
+                : undefined;
 
               return (
                 <button
@@ -386,7 +538,7 @@ export default function HomePage() {
                       </div>
                       <div className="mt-2 rounded-lg bg-white/80 p-2 text-xs font-bold leading-5 text-slate-600">
                         {boatActiveVoyage
-                          ? "状態: 航行中"
+                          ? `航行中: ${boatActiveUser?.name ?? "不明"} / ${boatActiveReservation ? `${formatTime(boatActiveReservation.startAt)} ${boatActiveReservation.destinationArea}` : "予約未確認"}`
                           : boatNextReservation
                             ? `次回: ${formatDate(boatNextReservation.startAt)} ${formatTime(boatNextReservation.startAt)}`
                             : "次回予約なし"}
@@ -499,23 +651,6 @@ export default function HomePage() {
               </span>
               <span className="mt-1 block text-sm font-semibold leading-6">
                 出船前に内容を確認してください。
-              </span>
-            </span>
-          </Link>
-        ) : null}
-
-        {highUrgencySupportRequests.length > 0 ? (
-          <Link
-            href="/support"
-            className="flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 p-4 text-rose-900 shadow-sm"
-          >
-            <LifeBuoy className="mt-0.5 shrink-0" size={22} aria-hidden="true" />
-            <span>
-              <span className="block text-base font-black">
-                緊急度高のサポート要請があります
-              </span>
-              <span className="mt-1 block text-sm font-semibold leading-6">
-                共同メンバー間の相談です。人命に関わる場合は118番等へ直接連絡してください。
               </span>
             </span>
           </Link>

@@ -51,6 +51,7 @@ const statuses: ("all" | SupportStatus)[] = [
 
 type InitialDraft = {
   reservationId?: string;
+  supportRequestId?: string;
   urgency?: SupportUrgency;
 };
 
@@ -64,7 +65,9 @@ export function SupportBoard({
   const appData = useClientAppData(data);
   const requests = appData.supportRequests;
   const messages = appData.supportMessages;
-  const [selectedId, setSelectedId] = useState(data.supportRequests[0]?.id ?? "");
+  const [selectedId, setSelectedId] = useState(
+    initialDraft.supportRequestId ?? data.supportRequests[0]?.id ?? "",
+  );
   const [scope, setScope] = useState<"current" | "all">("current");
   const [categoryFilter, setCategoryFilter] = useState<"all" | SupportCategory>(
     "all",
@@ -97,6 +100,8 @@ export function SupportBoard({
   const canResolveSelected =
     canChangeAllStatuses || selectedRequest?.createdBy === appData.currentUser.id;
   const canDeleteSelected =
+    canChangeAllStatuses || selectedRequest?.createdBy === appData.currentUser.id;
+  const canPromoteSelected =
     canChangeAllStatuses || selectedRequest?.createdBy === appData.currentUser.id;
   const canCreateAsOther = appData.currentUser.role === "admin";
   const selectedMessages = messages
@@ -738,6 +743,8 @@ export function SupportBoard({
               const assigned = appData.users.find(
                 (user) => user.id === selectedRequest.assignedTo,
               );
+              const contactNumber =
+                author?.phone || author?.emergencyContact || "未登録";
               const mapUrl = selectedRequest.location
                 ? `https://www.google.com/maps?q=${selectedRequest.location.latitude},${selectedRequest.location.longitude}`
                 : "";
@@ -799,6 +806,9 @@ export function SupportBoard({
                       <dd className="mt-1 font-black text-slate-900">
                         {author?.name}
                       </dd>
+                      <dd className="mt-1 text-sm font-bold text-slate-700">
+                        電話: {author?.phone || "未登録"}
+                      </dd>
                     </div>
                     <div className="rounded-lg bg-slate-50 p-3">
                       <dt className="font-bold text-slate-500">対応者</dt>
@@ -821,6 +831,13 @@ export function SupportBoard({
                       </dd>
                     </div>
                   </dl>
+
+                  {selectedRequest.urgency === "high" ? (
+                    <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-bold leading-6 text-rose-900">
+                      緊急度が高いサポート要請です。作成者に連絡が取れない場合、緊急連絡先に直接電話することもご検討ください。
+                      連絡先: {contactNumber}
+                    </div>
+                  ) : null}
 
                   <div className="rounded-lg border border-sky-100 bg-sky-50 p-3">
                     <div className="flex items-start gap-2">
@@ -975,12 +992,14 @@ export function SupportBoard({
                   ) : null}
 
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <Link
-                      href={`/handovers?${handoverParams.toString()}#new`}
-                      className="flex h-12 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 px-4 text-sm font-black text-amber-900"
-                    >
-                      申し送りへ登録
-                    </Link>
+                    {canPromoteSelected ? (
+                      <Link
+                        href={`/handovers?${handoverParams.toString()}#new`}
+                        className="flex h-12 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 px-4 text-sm font-black text-amber-900"
+                      >
+                        申し送りへ登録
+                      </Link>
+                    ) : null}
                     {canChangeAllStatuses &&
                     selectedRequest.status === "open" ? (
                       <button

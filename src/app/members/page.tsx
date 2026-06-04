@@ -95,6 +95,8 @@ export default function MembersPage() {
   const initialData = getInitialAppData();
   const data = useClientAppData(initialData);
   const canEdit = data.currentUser.role === "admin";
+  const canViewPermissions =
+    data.currentUser.role === "admin" || data.currentUser.role === "owner";
   const canManagePermissions = canEdit;
   const boats = getBoats(data);
   const [editingMember, setEditingMember] = useState<AppUser | null>(null);
@@ -460,6 +462,7 @@ export default function MembersPage() {
                   </div>
                 ) : null}
 
+                {canViewPermissions ? (
                 <details className="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
                   <summary className="cursor-pointer text-sm font-black text-slate-700">
                     船ごとの利用権限
@@ -561,6 +564,7 @@ export default function MembersPage() {
                     })}
                   </div>
                 </details>
+                ) : null}
 
                 {canEdit && (ratings.length > 0 || skill?.recommendation) ? (
                   <details className="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
