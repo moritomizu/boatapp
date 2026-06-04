@@ -126,6 +126,26 @@ async function getCurrentAuthEmail() {
   });
 }
 
+function currentAuthFallbackUser(organizationId: string): AppUser | undefined {
+  const authUser = firebaseAuth?.currentUser;
+  const email = authUser?.email;
+  if (!email) return undefined;
+
+  return {
+    id: authUser.uid ? `auth-${authUser.uid}` : `auth-${email}`,
+    organizationId,
+    name: authUser.displayName || email.split("@")[0] || "ログインユーザー",
+    email,
+    role: "member",
+    canSolo: false,
+    canNightUse: false,
+    notes: "Firebase Authで登録済み。管理者によるメンバー権限設定待ちです。",
+    createdAt: authUser.metadata.creationTime
+      ? new Date(authUser.metadata.creationTime).toISOString()
+      : new Date().toISOString(),
+  };
+}
+
 async function writeCollection<K extends keyof CollectionMap>(
   name: K,
   rows: CollectionMap[K][],
@@ -234,7 +254,7 @@ export async function getFirestoreAppData(fallback: AppData = mockData) {
   const authEmail = await getCurrentAuthEmail();
   const currentUser =
     resolvedUsers.find((user) => user.email === authEmail) ??
-    resolvedUsers.find((user) => user.role === "admin") ??
+    currentAuthFallbackUser(organization.id) ??
     fallback.currentUser;
 
   return {
@@ -247,6 +267,7 @@ export async function getFirestoreAppData(fallback: AppData = mockData) {
     boats: resolvedBoats,
     users: resolvedUsers,
     currentUser,
+    currentUserId: currentUser.id,
     memberBoatPermissions:
       (memberBoatPermissions as MemberBoatPermission[]).length > 0
         ? (memberBoatPermissions as MemberBoatPermission[])

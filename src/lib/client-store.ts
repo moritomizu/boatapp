@@ -8,6 +8,7 @@ import {
   getFirestoreAppData,
   saveFirestoreAppData,
 } from "@/lib/firebase-repository";
+import { firebaseAuth } from "@/lib/firebase";
 import type { AppData } from "@/types/domain";
 
 const STORAGE_KEY = "tapiyota-grand-boat-club:app-data:v1";
@@ -31,7 +32,27 @@ function normalizeAppData(data: AppData, fallback: AppData): AppData {
     organizations.id ||
     fallback.organization.id;
   const users = data.users?.length ? data.users : fallback.users;
+  const authEmail = shouldUseFirestore()
+    ? firebaseAuth?.currentUser?.email
+    : undefined;
+  const authUser = shouldUseFirestore() ? firebaseAuth?.currentUser : undefined;
+  const authFallbackUser =
+    authEmail && !users.some((user) => user.email === authEmail)
+      ? {
+          id: authUser?.uid ? `auth-${authUser.uid}` : `auth-${authEmail}`,
+          organizationId,
+          name: authUser?.displayName || authEmail.split("@")[0] || "ログインユーザー",
+          email: authEmail,
+          role: "member" as const,
+          canSolo: false,
+          canNightUse: false,
+          notes: "Firebase Authで登録済み。管理者によるメンバー権限設定待ちです。",
+          createdAt: new Date().toISOString(),
+        }
+      : undefined;
   const currentUser =
+    users.find((user) => user.email === authEmail) ??
+    authFallbackUser ??
     users.find((user) => user.id === data.currentUserId) ??
     users.find((user) => user.email === data.currentUser?.email) ??
     data.currentUser ??
@@ -188,6 +209,8 @@ export async function refreshClientAppData(
 export function resetClientAppData() {
   if (!isBrowser()) return;
   window.localStorage.removeItem(STORAGE_KEY);
+  window.localStorage.removeItem(LAST_ORGANIZATION_KEY);
+  window.localStorage.removeItem(LAST_BOAT_KEY);
   cachedRaw = null;
   cachedSnapshot = undefined;
   firestoreLoaded = false;

@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui";
-import { selectCurrentBoat, useClientAppData } from "@/lib/client-store";
+import { resetClientAppData, selectCurrentBoat, useClientAppData } from "@/lib/client-store";
 import { getInitialAppData } from "@/lib/data-source";
 import { firebaseAuth } from "@/lib/firebase";
 import { canUseBoat, getBoats } from "@/lib/boat-utils";
@@ -94,6 +94,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       const { signOut } = await import("firebase/auth");
       await signOut(firebaseAuth);
     }
+    resetClientAppData();
     window.location.href = "/login";
   }
 

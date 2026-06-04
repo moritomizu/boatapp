@@ -5,12 +5,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Anchor, LogIn, UserPlus } from "lucide-react";
 import { firebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
+import { resetClientAppData } from "@/lib/client-store";
 
 export default function LoginPage() {
   const router = useRouter();
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
-  const [email, setEmail] = useState("admin@example.com");
-  const [password, setPassword] = useState("password");
+  const [email, setEmail] = useState(isFirebaseConfigured ? "" : "admin@example.com");
+  const [password, setPassword] = useState(isFirebaseConfigured ? "" : "password");
   const [displayName, setDisplayName] = useState("");
   const [authState, setAuthState] = useState<"idle" | "saving">("idle");
   const [message, setMessage] = useState(
@@ -26,6 +27,7 @@ export default function LoginPage() {
 
     try {
       if (firebaseAuth && isFirebaseConfigured) {
+        resetClientAppData();
         if (authMode === "signup") {
           const { createUserWithEmailAndPassword, updateProfile } = await import("firebase/auth");
           const credential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
@@ -38,6 +40,7 @@ export default function LoginPage() {
         }
       }
 
+      resetClientAppData();
       setMessage(authMode === "signup" ? "会員登録しました。" : "ログインしました。");
       router.push("/home");
     } catch (error) {
@@ -57,6 +60,7 @@ export default function LoginPage() {
     try {
       if (firebaseAuth && isFirebaseConfigured) {
         const { GoogleAuthProvider, signInWithPopup, signOut } = await import("firebase/auth");
+        resetClientAppData();
         await signOut(firebaseAuth);
         const provider = new GoogleAuthProvider();
         provider.addScope("email");
@@ -65,6 +69,7 @@ export default function LoginPage() {
         await signInWithPopup(firebaseAuth, provider);
       }
 
+      resetClientAppData();
       setMessage("Googleログインでログインしました。");
       router.push("/home");
     } catch (error) {
