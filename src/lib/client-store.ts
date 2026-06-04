@@ -15,6 +15,8 @@ const STORAGE_KEY = "tapiyota-grand-boat-club:app-data:v1";
 const STORE_EVENT = "tapiyota-grand-boat-club:app-data-updated";
 const LAST_ORGANIZATION_KEY = "tapiyota-grand-boat-club:last-organization-id";
 const LAST_BOAT_KEY = "tapiyota-grand-boat-club:last-boat-id";
+const UNSELECTED_ORGANIZATION_ID = "org-unselected";
+const UNSELECTED_BOAT_ID = "boat-unselected";
 
 const isBrowser = () => typeof window !== "undefined";
 const shouldUseFirestore = () => !useMockData && canUseFirestore;
@@ -25,11 +27,42 @@ let firestoreLoaded = false;
 let firestoreRefreshPromise: Promise<AppData> | undefined;
 
 function normalizeAppData(data: AppData, fallback: AppData): AppData {
-  const organizations = data.organization;
+  const sourceBoats = data.boats?.length
+    ? data.boats
+    : data.boat?.id && data.boat.id !== UNSELECTED_BOAT_ID
+      ? [data.boat]
+      : fallback.boats?.length
+        ? fallback.boats
+        : fallback.boat?.id && fallback.boat.id !== UNSELECTED_BOAT_ID
+          ? [fallback.boat]
+          : [];
+  const storedOrganizationId = isBrowser()
+    ? window.localStorage.getItem(LAST_ORGANIZATION_KEY)
+    : undefined;
+  const knownOrganizationIds = new Set(
+    [
+      data.organization?.id,
+      data.currentOrganizationId,
+      fallback.organization?.id,
+      fallback.currentOrganizationId,
+      ...sourceBoats.map((boat) => boat.organizationId),
+    ].filter(
+      (id): id is string =>
+        Boolean(id) && id !== UNSELECTED_ORGANIZATION_ID,
+    ),
+  );
   const organizationId =
-    (isBrowser() && window.localStorage.getItem(LAST_ORGANIZATION_KEY)) ||
-    data.currentOrganizationId ||
-    organizations.id ||
+    (storedOrganizationId && knownOrganizationIds.has(storedOrganizationId)
+      ? storedOrganizationId
+      : undefined) ||
+    (data.currentOrganizationId &&
+    data.currentOrganizationId !== UNSELECTED_ORGANIZATION_ID
+      ? data.currentOrganizationId
+      : undefined) ||
+    (data.organization?.id && data.organization.id !== UNSELECTED_ORGANIZATION_ID
+      ? data.organization.id
+      : undefined) ||
+    knownOrganizationIds.values().next().value ||
     fallback.organization.id;
   const users = data.users?.length ? data.users : fallback.users;
   const authEmail = shouldUseFirestore()
@@ -57,25 +90,13 @@ function normalizeAppData(data: AppData, fallback: AppData): AppData {
     users.find((user) => user.email === data.currentUser?.email) ??
     data.currentUser ??
     fallback.currentUser;
-  const boats = (data.boats?.length ? data.boats : fallback.boats?.length ? fallback.boats : [data.boat])
-    .filter((boat) => boat.organizationId === organizationId);
-  const availableBoats = boats.filter((boat) => {
-    if (currentUser.role === "admin" || currentUser.role === "owner") return true;
-    return data.memberBoatPermissions?.some(
-      (permission) =>
-        permission.organizationId === organizationId &&
-        permission.boatId === boat.id &&
-        permission.userId === currentUser.id &&
-        permission.canReserve,
-    );
-  });
+  const boats = sourceBoats.filter((boat) => boat.organizationId === organizationId);
   const lastBoatId = isBrowser() ? window.localStorage.getItem(LAST_BOAT_KEY) : undefined;
   const requestedBoatId = lastBoatId || data.currentBoatId || data.boat?.id;
   const selectedBoat =
-    availableBoats.find((boat) => boat.id === requestedBoatId) ??
-    availableBoats[0] ??
+    boats.find((boat) => boat.id === requestedBoatId) ??
     boats[0] ??
-    data.boat ??
+    (data.boat?.id !== UNSELECTED_BOAT_ID ? data.boat : undefined) ??
     fallback.boat;
 
   if (isBrowser()) {

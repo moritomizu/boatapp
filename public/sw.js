@@ -1,18 +1,10 @@
-const CACHE_NAME = "tapiyota-grand-boat-club-v3";
+const CACHE_NAME = "tapiyota-grand-boat-club-v4";
 const CORE_ASSETS = [
-  "/",
   "/login",
-  "/home",
-  "/boats",
-  "/members",
-  "/reservations",
-  "/checks/pre-departure",
-  "/checks/post-return",
-  "/handovers",
-  "/support",
-  "/voyages",
-  "/notifications",
   "/manifest.webmanifest",
+  "/tapiyota_icon.jpg",
+  "/icons/tapoyota-icon-192.png",
+  "/icons/tapoyota-icon-512.png",
 ];
 
 self.addEventListener("install", (event) => {
@@ -51,6 +43,11 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
   if (event.request.url.includes("/_next/")) {
     return;
   }
@@ -58,25 +55,40 @@ self.addEventListener("fetch", (event) => {
   if (event.request.mode === "navigate") {
     event.respondWith(
       fetch(event.request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-          return response;
-        })
-        .catch(() => caches.match(event.request).then((cached) => cached || caches.match("/home"))),
+        .catch(() =>
+          new Response(
+            `<!doctype html>
+            <html lang="ja">
+              <head>
+                <meta charset="utf-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1" />
+                <title>TaPiYoTa Grand Boat Club</title>
+                <style>
+                  body { margin: 0; font-family: system-ui, sans-serif; background: #f8fafc; color: #172554; }
+                  main { min-height: 100vh; display: grid; place-items: center; padding: 24px; text-align: center; }
+                  img { width: 72px; height: 72px; border-radius: 18px; }
+                  p { color: #475569; line-height: 1.7; }
+                </style>
+              </head>
+              <body>
+                <main>
+                  <div>
+                    <img src="/tapiyota_icon.jpg" alt="" />
+                    <h1>オフラインです</h1>
+                    <p>通信が戻ったら再読み込みしてください。保存済みの操作はオンライン復帰後に同期します。</p>
+                  </div>
+                </main>
+              </body>
+            </html>`,
+            { headers: { "Content-Type": "text/html; charset=utf-8" } },
+          ),
+        ),
     );
     return;
   }
 
   event.respondWith(
-    caches.match(event.request).then((cached) =>
-      cached ||
-      fetch(event.request).then((response) => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-        return response;
-      }),
-    ),
+    caches.match(event.request).then((cached) => cached || fetch(event.request)),
   );
 });
 

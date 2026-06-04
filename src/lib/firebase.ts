@@ -1,6 +1,11 @@
 import { getApps, initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import {
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+} from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
@@ -20,6 +25,21 @@ export const firebaseApp = isFirebaseConfigured
 
 export const firebaseAuth = firebaseApp ? getAuth(firebaseApp) : null;
 
-export const firestore = firebaseApp ? getFirestore(firebaseApp) : null;
+function createFirestore() {
+  if (!firebaseApp) return null;
+  if (typeof window === "undefined") return getFirestore(firebaseApp);
+
+  try {
+    return initializeFirestore(firebaseApp, {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+      }),
+    });
+  } catch {
+    return getFirestore(firebaseApp);
+  }
+}
+
+export const firestore = createFirestore();
 
 export const firebaseStorage = firebaseApp ? getStorage(firebaseApp) : null;
