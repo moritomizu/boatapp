@@ -133,9 +133,7 @@ export default function HomePage() {
     .map((request) => ({
       request,
       replies: data.supportMessages.filter(
-        (message) =>
-          message.supportRequestId === request.id &&
-          message.createdBy !== data.currentUser.id,
+        (message) => message.supportRequestId === request.id,
       ),
     }))
     .filter((item) => item.replies.length > 0);
@@ -249,14 +247,14 @@ export default function HomePage() {
             <Bell className="mt-0.5 shrink-0 text-blue-800" size={22} aria-hidden="true" />
             <span>
               <span className="block text-base font-black">
-                サポート要請にコメントがあります
+                あなたのサポート要請にコメントがあります
               </span>
               <span className="mt-1 block text-sm font-semibold leading-6">
                 {mySupportReplyAlerts.reduce(
                   (total, item) => total + item.replies.length,
                   0,
                 )}
-                件のコメントがありました。タップして確認できます。
+                件のコメント/対応履歴があります。タップして確認できます。
               </span>
             </span>
           </Link>
