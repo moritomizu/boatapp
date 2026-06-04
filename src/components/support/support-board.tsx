@@ -437,6 +437,112 @@ export function SupportBoard({
         </Card>
       </div>
 
+      {selectedRequest ? (
+        <Section title="選択中のサポート">
+          <div id="support-detail" className="scroll-mt-24 space-y-3">
+            <Card>
+              <div className="space-y-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-lg font-black text-blue-950">
+                      {selectedRequest.title}
+                    </p>
+                    <p className="mt-2 text-sm leading-7 text-slate-700">
+                      {selectedRequest.body}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedId("")}
+                    className="grid size-10 shrink-0 place-items-center rounded-full border border-slate-200 text-slate-600"
+                    aria-label="サポート詳細を閉じる"
+                  >
+                    <X size={18} aria-hidden="true" />
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Badge className="bg-sky-100 text-blue-800 ring-sky-200">
+                    {supportCategoryLabels[selectedRequest.category]}
+                  </Badge>
+                  <Badge className={supportUrgencyTone[selectedRequest.urgency]}>
+                    {supportUrgencyLabels[selectedRequest.urgency]}
+                  </Badge>
+                  <Badge className={supportStatusTone[selectedRequest.status]}>
+                    {supportStatusLabels[selectedRequest.status]}
+                  </Badge>
+                </div>
+
+                {selectedRequest.urgency === "high" ? (
+                  <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-bold leading-6 text-rose-900">
+                    緊急度が高いサポート要請です。連絡が取れない場合は、緊急連絡先や救助機関への直接連絡も検討してください。
+                  </div>
+                ) : null}
+              </div>
+            </Card>
+
+            <Card>
+              <div className="space-y-3">
+                <p className="text-sm font-black text-blue-950">
+                  コメント・対応履歴
+                </p>
+                {selectedMessages.map((message) => {
+                  const author = appData.users.find(
+                    (user) => user.id === message.createdBy,
+                  );
+
+                  return (
+                    <div
+                      key={message.id}
+                      className="rounded-lg bg-slate-50 p-3"
+                    >
+                      <p className="text-sm leading-7 text-slate-700">
+                        {message.body}
+                      </p>
+                      <p className="mt-2 text-xs font-bold text-slate-500">
+                        {author?.name ?? "メンバー"} /{" "}
+                        {new Intl.DateTimeFormat("ja-JP", {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        }).format(new Date(message.createdAt))}
+                      </p>
+                    </div>
+                  );
+                })}
+                {selectedMessages.length === 0 ? (
+                  <p className="rounded-lg bg-slate-50 p-3 text-sm font-semibold text-slate-600">
+                    コメントはまだありません。
+                  </p>
+                ) : null}
+              </div>
+            </Card>
+
+            <form
+              onSubmit={addMessage}
+              className="space-y-3 rounded-lg border border-sky-100 bg-white p-4 shadow-sm"
+            >
+              <label className="block">
+                <span className="text-sm font-bold text-slate-700">返信する</span>
+                <textarea
+                  value={comment}
+                  onChange={(event) => setComment(event.target.value)}
+                  className="mt-2 min-h-24 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-base outline-none ring-blue-600 focus:ring-2"
+                  placeholder="回答や対応履歴を残します"
+                />
+              </label>
+              <button
+                type="submit"
+                disabled={commentState === "saving" || !comment.trim()}
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white disabled:bg-slate-300"
+              >
+                <MessageSquarePlus size={19} aria-hidden="true" />
+                {commentState === "saving" ? "追加中..." : "コメントを追加"}
+              </button>
+            </form>
+          </div>
+        </Section>
+      ) : null}
+
       <Section title="サポート要請を作成">
         <form
           id="new"
