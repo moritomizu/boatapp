@@ -18,7 +18,6 @@ import { AppShell } from "@/components/app-shell";
 import { Badge, Card, Section } from "@/components/ui";
 import { canUseBoat, getBoats } from "@/lib/boat-utils";
 import {
-  selectCurrentBoat,
   updateClientAppData,
   useClientAppData,
 } from "@/lib/client-store";
@@ -53,7 +52,6 @@ export default function HomePage() {
   const data = useClientAppData(initialData);
   const boats = getBoats(data);
   const isAdmin = data.currentUser.role === "admin";
-  const canSwitchBoat = isAdmin;
 
   const todayIso = new Date().toISOString();
   const myReservations = data.reservations.filter(
@@ -127,6 +125,16 @@ export default function HomePage() {
       request.status !== "resolved" &&
       request.status !== "closed",
   );
+  const mySupportReplyAlerts = myOpenSupportRequests
+    .map((request) => ({
+      request,
+      replies: data.supportMessages.filter(
+        (message) =>
+          message.supportRequestId === request.id &&
+          message.createdBy !== data.currentUser.id,
+      ),
+    }))
+    .filter((item) => item.replies.length > 0);
   const joinRequestsForMe = data.joinRequests.filter((request) => {
     if (request.status !== "requested") return false;
     const reservation = data.reservations.find(
@@ -224,6 +232,27 @@ export default function HomePage() {
               </span>
               <span className="mt-1 block text-sm font-semibold leading-6">
                 タップして内容を確認し、必要であればコメントしてください。
+              </span>
+            </span>
+          </Link>
+        ) : null}
+
+        {mySupportReplyAlerts.length > 0 ? (
+          <Link
+            href={`/support?supportId=${mySupportReplyAlerts[0].request.id}`}
+            className="flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 p-4 text-blue-950 shadow-sm"
+          >
+            <Bell className="mt-0.5 shrink-0 text-blue-800" size={22} aria-hidden="true" />
+            <span>
+              <span className="block text-base font-black">
+                サポート要請にコメントがあります
+              </span>
+              <span className="mt-1 block text-sm font-semibold leading-6">
+                {mySupportReplyAlerts.reduce(
+                  (total, item) => total + item.replies.length,
+                  0,
+                )}
+                件のコメントがありました。タップして確認できます。
               </span>
             </span>
           </Link>
@@ -499,9 +528,9 @@ export default function HomePage() {
                       >
                         {available ? "利用可" : "権限確認"}
                       </Badge>
-                      {canSwitchBoat && boat.id === data.boat.id ? (
+                      {boat.id === data.boat.id ? (
                         <Badge className="bg-blue-100 text-blue-900 ring-blue-200">
-                          管理表示中
+                          表示中
                         </Badge>
                       ) : null}
                     </div>
@@ -527,23 +556,14 @@ export default function HomePage() {
                 </div>
               );
 
-              return canSwitchBoat ? (
-                <button
+              return (
+                <div
                   key={boat.id}
-                  type="button"
-                  onClick={() => void selectCurrentBoat(boat.id, data)}
                   className={`block w-full rounded-lg border p-3 text-left shadow-sm ${
                     boat.id === data.boat.id
                       ? "border-blue-300 bg-sky-50 ring-2 ring-blue-100"
                       : "border-sky-100 bg-white"
                   }`}
-                >
-                  {cardContent}
-                </button>
-              ) : (
-                <div
-                  key={boat.id}
-                  className="block w-full rounded-lg border border-sky-100 bg-white p-3 text-left shadow-sm"
                 >
                   {cardContent}
                 </div>

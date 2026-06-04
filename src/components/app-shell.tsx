@@ -46,7 +46,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   const data = useClientAppData(getInitialAppData());
   const boats = getBoats(data);
   const usableBoats = boats.filter((boat) => canUseBoat(data, data.currentUser, boat));
-  const canSwitchBoat = data.currentUser.role === "admin";
   const activeVoyage = data.voyageLogs.find(
     (voyage) => voyage.boatId === data.boat.id && voyage.status === "underway",
   );
@@ -124,61 +123,49 @@ export function AppShell({ children }: { children: ReactNode }) {
             </span>
           </Link>
           <div className="flex items-center gap-2">
-            {canSwitchBoat ? (
-              <details className="relative">
-                <summary
-                  className="flex min-h-10 min-w-0 cursor-pointer list-none items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-2 text-blue-950 marker:hidden"
-                  aria-label={`対象船舶: ${data.boat.name}`}
-                >
-                  <Ship size={17} aria-hidden="true" />
-                  <span className="hidden max-w-32 truncate text-xs font-black sm:block">
-                    {data.boat.name}
-                  </span>
-                  <ChevronDown size={15} aria-hidden="true" />
-                </summary>
-                <div className="absolute right-0 top-12 z-50 w-72 rounded-lg border border-sky-100 bg-white p-3 shadow-xl">
-                  <p className="text-xs font-black text-slate-500">
-                    管理対象の船舶
-                  </p>
-                  <div className="mt-2 space-y-2">
-                    {boats.map((boat) => {
-                      const usable = usableBoats.some((item) => item.id === boat.id);
-                      const selected = boat.id === data.boat.id;
-
-                      return (
-                        <button
-                          key={boat.id}
-                          type="button"
-                          disabled={!usable}
-                          onClick={() => void selectCurrentBoat(boat.id, data)}
-                          className="flex min-h-12 w-full items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 text-left disabled:opacity-50"
-                        >
-                          <span>
-                            <span className="block text-sm font-black text-slate-900">
-                              {boat.name}
-                            </span>
-                            <span className="block text-xs font-bold text-slate-500">
-                              {usable ? "表示切替可" : "利用不可"}
-                            </span>
-                          </span>
-                          {selected ? <Check size={18} className="text-blue-800" /> : null}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </details>
-            ) : (
-              <div
-                className="flex min-h-10 min-w-0 items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-2 text-blue-950"
-                aria-label={`メイン船舶: ${data.boat.name}`}
+            <details className="relative">
+              <summary
+                className="flex min-h-10 min-w-0 cursor-pointer list-none items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-2 text-blue-950 marker:hidden"
+                aria-label={`対象船舶: ${data.boat.name}`}
               >
                 <Ship size={17} aria-hidden="true" />
                 <span className="hidden max-w-32 truncate text-xs font-black sm:block">
                   {data.boat.name}
                 </span>
+                <ChevronDown size={15} aria-hidden="true" />
+              </summary>
+              <div className="absolute right-0 top-12 z-50 w-72 rounded-lg border border-sky-100 bg-white p-3 shadow-xl">
+                <p className="text-xs font-black text-slate-500">
+                  利用する船を切り替え
+                </p>
+                <div className="mt-2 space-y-2">
+                  {boats.map((boat) => {
+                    const usable = usableBoats.some((item) => item.id === boat.id);
+                    const selected = boat.id === data.boat.id;
+
+                    return (
+                      <button
+                        key={boat.id}
+                        type="button"
+                        disabled={!usable}
+                        onClick={() => void selectCurrentBoat(boat.id, data)}
+                        className="flex min-h-12 w-full items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 text-left disabled:opacity-50"
+                      >
+                        <span>
+                          <span className="block text-sm font-black text-slate-900">
+                            {boat.name}
+                          </span>
+                          <span className="block text-xs font-bold text-slate-500">
+                            {usable ? "表示切替可" : "利用権限なし"}
+                          </span>
+                        </span>
+                        {selected ? <Check size={18} className="text-blue-800" /> : null}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            )}
+            </details>
             <Link
               href="/notifications"
               className="relative grid size-10 place-items-center rounded-full border border-sky-200 text-blue-900"
