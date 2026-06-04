@@ -5,7 +5,11 @@ import { useMemo, useState } from "react";
 import { Bell, BellRing, CheckCircle2, Radio, Waves } from "lucide-react";
 import { Badge, Card, Section } from "@/components/ui";
 import { updateClientAppData, useClientAppData } from "@/lib/client-store";
-import { canUseWebPush, registerFcmToken } from "@/lib/push-notifications";
+import {
+  canUseWebPush,
+  registerFcmToken,
+  sendPushNotification,
+} from "@/lib/push-notifications";
 import {
   notificationCategoryLabels,
   notificationPriorityLabels,
@@ -55,6 +59,10 @@ export function NotificationCenter({ data }: { data: AppData }) {
     "idle" | "saving" | "saved" | "error" | "unsupported"
   >("idle");
   const [pushMessage, setPushMessage] = useState("");
+  const [testState, setTestState] = useState<"idle" | "sending" | "sent" | "error">(
+    "idle",
+  );
+  const [testMessage, setTestMessage] = useState("");
   const preference =
     appData.notificationPreferences.find(
       (item) => item.userId === appData.currentUser.id,
@@ -184,6 +192,46 @@ export function NotificationCenter({ data }: { data: AppData }) {
     updatePreference("channels", channels);
   }
 
+  async function sendTestNotification() {
+    setTestState("sending");
+    setTestMessage("");
+
+    const result = await sendPushNotification({
+      organizationId: appData.organization.id,
+      title: "テスト通知",
+      body: `${appData.currentUser.name}さんの端末へテスト通知を送信しました。`,
+      relatedPath: "/notifications",
+      category: "support",
+      priority: "important",
+      recipientUserIds: [appData.currentUser.id],
+    });
+
+    if (result?.ok && result.sent > 0) {
+      setTestState("sent");
+      setTestMessage(
+        `テスト通知を送信しました。送信数: ${result.sent}件。端末側に通知が出るか確認してください。`,
+      );
+      return;
+    }
+
+    setTestState("error");
+    if (result?.reason === "firebase_admin_not_configured") {
+      setTestMessage(
+        "送信APIは動いていますが、Firebase Admin SDKの環境変数が未設定です。VercelのFIREBASE_SERVICE_ACCOUNT_BASE64などを確認してください。",
+      );
+    } else if (result?.sent === 0) {
+      setTestMessage(
+        "送信対象の端末トークンが見つかりませんでした。この端末で再度「プッシュ通知を有効化する」を押してください。",
+      );
+    } else if (result?.error === "unauthorized") {
+      setTestMessage("送信APIの認証に失敗しました。ログインし直して再度試してください。");
+    } else {
+      setTestMessage(
+        `テスト通知の送信に失敗しました。結果: ${JSON.stringify(result ?? {})}`,
+      );
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="space-y-2">
@@ -255,6 +303,32 @@ export function NotificationCenter({ data }: { data: AppData }) {
             {pushMessage}
           </p>
         ) : null}
+        <div className="mt-4 rounded-lg border border-white/20 bg-white/10 p-3">
+          <p className="text-sm font-black">通知テスト</p>
+          <p className="mt-1 text-xs font-semibold leading-5 text-sky-100">
+            この端末にだけテスト通知を送信します。サポート要請とは切り離してFCMの接続状態を確認できます。
+          </p>
+          <button
+            type="button"
+            onClick={sendTestNotification}
+            disabled={testState === "sending"}
+            className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-sky-100 px-4 text-sm font-black text-blue-950 disabled:bg-slate-200 disabled:text-slate-500"
+          >
+            <Bell size={18} aria-hidden="true" />
+            {testState === "sending" ? "テスト送信中..." : "テスト通知を送る"}
+          </button>
+          {testMessage ? (
+            <p
+              className={`mt-3 rounded-lg p-3 text-sm font-bold leading-6 ${
+                testState === "sent"
+                  ? "bg-emerald-50 text-emerald-900"
+                  : "bg-rose-50 text-rose-900"
+              }`}
+            >
+              {testMessage}
+            </p>
+          ) : null}
+        </div>
       </section>
 
       <Section title="通知設定">

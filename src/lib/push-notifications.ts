@@ -135,7 +135,9 @@ export async function sendPushNotification(input: {
   recipientUserIds?: string[];
   excludeUserId?: string;
 }) {
-  if (!firebaseAuth?.currentUser) return;
+  if (!firebaseAuth?.currentUser) {
+    return { ok: false, error: "not_signed_in" };
+  }
 
   try {
     const idToken = await firebaseAuth.currentUser.getIdToken();
@@ -155,7 +157,12 @@ export async function sendPushNotification(input: {
         input,
       });
     }
+    return result ?? { ok: response.ok };
   } catch (error) {
     console.warn("Failed to send push notification", error);
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "unknown_error",
+    };
   }
 }
