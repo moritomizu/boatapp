@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Bell, BellRing, CheckCircle2, Radio, Waves } from "lucide-react";
+import { Bell, BellRing, CheckCircle2, HelpCircle, Radio, Waves, X } from "lucide-react";
 import { Badge, Card, Section } from "@/components/ui";
 import { updateClientAppData, useClientAppData } from "@/lib/client-store";
 import {
@@ -63,6 +63,7 @@ export function NotificationCenter({ data }: { data: AppData }) {
     "idle",
   );
   const [testMessage, setTestMessage] = useState("");
+  const [showHelp, setShowHelp] = useState(false);
   const preference =
     appData.notificationPreferences.find(
       (item) => item.userId === appData.currentUser.id,
@@ -339,7 +340,19 @@ export function NotificationCenter({ data }: { data: AppData }) {
         </div>
       </section>
 
-      <Section title="通知設定">
+      <Section
+        title="通知設定"
+        action={
+          <button
+            type="button"
+            onClick={() => setShowHelp(true)}
+            className="grid size-8 place-items-center rounded-full bg-sky-100 text-blue-800"
+            aria-label="通知設定の説明を開く"
+          >
+            <HelpCircle size={17} aria-hidden="true" />
+          </button>
+        }
+      >
         <Card>
           <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-bold leading-6 text-rose-900">
             緊急度「高」のサポート要請は、安全確認を優先するため、サポート要請通知がOFFでも全通知チャンネルへ送信対象になります。
@@ -412,6 +425,53 @@ export function NotificationCenter({ data }: { data: AppData }) {
           </div>
         </Card>
       </Section>
+
+      {showHelp ? (
+        <div className="fixed inset-0 z-50 flex items-end bg-slate-950/45 p-3 sm:items-center sm:justify-center">
+          <div className="max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-4 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black text-blue-700">通知設定の説明</p>
+                <h2 className="mt-1 text-lg font-black text-blue-950">
+                  アプリ内通知とプッシュ通知の違い
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowHelp(false)}
+                className="grid size-10 shrink-0 place-items-center rounded-full border border-slate-200 text-slate-600"
+                aria-label="閉じる"
+              >
+                <X size={18} aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3 text-sm leading-6 text-slate-700">
+              <div className="rounded-lg bg-slate-50 p-3">
+                <p className="font-black text-slate-950">アプリ内通知</p>
+                <p className="mt-1">
+                  アプリのホーム画面や通知センターに残る通知です。あとから履歴として確認できます。
+                </p>
+              </div>
+              <div className="rounded-lg bg-slate-50 p-3">
+                <p className="font-black text-slate-950">プッシュ通知</p>
+                <p className="mt-1">
+                  ブラウザやPWAが閉じていても端末に表示される通知です。端末ごとに「プッシュ通知を有効化する」が必要です。
+                </p>
+              </div>
+              <div className="rounded-lg bg-rose-50 p-3 text-rose-900">
+                <p className="font-black">緊急度高のサポート要請</p>
+                <p className="mt-1">
+                  安全確認を優先するため、サポート要請通知がOFFでも送信対象になります。
+                </p>
+              </div>
+              <p className="text-xs font-semibold leading-5 text-slate-500">
+                同じ通知が2通出る場合は、アプリ内通知とプッシュ通知の重複ではなく、FCM受信処理の重複が原因です。現在は1通だけ表示されるよう送信方式を調整しています。
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <Section title="通知一覧">
         <div className="space-y-3">

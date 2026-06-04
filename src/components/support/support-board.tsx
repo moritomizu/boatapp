@@ -51,6 +51,13 @@ const statuses: ("all" | SupportStatus)[] = [
   "closed",
 ];
 
+function compactNotificationText(value: string, maxLength = 72) {
+  const compact = value.replace(/\s+/g, " ").trim();
+  if (compact.length <= maxLength) return compact;
+
+  return `${compact.slice(0, maxLength - 1)}…`;
+}
+
 type InitialDraft = {
   reservationId?: string;
   supportRequestId?: string;
@@ -334,6 +341,9 @@ export function SupportBoard({
       body: comment,
       createdBy: appData.currentUser.id,
     });
+    const commentPreview = compactNotificationText(comment);
+    const supportNotificationTitle = `サポート: ${compactNotificationText(selectedRequest.title, 36)}`;
+    const supportNotificationBody = `${appData.currentUser.name}さん: ${commentPreview}`;
     const notification: AppNotification = {
       id:
         typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -343,8 +353,8 @@ export function SupportBoard({
       boatId: selectedRequest.boatId,
       category: "support",
       priority: selectedRequest.urgency === "high" ? "urgent" : "important",
-      title: "サポート要請にコメントがあります",
-      body: `${appData.currentUser.name}さんが「${selectedRequest.title}」にコメントしました。`,
+      title: supportNotificationTitle,
+      body: supportNotificationBody,
       relatedPath: `/support?supportId=${selectedRequest.id}#support-detail`,
       readBy: [appData.currentUser.id],
       createdAt: message.createdAt,
@@ -368,8 +378,8 @@ export function SupportBoard({
       );
       void sendPushNotification({
         organizationId: data.organization.id,
-        title: "サポート要請にコメントがあります",
-        body: `${appData.currentUser.name}さんが「${selectedRequest.title}」にコメントしました。`,
+        title: supportNotificationTitle,
+        body: supportNotificationBody,
         relatedPath: `/support?supportId=${selectedRequest.id}#support-detail`,
         category: "support",
         priority: selectedRequest.urgency === "high" ? "urgent" : "important",

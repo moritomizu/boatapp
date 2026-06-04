@@ -127,10 +127,6 @@ export async function POST(request: Request) {
     for (const tokenChunk of chunk(tokens, 500)) {
       const response = await admin.messaging.sendEachForMulticast({
         tokens: tokenChunk,
-        notification: {
-          title: payload.title,
-          body: payload.body,
-        },
         data: {
           title: payload.title,
           body: payload.body,
