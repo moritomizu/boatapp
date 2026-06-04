@@ -694,6 +694,7 @@ export const mockData: AppData = {
       supportAlerts: true,
     },
   ],
+  notificationTokens: [],
 };
 
 export const createPreDepartureCheck = (

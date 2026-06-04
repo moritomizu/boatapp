@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { Bell, BellRing, CheckCircle2, Radio, Waves } from "lucide-react";
 import { Badge, Card, Section } from "@/components/ui";
 import { updateClientAppData, useClientAppData } from "@/lib/client-store";
+import { canUseWebPush, registerFcmToken } from "@/lib/push-notifications";
 import {
   notificationCategoryLabels,
   notificationPriorityLabels,
@@ -50,6 +51,10 @@ export function NotificationCenter({ data }: { data: AppData }) {
   const [settingsState, setSettingsState] = useState<"idle" | "saving" | "error">(
     "idle",
   );
+  const [pushState, setPushState] = useState<
+    "idle" | "saving" | "saved" | "error" | "unsupported"
+  >("idle");
+  const [pushMessage, setPushMessage] = useState("");
   const preference =
     appData.notificationPreferences.find(
       (item) => item.userId === appData.currentUser.id,
@@ -73,16 +78,50 @@ export function NotificationCenter({ data }: { data: AppData }) {
   async function requestNotificationPermission() {
     if (!("Notification" in window)) {
       setPermission("unsupported");
+      setPushState("unsupported");
       return;
     }
 
-    const result = await Notification.requestPermission();
-    setPermission(result);
+    if (!canUseWebPush()) {
+      setPushState("unsupported");
+      setPushMessage(
+        "FCMのWeb Push設定が不足しています。VAPIDキーとFirebase設定を確認してください。",
+      );
+      return;
+    }
 
-    if (result === "granted") {
-      new Notification("TaPiYoTa Grand Boat Club", {
-        body: "通知が有効になりました。海況、チェック、申し送りを見逃しにくくします。",
-      });
+    setPushState("saving");
+
+    try {
+      const token = await registerFcmToken(appData);
+      await updateClientAppData(
+        (current) => {
+          const exists = current.notificationTokens.some(
+            (item) => item.id === token.id,
+          );
+
+          return {
+            ...current,
+            notificationTokens: exists
+              ? current.notificationTokens.map((item) =>
+                  item.id === token.id ? token : item,
+                )
+              : [token, ...current.notificationTokens],
+          };
+        },
+        appData,
+      );
+      setPermission(Notification.permission);
+      setPushState("saved");
+      setPushMessage("この端末へのプッシュ通知を有効化しました。");
+    } catch (error) {
+      setPermission(Notification.permission);
+      setPushState("error");
+      setPushMessage(
+        error instanceof Error
+          ? error.message
+          : "プッシュ通知の登録に失敗しました。",
+      );
     }
   }
 
@@ -199,11 +238,23 @@ export function NotificationCenter({ data }: { data: AppData }) {
         <button
           type="button"
           onClick={requestNotificationPermission}
-          className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-white px-4 text-sm font-black text-blue-900"
+          disabled={pushState === "saving"}
+          className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-white px-4 text-sm font-black text-blue-900 disabled:bg-slate-200 disabled:text-slate-500"
         >
           <BellRing size={20} aria-hidden="true" />
-          ブラウザ通知を許可する
+          {pushState === "saving" ? "通知を登録中..." : "プッシュ通知を有効化する"}
         </button>
+        {pushMessage ? (
+          <p
+            className={`mt-3 rounded-lg p-3 text-sm font-bold leading-6 ${
+              pushState === "saved"
+                ? "bg-emerald-50 text-emerald-900"
+                : "bg-rose-50 text-rose-900"
+            }`}
+          >
+            {pushMessage}
+          </p>
+        ) : null}
       </section>
 
       <Section title="通知設定">

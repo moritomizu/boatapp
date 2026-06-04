@@ -1,0 +1,166 @@
+import { NextResponse } from "next/server";
+import { getFirebaseAdminServices } from "@/lib/firebase-admin";
+import type {
+  NotificationCategory,
+  NotificationPriority,
+  NotificationToken,
+} from "@/types/domain";
+
+export const runtime = "nodejs";
+
+type SendNotificationBody = {
+  organizationId?: string;
+  title?: string;
+  body?: string;
+  relatedPath?: string;
+  category?: NotificationCategory;
+  priority?: NotificationPriority;
+  recipientUserIds?: string[];
+  excludeUserId?: string;
+};
+
+function absoluteLink(request: Request, relatedPath: string) {
+  const origin =
+    process.env.NEXT_PUBLIC_APP_URL ??
+    request.headers.get("origin") ??
+    new URL(request.url).origin;
+
+  return new URL(relatedPath || "/home", origin).toString();
+}
+
+function chunk<T>(items: T[], size: number) {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+
+  return chunks;
+}
+
+export async function POST(request: Request) {
+  const admin = getFirebaseAdminServices();
+  if (!admin) {
+    return NextResponse.json({
+      ok: false,
+      skipped: true,
+      reason: "firebase_admin_not_configured",
+    });
+  }
+
+  const authHeader = request.headers.get("authorization");
+  const token = authHeader?.startsWith("Bearer ")
+    ? authHeader.slice("Bearer ".length)
+    : "";
+
+  if (!token) {
+    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  }
+
+  try {
+    await admin.auth.verifyIdToken(token);
+  } catch {
+    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  }
+
+  const payload = (await request.json()) as SendNotificationBody;
+  if (
+    !payload.organizationId ||
+    !payload.title ||
+    !payload.body ||
+    !payload.relatedPath ||
+    !payload.category ||
+    !payload.priority
+  ) {
+    return NextResponse.json({ ok: false, error: "invalid_payload" }, { status: 400 });
+  }
+
+  const snapshot = await admin.firestore
+    .collection("notificationTokens")
+    .where("organizationId", "==", payload.organizationId)
+    .get();
+
+  const recipientSet = payload.recipientUserIds?.length
+    ? new Set(payload.recipientUserIds)
+    : undefined;
+  const tokenDocs = snapshot.docs
+    .map((document) => ({
+      id: document.id,
+      data: document.data() as NotificationToken,
+    }))
+    .filter(({ data }) => !data.disabledAt)
+    .filter(({ data }) => data.userId !== payload.excludeUserId)
+    .filter(({ data }) => (recipientSet ? recipientSet.has(data.userId) : true));
+  const tokens = Array.from(new Set(tokenDocs.map(({ data }) => data.token)));
+
+  if (tokens.length === 0) {
+    return NextResponse.json({ ok: true, sent: 0 });
+  }
+
+  const link = absoluteLink(request, payload.relatedPath);
+  let sent = 0;
+  const invalidTokens = new Set<string>();
+
+  for (const tokenChunk of chunk(tokens, 500)) {
+    const response = await admin.messaging.sendEachForMulticast({
+      tokens: tokenChunk,
+      notification: {
+        title: payload.title,
+        body: payload.body,
+      },
+      data: {
+        title: payload.title,
+        body: payload.body,
+        relatedPath: payload.relatedPath,
+        link,
+        category: payload.category,
+        priority: payload.priority,
+      },
+      webpush: {
+        fcmOptions: {
+          link,
+        },
+        notification: {
+          icon: "/tapoyota_logo.png",
+          badge: "/tapoyota_logo.png",
+          tag: payload.relatedPath,
+          renotify: payload.priority === "urgent",
+          requireInteraction: payload.priority === "urgent",
+        },
+      },
+    });
+
+    sent += response.successCount;
+    response.responses.forEach((result, index) => {
+      const code = result.error?.code;
+      if (
+        code === "messaging/registration-token-not-registered" ||
+        code === "messaging/invalid-registration-token"
+      ) {
+        invalidTokens.add(tokenChunk[index]);
+      }
+    });
+  }
+
+  if (invalidTokens.size > 0) {
+    const now = new Date().toISOString();
+    await Promise.all(
+      tokenDocs
+        .filter(({ data }) => invalidTokens.has(data.token))
+        .map(({ id }) =>
+          admin.firestore.collection("notificationTokens").doc(id).set(
+            {
+              disabledAt: now,
+              updatedAt: now,
+            },
+            { merge: true },
+          ),
+        ),
+    );
+  }
+
+  return NextResponse.json({
+    ok: true,
+    sent,
+    disabled: invalidTokens.size,
+  });
+}

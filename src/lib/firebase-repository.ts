@@ -13,6 +13,7 @@ import type {
   MemberBoatPermission,
   MemberTripRating,
   NotificationPreference,
+  NotificationToken,
   Organization,
   OrganizationMember,
   PostReturnCheck,
@@ -43,6 +44,7 @@ type CollectionMap = {
   maintenanceLogs: MaintenanceLog;
   notifications: AppNotification;
   notificationPreferences: NotificationPreference;
+  notificationTokens: NotificationToken;
 };
 
 const collections = [
@@ -64,6 +66,7 @@ const collections = [
   "maintenanceLogs",
   "notifications",
   "notificationPreferences",
+  "notificationTokens",
 ] as const;
 
 export const canUseFirestore =
@@ -231,6 +234,7 @@ export async function getFirestoreAppData(fallback: AppData = mockData) {
     maintenanceLogs,
     notifications,
     notificationPreferences,
+    notificationTokens,
   ] = await Promise.all(collections.map((name) => readCollection(name)));
 
   const organization =
@@ -289,6 +293,7 @@ export async function getFirestoreAppData(fallback: AppData = mockData) {
     notifications: notifications as AppNotification[],
     notificationPreferences:
       notificationPreferences as NotificationPreference[],
+    notificationTokens: notificationTokens as NotificationToken[],
   };
 }
 
@@ -414,6 +419,14 @@ export async function saveFirestoreAppData(
         "notificationPreferences",
         data.notificationPreferences,
         previousData?.notificationPreferences,
+      ),
+    ),
+    writeCollection(
+      "notificationTokens",
+      changedRows(
+        "notificationTokens",
+        data.notificationTokens,
+        previousData?.notificationTokens,
       ),
     ),
   ]);

@@ -405,6 +405,20 @@ export type NotificationPreference = {
   supportAlerts: boolean;
 };
 
+export type NotificationToken = {
+  id: string;
+  organizationId: string;
+  userId: string;
+  token: string;
+  platform: "web";
+  userAgent: string;
+  deviceLabel: string;
+  createdAt: string;
+  updatedAt: string;
+  lastSeenAt: string;
+  disabledAt?: string;
+};
+
 export type AppData = {
   organization: Organization;
   boat: Boat;
@@ -429,4 +443,5 @@ export type AppData = {
   maintenanceLogs: MaintenanceLog[];
   notifications: AppNotification[];
   notificationPreferences: NotificationPreference[];
+  notificationTokens: NotificationToken[];
 };

@@ -64,4 +64,5 @@ const emptyData: AppData = {
   maintenanceLogs: [],
   notifications: [],
   notificationPreferences: [],
+  notificationTokens: [],
 };

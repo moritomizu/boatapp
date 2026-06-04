@@ -30,6 +30,7 @@ import { createSupportMessage, createSupportRequest } from "@/lib/mock-data";
 import { deleteFirestoreDocument } from "@/lib/firebase-repository";
 import { formatDate, formatTime } from "@/lib/reservations";
 import { uploadSupportAttachment } from "@/lib/storage";
+import { sendPushNotification } from "@/lib/push-notifications";
 import type {
   AppNotification,
   AppData,
@@ -114,6 +115,44 @@ export function SupportBoard({
   const highOpenCount = requests.filter(
     (request) => request.status !== "resolved" && request.urgency === "high",
   ).length;
+
+  function supportPushRecipients(
+    request: SupportRequest,
+    priority: "important" | "urgent",
+  ) {
+    const preferenceByUser = new Map(
+      appData.notificationPreferences.map((preference) => [
+        preference.userId,
+        preference,
+      ]),
+    );
+    const baseUsers =
+      priority === "urgent"
+        ? appData.users
+        : appData.users.filter(
+            (user) =>
+              user.id === request.createdBy ||
+              user.role === "admin" ||
+              user.role === "owner",
+          );
+
+    return Array.from(
+      new Set(
+        baseUsers
+          .filter((user) => user.organizationId === data.organization.id)
+          .filter((user) => user.id !== appData.currentUser.id)
+          .filter((user) => {
+            if (priority === "urgent") return true;
+            const preference = preferenceByUser.get(user.id);
+            return (
+              preference?.supportAlerts !== false &&
+              (preference?.channels.includes("push") ?? true)
+            );
+          })
+          .map((user) => user.id),
+      ),
+    );
+  }
 
   const visibleRequests = useMemo(() => {
     return [...requests]
@@ -254,6 +293,18 @@ export function SupportBoard({
         (current) => ({ ...current, supportRequests: nextRequests }),
         appData,
       );
+      if (requestWithAttachments.urgency === "high") {
+        void sendPushNotification({
+          organizationId: data.organization.id,
+          title: "緊急度高のサポート要請があります",
+          body: `${appData.currentUser.name}さん: ${requestWithAttachments.title}`,
+          relatedPath: `/support?supportId=${requestWithAttachments.id}#support-detail`,
+          category: "support",
+          priority: "urgent",
+          recipientUserIds: supportPushRecipients(requestWithAttachments, "urgent"),
+          excludeUserId: appData.currentUser.id,
+        });
+      }
       setCreateState("saved");
       setForm((current) => ({
         ...current,
@@ -315,6 +366,19 @@ export function SupportBoard({
         }),
         appData,
       );
+      void sendPushNotification({
+        organizationId: data.organization.id,
+        title: "サポート要請にコメントがあります",
+        body: `${appData.currentUser.name}さんが「${selectedRequest.title}」にコメントしました。`,
+        relatedPath: `/support?supportId=${selectedRequest.id}#support-detail`,
+        category: "support",
+        priority: selectedRequest.urgency === "high" ? "urgent" : "important",
+        recipientUserIds: supportPushRecipients(
+          selectedRequest,
+          selectedRequest.urgency === "high" ? "urgent" : "important",
+        ),
+        excludeUserId: appData.currentUser.id,
+      });
       setComment("");
     } finally {
       setCommentState("idle");

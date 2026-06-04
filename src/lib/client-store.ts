@@ -104,6 +104,7 @@ function normalizeAppData(data: AppData, fallback: AppData): AppData {
     joinRequests: data.joinRequests ?? fallback.joinRequests ?? [],
     memberTripRatings: data.memberTripRatings ?? fallback.memberTripRatings ?? [],
     skillAssessments: data.skillAssessments ?? fallback.skillAssessments ?? [],
+    notificationTokens: data.notificationTokens ?? fallback.notificationTokens ?? [],
   };
 }
 
