@@ -178,10 +178,11 @@ export async function updateClientAppData(
 
 export async function refreshClientAppData(
   fallback: AppData = getInitialAppData(),
+  options: { force?: boolean } = {},
 ) {
   if (!shouldUseFirestore()) return loadClientAppData(fallback);
-  if (firestoreLoaded && cachedSnapshot) return cachedSnapshot;
-  if (firestoreRefreshPromise) return firestoreRefreshPromise;
+  if (!options.force && firestoreLoaded && cachedSnapshot) return cachedSnapshot;
+  if (!options.force && firestoreRefreshPromise) return firestoreRefreshPromise;
 
   firestoreRefreshPromise = getFirestoreAppData(fallback)
     .then((data) => {

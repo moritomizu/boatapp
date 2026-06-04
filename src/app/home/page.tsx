@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useEffect, useMemo } from "react";
 import {
   AlertTriangle,
   Bell,
@@ -18,6 +19,7 @@ import { AppShell } from "@/components/app-shell";
 import { Badge, Card, Section } from "@/components/ui";
 import { canUseBoat, getBoats } from "@/lib/boat-utils";
 import {
+  refreshClientAppData,
   updateClientAppData,
   useClientAppData,
 } from "@/lib/client-store";
@@ -48,7 +50,7 @@ import {
 import type { JoinRequestStatus } from "@/types/domain";
 
 export default function HomePage() {
-  const initialData = getInitialAppData();
+  const initialData = useMemo(() => getInitialAppData(), []);
   const data = useClientAppData(initialData);
   const boats = getBoats(data).sort(
     (a, b) =>
@@ -208,6 +210,10 @@ export default function HomePage() {
     : primaryReservation
       ? `${boats.find((boat) => boat.id === primaryReservation.boatId)?.name ?? data.boat.name} / ${formatDate(primaryReservation.startAt)} ${formatTime(primaryReservation.startAt)} / ${primaryReservation.destinationArea}`
       : "予約からチェック、出船、帰港後チェック、申し送りまでを順番に進めます。";
+
+  useEffect(() => {
+    void refreshClientAppData(initialData, { force: true });
+  }, [initialData]);
 
   async function updateJoinRequestStatus(
     requestId: string,

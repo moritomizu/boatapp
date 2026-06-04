@@ -1,29 +1,37 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Save, User } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Card, Section } from "@/components/ui";
-import { updateClientAppData, useClientAppData } from "@/lib/client-store";
+import {
+  refreshClientAppData,
+  updateClientAppData,
+  useClientAppData,
+} from "@/lib/client-store";
 import { getInitialAppData } from "@/lib/data-source";
 
 export default function ProfilePage() {
-  const initialData = getInitialAppData();
+  const initialData = useMemo(() => getInitialAppData(), []);
   const data = useClientAppData(initialData);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">(
     "idle",
   );
-  const [form, setForm] = useState({
-    name: data.currentUser.name,
-    phone: data.currentUser.phone ?? "",
-    emergencyContact: data.currentUser.emergencyContact ?? "",
-    licenseMemo: data.currentUser.licenseMemo ?? "",
-    notes: data.currentUser.notes ?? "",
-  });
+  const [form, setForm] = useState<Partial<{
+    name: string;
+    phone: string;
+    emergencyContact: string;
+    licenseMemo: string;
+    notes: string;
+  }>>({});
+
+  useEffect(() => {
+    void refreshClientAppData(initialData, { force: true });
+  }, [initialData]);
 
   function updateForm<T extends keyof typeof form>(
     key: T,
-    value: (typeof form)[T],
+    value: string,
   ) {
     if (saveState !== "idle") setSaveState("idle");
     setForm((current) => ({ ...current, [key]: value }));
@@ -36,33 +44,49 @@ export default function ProfilePage() {
 
     const updatedUser = {
       ...data.currentUser,
-      name: form.name,
-      phone: form.phone,
-      emergencyContact: form.emergencyContact,
-      licenseMemo: form.licenseMemo,
-      notes: form.notes,
+      name: form.name ?? data.currentUser.name,
+      phone: form.phone ?? data.currentUser.phone ?? "",
+      emergencyContact:
+        form.emergencyContact ?? data.currentUser.emergencyContact ?? "",
+      licenseMemo: form.licenseMemo ?? data.currentUser.licenseMemo ?? "",
+      notes: form.notes ?? data.currentUser.notes ?? "",
     };
 
     try {
       await updateClientAppData(
-        (current) => ({
-          ...current,
-          currentUser: updatedUser,
-          users: current.users.map((user) =>
-            user.id === updatedUser.id ? updatedUser : user,
-          ),
-          organizationMembers: current.organizationMembers.map((member) =>
-            member.userId === updatedUser.id
-              ? {
-                  ...member,
-                  displayName: updatedUser.name,
-                  updatedAt: new Date().toISOString(),
-                }
-              : member,
-          ),
-        }),
+        (current) => {
+          const existingUser = current.users.find(
+            (user) =>
+              user.id === updatedUser.id ||
+              (user.email && user.email === updatedUser.email),
+          );
+          const nextUser = existingUser
+            ? { ...existingUser, ...updatedUser, id: existingUser.id }
+            : updatedUser;
+
+          return {
+            ...current,
+            currentUser: nextUser,
+            currentUserId: nextUser.id,
+            users: existingUser
+              ? current.users.map((user) =>
+                  user.id === existingUser.id ? nextUser : user,
+                )
+              : [nextUser, ...current.users],
+            organizationMembers: current.organizationMembers.map((member) =>
+              member.userId === nextUser.id
+                ? {
+                    ...member,
+                    displayName: nextUser.name,
+                    updatedAt: new Date().toISOString(),
+                  }
+                : member,
+            ),
+          };
+        },
         data,
       );
+      setForm({});
       setSaveState("saved");
     } catch {
       setSaveState("error");
@@ -104,7 +128,7 @@ export default function ProfilePage() {
             <label className="block">
               <span className="text-sm font-bold text-slate-700">表示名</span>
               <input
-                value={form.name}
+                value={form.name ?? data.currentUser.name}
                 onChange={(event) => updateForm("name", event.target.value)}
                 className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
                 required
@@ -114,7 +138,7 @@ export default function ProfilePage() {
             <label className="block">
               <span className="text-sm font-bold text-slate-700">電話番号</span>
               <input
-                value={form.phone}
+                value={form.phone ?? data.currentUser.phone ?? ""}
                 onChange={(event) => updateForm("phone", event.target.value)}
                 className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
               />
@@ -123,7 +147,11 @@ export default function ProfilePage() {
             <label className="block">
               <span className="text-sm font-bold text-slate-700">緊急連絡先</span>
               <input
-                value={form.emergencyContact}
+                value={
+                  form.emergencyContact ??
+                  data.currentUser.emergencyContact ??
+                  ""
+                }
                 onChange={(event) =>
                   updateForm("emergencyContact", event.target.value)
                 }
@@ -136,7 +164,7 @@ export default function ProfilePage() {
                 船舶免許情報メモ
               </span>
               <textarea
-                value={form.licenseMemo}
+                value={form.licenseMemo ?? data.currentUser.licenseMemo ?? ""}
                 onChange={(event) => updateForm("licenseMemo", event.target.value)}
                 className="mt-2 min-h-24 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-base outline-none ring-blue-600 focus:ring-2"
               />
@@ -145,7 +173,7 @@ export default function ProfilePage() {
             <label className="block">
               <span className="text-sm font-bold text-slate-700">備考</span>
               <textarea
-                value={form.notes}
+                value={form.notes ?? data.currentUser.notes ?? ""}
                 onChange={(event) => updateForm("notes", event.target.value)}
                 className="mt-2 min-h-24 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-base outline-none ring-blue-600 focus:ring-2"
               />
