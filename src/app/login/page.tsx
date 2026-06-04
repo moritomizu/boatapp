@@ -56,8 +56,11 @@ export default function LoginPage() {
     setAuthState("saving");
     try {
       if (firebaseAuth && isFirebaseConfigured) {
-        const { GoogleAuthProvider, signInWithPopup } = await import("firebase/auth");
+        const { GoogleAuthProvider, signInWithPopup, signOut } = await import("firebase/auth");
+        await signOut(firebaseAuth);
         const provider = new GoogleAuthProvider();
+        provider.addScope("email");
+        provider.addScope("profile");
         provider.setCustomParameters({ prompt: "select_account" });
         await signInWithPopup(firebaseAuth, provider);
       }

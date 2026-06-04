@@ -12,6 +12,7 @@ import {
   Send,
   ShieldAlert,
   Trash2,
+  X,
 } from "lucide-react";
 import { Badge, Card, Section } from "@/components/ui";
 import { getBoatName } from "@/lib/boat-utils";
@@ -704,6 +705,25 @@ export function SupportBoard({
       </Section>
 
       {selectedRequest ? (
+        <div className="fixed inset-0 z-50 bg-slate-950/45 px-3 py-4 backdrop-blur-sm">
+          <div className="mx-auto flex max-h-[calc(100vh-32px)] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-slate-50 shadow-2xl">
+            <div className="flex items-center justify-between gap-3 border-b border-sky-100 bg-white px-4 py-3">
+              <div>
+                <p className="text-xs font-black text-blue-700">サポート要請</p>
+                <p className="max-w-[72vw] truncate text-base font-black text-blue-950">
+                  {selectedRequest.title}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedId("")}
+                className="grid size-10 shrink-0 place-items-center rounded-full border border-slate-200 text-slate-600"
+                aria-label="サポート詳細を閉じる"
+              >
+                <X size={18} aria-hidden="true" />
+              </button>
+            </div>
+            <div className="space-y-4 overflow-y-auto p-4">
         <Section title="サポート要請詳細">
           <Card>
             {(() => {
@@ -1018,9 +1038,7 @@ export function SupportBoard({
             })()}
           </Card>
         </Section>
-      ) : null}
 
-      {selectedRequest ? (
         <Section title="サポートスレッド">
           <div className="space-y-3">
             {selectedMessages.map((message) => {
@@ -1065,6 +1083,9 @@ export function SupportBoard({
             </button>
           </form>
         </Section>
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   );

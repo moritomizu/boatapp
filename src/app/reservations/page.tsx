@@ -45,6 +45,12 @@ const targetFishOptions: TargetFish[] = [
   "other",
 ];
 
+const reservationTimeOptions = Array.from({ length: 48 }, (_, index) => {
+  const hour = String(Math.floor(index / 2)).padStart(2, "0");
+  const minute = index % 2 === 0 ? "00" : "30";
+  return `${hour}:${minute}`;
+});
+
 const toDateKey = (date: Date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -555,29 +561,37 @@ export default function ReservationsPage() {
               </label>
               <label className="block">
                 <span className="text-sm font-bold text-slate-700">開始</span>
-                <input
-                  type="time"
-                  step={1800}
+                <select
                   value={form.startTime}
                   onChange={(event) =>
                     updateForm("startTime", event.target.value)
                   }
                   className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
                   required
-                />
+                >
+                  {reservationTimeOptions.map((time) => (
+                    <option key={time} value={time}>
+                      {time}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="block">
                 <span className="text-sm font-bold text-slate-700">終了</span>
-                <input
-                  type="time"
-                  step={1800}
+                <select
                   value={form.endTime}
                   onChange={(event) =>
                     updateForm("endTime", event.target.value)
                   }
                   className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none ring-blue-600 focus:ring-2"
                   required
-                />
+                >
+                  {reservationTimeOptions.map((time) => (
+                    <option key={time} value={time}>
+                      {time}
+                    </option>
+                  ))}
+                </select>
               </label>
             </div>
 
