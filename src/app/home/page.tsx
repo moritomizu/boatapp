@@ -177,6 +177,11 @@ export default function HomePage() {
   const urgentNotifications = unreadNotifications.filter(
     (notification) => notification.priority === "urgent",
   );
+  const unreadSupportCommentNotifications = unreadNotifications.filter(
+    (notification) =>
+      notification.category === "support" &&
+      notification.relatedPath.includes("#support-detail"),
+  );
   const actions = [
     { href: "/reservations#new", label: "予約する", icon: CalendarDays },
     { href: "/reservations", label: "予約カレンダーを見る", icon: ClipboardCheck },
@@ -261,7 +266,26 @@ export default function HomePage() {
           </Link>
         ) : null}
 
-        {supportReplyAlerts.length > 0 ? (
+        {unreadSupportCommentNotifications.length > 0 ? (
+          <Link
+            href={unreadSupportCommentNotifications[0].relatedPath}
+            className="flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 p-4 text-blue-950 shadow-sm"
+          >
+            <Bell className="mt-0.5 shrink-0 text-blue-800" size={22} aria-hidden="true" />
+            <span>
+              <span className="block text-base font-black">
+                あなた宛てのサポート通知があります
+              </span>
+              <span className="mt-1 block text-sm font-semibold leading-6">
+                {unreadSupportCommentNotifications.length}
+                件のコメント/対応履歴があります。タップして内容欄を直接開けます。
+              </span>
+            </span>
+          </Link>
+        ) : null}
+
+        {unreadSupportCommentNotifications.length === 0 &&
+        supportReplyAlerts.length > 0 ? (
           <Link
             href={`/support?supportId=${supportReplyAlerts[0].request.id}#support-detail`}
             className="flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 p-4 text-blue-950 shadow-sm"

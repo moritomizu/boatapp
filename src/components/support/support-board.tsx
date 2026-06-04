@@ -31,6 +31,7 @@ import { deleteFirestoreDocument } from "@/lib/firebase-repository";
 import { formatDate, formatTime } from "@/lib/reservations";
 import { uploadSupportAttachment } from "@/lib/storage";
 import type {
+  AppNotification,
   AppData,
   SupportAttachment,
   SupportCategory,
@@ -136,11 +137,30 @@ export function SupportBoard({
 
   useEffect(() => {
     if (!selectedId) return;
-    window.setTimeout(() => {
-      document
-        .getElementById("support-detail")
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 80);
+
+    let attempts = 0;
+    let frame = 0;
+    const timer = window.setTimeout(() => scrollToDetail(), 240);
+
+    function scrollToDetail() {
+      const detail = document.getElementById("support-detail");
+      if (detail) {
+        detail.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+
+      attempts += 1;
+      if (attempts < 12) {
+        frame = window.requestAnimationFrame(scrollToDetail);
+      }
+    }
+
+    frame = window.requestAnimationFrame(scrollToDetail);
+
+    return () => {
+      window.clearTimeout(timer);
+      window.cancelAnimationFrame(frame);
+    };
   }, [selectedId]);
 
   function updateForm<T extends keyof typeof form>(
@@ -263,6 +283,21 @@ export function SupportBoard({
       body: comment,
       createdBy: appData.currentUser.id,
     });
+    const notification: AppNotification = {
+      id:
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? `notif-${crypto.randomUUID()}`
+          : `notif-${Date.now()}`,
+      organizationId: data.organization.id,
+      boatId: selectedRequest.boatId,
+      category: "support",
+      priority: selectedRequest.urgency === "high" ? "urgent" : "important",
+      title: "サポート要請にコメントがあります",
+      body: `${appData.currentUser.name}さんが「${selectedRequest.title}」にコメントしました。`,
+      relatedPath: `/support?supportId=${selectedRequest.id}#support-detail`,
+      readBy: [appData.currentUser.id],
+      createdAt: message.createdAt,
+    };
     const nextMessages = [...messages, message];
     const nextRequests = requests.map((request) =>
       request.id === selectedRequest.id
@@ -276,6 +311,7 @@ export function SupportBoard({
           ...current,
           supportMessages: nextMessages,
           supportRequests: nextRequests,
+          notifications: [notification, ...current.notifications],
         }),
         appData,
       );
@@ -830,7 +866,7 @@ export function SupportBoard({
       </Section>
 
       {selectedRequest ? (
-        <div id="support-detail" className="scroll-mt-24 space-y-4">
+        <div id="support-detail-legacy" className="hidden scroll-mt-24 space-y-4">
           <div className="rounded-lg border border-sky-100 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <div>
