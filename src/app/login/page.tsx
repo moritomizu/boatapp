@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Anchor, LogIn, UserPlus } from "lucide-react";
 import { firebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
@@ -19,6 +19,35 @@ export default function LoginPage() {
       ? "Firebase Authentication接続設定を検出しました。"
       : "現在はモックログインです。.env.local設定後にFirebase Authへ接続できます。",
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function completeRedirectLogin() {
+      if (!firebaseAuth || !isFirebaseConfigured) return;
+      try {
+        const { getRedirectResult } = await import("firebase/auth");
+        const result = await getRedirectResult(firebaseAuth);
+        if (!result || cancelled) return;
+        resetClientAppData();
+        setMessage("Googleログインでログインしました。");
+        router.push("/home");
+      } catch (error) {
+        if (cancelled) return;
+        setMessage(
+          error instanceof Error && error.message
+            ? `Googleログインに失敗しました: ${error.message}`
+            : "Googleログインに失敗しました。",
+        );
+      }
+    }
+
+    void completeRedirectLogin();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -59,14 +88,15 @@ export default function LoginPage() {
     setAuthState("saving");
     try {
       if (firebaseAuth && isFirebaseConfigured) {
-        const { GoogleAuthProvider, signInWithPopup, signOut } = await import("firebase/auth");
+        const { GoogleAuthProvider, signInWithRedirect, signOut } = await import("firebase/auth");
         resetClientAppData();
         await signOut(firebaseAuth);
         const provider = new GoogleAuthProvider();
         provider.addScope("email");
         provider.addScope("profile");
         provider.setCustomParameters({ prompt: "select_account" });
-        await signInWithPopup(firebaseAuth, provider);
+        await signInWithRedirect(firebaseAuth, provider);
+        return;
       }
 
       resetClientAppData();

@@ -123,9 +123,15 @@ export default function HomePage() {
       request.status !== "closed" &&
       request.urgency === "high",
   );
+  const currentUserIds = new Set([
+    data.currentUser.id,
+    ...data.users
+      .filter((user) => user.email && user.email === data.currentUser.email)
+      .map((user) => user.id),
+  ]);
   const myOpenSupportRequests = data.supportRequests.filter(
     (request) =>
-      request.createdBy === data.currentUser.id &&
+      currentUserIds.has(request.createdBy) &&
       request.status !== "resolved" &&
       request.status !== "closed",
   );

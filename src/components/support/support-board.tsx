@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Camera,
   ClipboardCheck,
@@ -133,6 +133,15 @@ export function SupportBoard({
         return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
       });
   }, [appData.boat.id, categoryFilter, requests, scope, statusFilter]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    window.setTimeout(() => {
+      document
+        .getElementById("support-detail")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+  }, [selectedId]);
 
   function updateForm<T extends keyof typeof form>(
     key: T,
