@@ -54,7 +54,12 @@ export default function BoatsPage() {
   const searchParams = useSearchParams();
   const canEdit = appData.currentUser.role === "admin";
   const managedBoats = useMemo(
-    () => (appData.boats?.length ? appData.boats : [appData.boat]),
+    () =>
+      (appData.boats?.length ? appData.boats : [appData.boat]).sort(
+        (a, b) =>
+          new Date(a.createdAt ?? a.updatedAt).getTime() -
+          new Date(b.createdAt ?? b.updatedAt).getTime(),
+      ),
     [appData.boat, appData.boats],
   );
   const [isEditing, setIsEditing] = useState(false);
@@ -480,7 +485,7 @@ export default function BoatsPage() {
         ) : null}
 
         <Section
-          title="管理船舶"
+          title="船舶を切り替えて閲覧"
           action={
             canEdit ? (
               <button
@@ -494,9 +499,18 @@ export default function BoatsPage() {
             ) : null
           }
         >
-          <div className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             {managedBoats.map((boat) => (
-              <Card key={boat.id}>
+              <button
+                key={boat.id}
+                type="button"
+                onClick={() => selectBoat(boat)}
+                className={`rounded-lg border p-3 text-left shadow-sm ${
+                  boat.id === appData.boat.id
+                    ? "border-blue-300 bg-sky-50 ring-2 ring-blue-100"
+                    : "border-sky-100 bg-white"
+                }`}
+              >
                 <div className="flex items-start gap-3">
                   <span className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-lg bg-sky-100 text-blue-800">
                     {boat.imageUrl ? (
@@ -519,7 +533,7 @@ export default function BoatsPage() {
                       </p>
                       {boat.id === appData.boat.id ? (
                         <Badge className="bg-blue-100 text-blue-900 ring-blue-200">
-                          表示中
+                          閲覧中
                         </Badge>
                       ) : null}
                       <Badge className={boatStatusTone[boat.status]}>
@@ -531,16 +545,7 @@ export default function BoatsPage() {
                     </p>
                   </div>
                 </div>
-                {canEdit && boat.id !== appData.boat.id ? (
-                  <button
-                    type="button"
-                    onClick={() => selectBoat(boat)}
-                    className="mt-3 flex min-h-11 w-full items-center justify-center rounded-lg border border-sky-200 bg-sky-50 px-4 text-sm font-black text-blue-900"
-                  >
-                    この船を表示
-                  </button>
-                ) : null}
-              </Card>
+              </button>
             ))}
           </div>
         </Section>
