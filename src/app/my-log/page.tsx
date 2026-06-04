@@ -29,9 +29,9 @@ export default function MyLogPage() {
     <AppShell>
       <div className="space-y-6">
         <div className="space-y-2">
-          <p className="text-sm font-bold text-blue-700">My Log</p>
+          <p className="text-sm font-bold text-blue-700">航海履歴</p>
           <h1 className="text-3xl font-black tracking-normal text-blue-950">
-            自分の航海履歴
+            航海履歴
           </h1>
           <p className="text-sm leading-6 text-slate-600">
             出船時間、帰港時間、航路、メモを後から振り返れます。

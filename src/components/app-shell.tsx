@@ -203,7 +203,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     className="flex min-h-11 items-center gap-2 rounded-lg bg-slate-50 px-3 text-sm font-black text-slate-800"
                   >
                     <BookOpen size={17} aria-hidden="true" />
-                    My Log
+                    航海履歴
                   </Link>
                   <Link
                     href="/members"

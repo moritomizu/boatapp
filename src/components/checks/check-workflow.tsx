@@ -525,9 +525,17 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
                 問題なしとして保存しました。出船画面へ進みます。
               </p>
             ) : (
-              <p className="text-sm font-semibold leading-6 text-emerald-800">
-                問題なしとして履歴に追加しました。
-              </p>
+              <div className="space-y-3">
+                <p className="text-sm font-semibold leading-6 text-emerald-800">
+                  帰港後チェックを保存しました。最後に予約をクローズすると、この出船の記録が完了します。
+                </p>
+                <Link
+                  href={`/reservations#reservation-${reservationId}`}
+                  className="flex min-h-12 items-center justify-center rounded-lg bg-slate-800 px-4 text-sm font-black text-white"
+                >
+                  予約をクローズへ進む
+                </Link>
+              </div>
             )}
           </div>
         </Card>

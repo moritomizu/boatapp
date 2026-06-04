@@ -48,6 +48,7 @@ const statuses: ("all" | SupportStatus)[] = [
 
 type InitialDraft = {
   reservationId?: string;
+  urgency?: SupportUrgency;
 };
 
 export function SupportBoard({
@@ -79,7 +80,7 @@ export function SupportBoard({
   const [form, setForm] = useState({
     title: "",
     category: "other" as SupportCategory,
-    urgency: "medium" as SupportUrgency,
+    urgency: initialDraft.urgency ?? ("medium" as SupportUrgency),
     body: "",
     reservationId: initialDraft.reservationId ?? "",
     createdBy: data.currentUser.id,
@@ -218,7 +219,7 @@ export function SupportBoard({
         title: "",
         body: "",
         category: "other",
-        urgency: "medium",
+        urgency: initialDraft.urgency ?? "medium",
         location: undefined,
       }));
       setSelectedFiles([]);
@@ -378,7 +379,11 @@ export function SupportBoard({
         <form
           id="new"
           onSubmit={handleCreate}
-          className="space-y-4 rounded-lg border border-sky-100 bg-white p-4 shadow-sm"
+          className={`space-y-4 rounded-lg border p-4 shadow-sm ${
+            form.urgency === "high"
+              ? "border-rose-200 bg-rose-50"
+              : "border-sky-100 bg-white"
+          }`}
         >
           <p className="rounded-lg bg-sky-50 p-3 text-sm font-black text-blue-900">
             対象船舶: {appData.boat.name}
@@ -424,6 +429,11 @@ export function SupportBoard({
                 <option value="medium">中：早めに回答希望</option>
                 <option value="high">高：すぐ確認してほしい</option>
               </select>
+              {form.urgency === "high" ? (
+                <p className="mt-2 rounded-lg bg-white p-3 text-sm font-bold leading-6 text-rose-900">
+                  緊急時や人命に関わる場合は、海上保安庁118番、マリーナ、救助機関へ直接連絡してください。
+                </p>
+              ) : null}
             </label>
           </div>
 
@@ -530,7 +540,9 @@ export function SupportBoard({
           <button
             type="submit"
             disabled={createState === "saving"}
-            className="flex h-14 w-full items-center justify-center gap-2 rounded-lg bg-blue-800 px-5 text-base font-black text-white disabled:bg-slate-300"
+            className={`flex h-14 w-full items-center justify-center gap-2 rounded-lg px-5 text-base font-black text-white disabled:bg-slate-300 ${
+              form.urgency === "high" ? "bg-rose-700" : "bg-blue-800"
+            }`}
           >
             <Send size={21} aria-hidden="true" />
             {createState === "saving"

@@ -92,6 +92,7 @@ export default function ReservationsPage() {
   const [editingId, setEditingId] = useState("");
   const [deleteState, setDeleteState] = useState("");
   const [deleteMessage, setDeleteMessage] = useState("");
+  const [closeMessage, setCloseMessage] = useState("");
   const [saveState, setSaveState] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
@@ -173,7 +174,7 @@ export default function ReservationsPage() {
       comment: form.comment,
     };
 
-    const existingReservation = reservations.find((item) => item.id === editingId);
+    const existingReservation = data.reservations.find((item) => item.id === editingId);
     const reservation: Reservation = editingId && existingReservation
       ? {
           ...existingReservation,
@@ -183,7 +184,7 @@ export default function ReservationsPage() {
       : createReservation(reservationInput);
 
     const nextReservations = [
-      ...reservations.filter((item) => item.id !== editingId),
+      ...data.reservations.filter((item) => item.id !== editingId),
       reservation,
     ].sort(
       (a, b) =>
@@ -344,6 +345,7 @@ export default function ReservationsPage() {
     }
 
     setSaveState("saving");
+    setCloseMessage("");
     try {
       await updateClientAppData(
         (current) => ({
@@ -357,6 +359,9 @@ export default function ReservationsPage() {
         data,
       );
       setSaveState("saved");
+      setCloseMessage(
+        "出船についてやることは完了です。お疲れ様でした。気をつけて帰ってください。",
+      );
     } catch {
       setSaveState("error");
     }
@@ -748,6 +753,11 @@ export default function ReservationsPage() {
               }`}
             >
               {deleteMessage}
+            </div>
+          ) : null}
+          {closeMessage ? (
+            <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold leading-6 text-emerald-800">
+              {closeMessage}
             </div>
           ) : null}
           <div className="space-y-3">

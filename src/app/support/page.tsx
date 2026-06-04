@@ -3,7 +3,7 @@ import { SupportBoard } from "@/components/support/support-board";
 import { getInitialAppData } from "@/lib/data-source";
 
 type SupportPageProps = {
-  searchParams?: Promise<{ reservationId?: string }>;
+  searchParams?: Promise<{ reservationId?: string; urgency?: string }>;
 };
 
 export default async function SupportPage({ searchParams }: SupportPageProps) {
@@ -14,7 +14,10 @@ export default async function SupportPage({ searchParams }: SupportPageProps) {
     <AppShell>
       <SupportBoard
         data={data}
-        initialDraft={{ reservationId: params?.reservationId }}
+        initialDraft={{
+          reservationId: params?.reservationId,
+          urgency: params?.urgency === "high" ? "high" : undefined,
+        }}
       />
     </AppShell>
   );

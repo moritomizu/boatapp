@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
   Anchor,
@@ -72,6 +73,7 @@ function getPosition() {
 }
 
 export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
+  const router = useRouter();
   const appData = useClientAppData(data);
   const [selectedReservationId, setSelectedReservationId] = useState(
     initialReservationId ?? appData.reservations[0]?.id ?? "",
@@ -239,8 +241,9 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
         (current) => ({ ...current, voyageLogs: nextVoyages }),
         appData,
       );
-      setLocationMessage("帰港を記録しました。帰港後チェックへ進めます。");
+      setLocationMessage("帰港を記録しました。帰港後チェックへ進みます。");
       setActionState("saved");
+      router.push(`/checks/post-return?reservationId=${activeVoyage.reservationId}`);
     } catch {
       setLocationMessage("帰港位置を取得できませんでした。位置情報許可を確認してください。");
       setActionState("error");
@@ -378,7 +381,7 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
                   現在地を記録
                 </button>
                 <Link
-                  href={`/support?reservationId=${activeVoyage.reservationId}#new`}
+                  href={`/support?reservationId=${activeVoyage.reservationId}&urgency=high#new`}
                   className="flex min-h-12 items-center justify-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-black text-rose-800"
                 >
                   <LifeBuoy size={18} aria-hidden="true" />
@@ -391,7 +394,7 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
                   className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 text-sm font-black text-white disabled:bg-slate-300"
                 >
                   <Anchor size={18} aria-hidden="true" />
-                  帰港を記録
+                  {actionState === "saving" ? "記録中..." : "帰港しました"}
                 </button>
               </div>
             </div>
