@@ -28,11 +28,26 @@ export const hasTimeOverlap = (
   current: Pick<Reservation, "id" | "startAt" | "endAt">,
   reservations: Reservation[],
 ) => {
+  return findTimeOverlaps(current, reservations).length > 0;
+};
+
+export const isReservationActiveForBooking = (reservation: Reservation) =>
+  !reservation.deletedAt &&
+  !reservation.canceledAt &&
+  reservation.sessionStatus !== "closed";
+
+export const findTimeOverlaps = (
+  current: Pick<Reservation, "id" | "startAt" | "endAt">,
+  reservations: Reservation[],
+) => {
   const start = new Date(current.startAt).getTime();
   const end = new Date(current.endAt).getTime();
 
-  return reservations.some((reservation) => {
+  return reservations.filter((reservation) => {
     if (reservation.id === current.id) {
+      return false;
+    }
+    if (!isReservationActiveForBooking(reservation)) {
       return false;
     }
 

@@ -31,8 +31,10 @@ import { createJoinRequest, createReservation } from "@/lib/mock-data";
 import {
   formatDate,
   formatTime,
+  findTimeOverlaps,
   getReservationSessionStatus,
   hasTimeOverlap,
+  isReservationActiveForBooking,
   withReservationSessionStatus,
 } from "@/lib/reservations";
 import type { Reservation, TargetFish } from "@/types/domain";
@@ -76,11 +78,19 @@ export default function ReservationsPage() {
   const [viewMode, setViewMode] = useState<"all" | "boat" | "mine">("boat");
   const [selectedBoatId, setSelectedBoatId] = useState(data.boat.id);
   const [calendarOffset, setCalendarOffset] = useState(0);
-  const visibleReservations = data.reservations.filter((reservation) => {
-    if (viewMode === "mine") return reservation.userId === data.currentUser.id;
-    if (viewMode === "boat") return reservation.boatId === selectedBoatId;
-    return true;
-  });
+  const activeReservations = useMemo(
+    () => data.reservations.filter(isReservationActiveForBooking),
+    [data.reservations],
+  );
+  const visibleReservations = useMemo(
+    () =>
+      activeReservations.filter((reservation) => {
+        if (viewMode === "mine") return reservation.userId === data.currentUser.id;
+        if (viewMode === "boat") return reservation.boatId === selectedBoatId;
+        return true;
+      }),
+    [activeReservations, data.currentUser.id, selectedBoatId, viewMode],
+  );
   const reservations = visibleReservations;
   const [form, setForm] = useState({
     boatId: data.boat.id,
@@ -116,20 +126,18 @@ export default function ReservationsPage() {
 
   const draftReservation = useMemo(
     () => ({
-      id: "draft",
+      id: editingId || "draft",
       boatId: form.boatId,
       startAt: `${form.date}T${form.startTime}:00.000+09:00`,
       endAt: `${form.date}T${form.endTime}:00.000+09:00`,
     }),
-    [form.boatId, form.date, form.endTime, form.startTime],
+    [editingId, form.boatId, form.date, form.endTime, form.startTime],
   );
-  const hasOverlap = hasTimeOverlap(
+  const conflictReservations = findTimeOverlaps(
     draftReservation,
-    data.reservations.filter(
-      (reservation) =>
-        reservation.id !== editingId && reservation.boatId === form.boatId,
-    ),
+    activeReservations.filter((reservation) => reservation.boatId === form.boatId),
   );
+  const hasOverlap = conflictReservations.length > 0;
   const warnings = reservationWarnings(data, form.userId, form.boatId);
   const calendarMonth = useMemo(() => {
     const base = new Date();
@@ -610,13 +618,33 @@ export default function ReservationsPage() {
             </div>
 
             {hasOverlap ? (
-              <div className="flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm font-bold leading-6 text-amber-900">
+              <div className="rounded-lg bg-amber-50 p-3 text-sm font-bold leading-6 text-amber-900">
+                <div className="flex items-start gap-2">
                 <AlertTriangle
                   className="mt-0.5 shrink-0"
                   size={18}
                   aria-hidden="true"
                 />
-                同日同時間帯に重複する予約があります。今回は登録はブロックしません。
+                  <p>
+                    同日同時間帯に重複する有効な予約があります。今回は登録はブロックしません。
+                  </p>
+                </div>
+                <div className="mt-2 space-y-1 pl-7 text-xs leading-5 text-amber-950">
+                  {conflictReservations.slice(0, 3).map((reservation) => {
+                    const user = data.users.find(
+                      (item) => item.id === reservation.userId,
+                    );
+
+                    return (
+                      <p key={reservation.id}>
+                        {formatDate(reservation.startAt)}{" "}
+                        {formatTime(reservation.startAt)}-
+                        {formatTime(reservation.endAt)} /{" "}
+                        {user?.name ?? "予約者不明"}
+                      </p>
+                    );
+                  })}
+                </div>
               </div>
             ) : null}
 
@@ -796,7 +824,7 @@ export default function ReservationsPage() {
               const user = data.users.find((item) => item.id === reservation.userId);
               const overlap = hasTimeOverlap(
                 reservation,
-                data.reservations.filter((item) => item.boatId === reservation.boatId),
+                activeReservations.filter((item) => item.boatId === reservation.boatId),
               );
               const boat = findBoat(data, reservation.boatId);
               const phase = reservationPhase(reservation.startAt);

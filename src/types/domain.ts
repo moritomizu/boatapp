@@ -193,6 +193,8 @@ export type Reservation = {
   joinAllowed: boolean;
   comment: string;
   sessionStatus?: ReservationSessionStatus;
+  canceledAt?: string;
+  deletedAt?: string;
   createdAt: string;
   updatedAt: string;
 };
