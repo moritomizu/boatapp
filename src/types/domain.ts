@@ -61,6 +61,12 @@ export type ReservationSessionStatus =
   | "returned"
   | "closed";
 
+export type GoogleSyncStatus =
+  | "not_synced"
+  | "synced"
+  | "failed"
+  | "disabled";
+
 export type SkillAssessmentStatus =
   | "training"
   | "solo_ready"
@@ -171,6 +177,11 @@ export type Boat = {
   imageUrl: string;
   inspectionCertificateImageUrls?: string[];
   nextInspectionDate?: string;
+  googleCalendarSyncEnabled?: boolean;
+  googleCalendarId?: string;
+  googleCalendarName?: string;
+  googleLastSyncAt?: string;
+  googleSyncError?: string | null;
   notes: string;
   isActive?: boolean;
   allowNightUse?: boolean;
@@ -241,6 +252,10 @@ export type Reservation = {
   sessionStatus?: ReservationSessionStatus;
   canceledAt?: string;
   deletedAt?: string;
+  googleEventId?: string | null;
+  googleSyncStatus?: GoogleSyncStatus;
+  googleLastSyncedAt?: string | null;
+  googleSyncError?: string | null;
   createdAt: string;
   updatedAt: string;
 };

@@ -23,6 +23,10 @@ import { updateClientAppData, useClientAppData } from "@/lib/client-store";
 import { getInitialAppData } from "@/lib/data-source";
 import { deleteFirestoreDocument } from "@/lib/firebase-repository";
 import {
+  shouldSyncReservationToGoogle,
+  syncGoogleCalendar,
+} from "@/lib/google-calendar-sync";
+import {
   reservationSessionStatusLabels,
   reservationSessionStatusTone,
   targetFishLabels,
@@ -47,6 +51,20 @@ const targetFishOptions: TargetFish[] = [
   "yellowtail",
   "other",
 ];
+
+const googleSyncLabels = {
+  not_synced: "未同期",
+  synced: "同期済み",
+  failed: "同期失敗",
+  disabled: "Google連携OFF",
+};
+
+const googleSyncTone = {
+  not_synced: "bg-slate-100 text-slate-700 ring-slate-200",
+  synced: "bg-emerald-100 text-emerald-800 ring-emerald-200",
+  failed: "bg-rose-100 text-rose-800 ring-rose-200",
+  disabled: "bg-slate-100 text-slate-700 ring-slate-200",
+};
 
 const reservationTimeOptions = Array.from({ length: 48 }, (_, index) => {
   const hour = String(Math.floor(index / 2)).padStart(2, "0");
@@ -110,6 +128,7 @@ export default function ReservationsPage() {
   const [deleteState, setDeleteState] = useState("");
   const [deleteMessage, setDeleteMessage] = useState("");
   const [closeMessage, setCloseMessage] = useState("");
+  const [googleSyncMessage, setGoogleSyncMessage] = useState("");
   const [saveState, setSaveState] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
@@ -210,13 +229,51 @@ export default function ReservationsPage() {
       comment: form.comment,
     };
 
-    const reservation: Reservation = editingId && existingReservation
+    const baseReservation: Reservation = editingId && existingReservation
       ? {
           ...existingReservation,
           ...reservationInput,
           updatedAt: new Date().toISOString(),
         }
       : createReservation(reservationInput);
+    const boat = findBoat(data, baseReservation.boatId);
+    const user = data.users.find((item) => item.id === baseReservation.userId) ?? data.currentUser;
+    let reservation: Reservation = {
+      ...baseReservation,
+      googleSyncStatus: shouldSyncReservationToGoogle(boat)
+        ? baseReservation.googleSyncStatus ?? "not_synced"
+        : "disabled",
+      googleSyncError: shouldSyncReservationToGoogle(boat)
+        ? baseReservation.googleSyncError ?? null
+        : null,
+    };
+
+    setGoogleSyncMessage("");
+    if (shouldSyncReservationToGoogle(boat)) {
+      const result = await syncGoogleCalendar({
+        action: "upsert",
+        boat,
+        reservation,
+        user,
+      });
+      const now = new Date().toISOString();
+      reservation = {
+        ...reservation,
+        googleEventId: result.ok
+          ? result.eventId ?? reservation.googleEventId ?? null
+          : reservation.googleEventId ?? null,
+        googleSyncStatus: result.ok ? "synced" : "failed",
+        googleLastSyncedAt: result.ok ? now : reservation.googleLastSyncedAt ?? null,
+        googleSyncError: result.ok
+          ? null
+          : result.message || "Googleカレンダー同期に失敗しました。",
+      };
+      if (!result.ok) {
+        setGoogleSyncMessage(
+          "Googleカレンダー同期に失敗しました。予約自体は保存されています。",
+        );
+      }
+    }
 
     const nextReservations = [
       ...data.reservations.filter((item) => item.id !== editingId),
@@ -353,12 +410,31 @@ export default function ReservationsPage() {
     setDeleteState(reservationId);
     setDeleteMessage("");
     try {
+      const boat = findBoat(data, reservation.boatId);
+      const user = data.users.find((item) => item.id === reservation.userId) ?? data.currentUser;
+      let nextReservation = reservation;
+      if (shouldSyncReservationToGoogle(boat) && reservation.googleEventId) {
+        const result = await syncGoogleCalendar({
+          action: "cancel",
+          boat,
+          reservation,
+          user,
+        });
+        nextReservation = {
+          ...reservation,
+          googleSyncStatus: result.ok ? "synced" : "failed",
+          googleLastSyncedAt: result.ok ? new Date().toISOString() : reservation.googleLastSyncedAt ?? null,
+          googleSyncError: result.ok
+            ? null
+            : result.message || "Googleカレンダーへのキャンセル同期に失敗しました。",
+        };
+      }
       await deleteFirestoreDocument("reservations", reservationId);
       await updateClientAppData(
         (current) => ({
           ...current,
           reservations: current.reservations.filter(
-            (reservation) => reservation.id !== reservationId,
+            (item) => item.id !== nextReservation.id,
           ),
         }),
         data,
@@ -376,6 +452,52 @@ export default function ReservationsPage() {
     } finally {
       setDeleteState("");
     }
+  }
+
+  async function resyncGoogleCalendar(reservation: Reservation) {
+    if (saveState === "saving") return;
+    const boat = findBoat(data, reservation.boatId);
+    const user = data.users.find((item) => item.id === reservation.userId) ?? data.currentUser;
+    if (!shouldSyncReservationToGoogle(boat)) return;
+
+    setSaveState("saving");
+    setGoogleSyncMessage("");
+    const result = await syncGoogleCalendar({
+      action: "upsert",
+      boat,
+      reservation,
+      user,
+    });
+    const now = new Date().toISOString();
+    const nextReservation: Reservation = {
+      ...reservation,
+      googleEventId: result.ok
+        ? result.eventId ?? reservation.googleEventId ?? null
+        : reservation.googleEventId ?? null,
+      googleSyncStatus: result.ok ? "synced" : "failed",
+      googleLastSyncedAt: result.ok ? now : reservation.googleLastSyncedAt ?? null,
+      googleSyncError: result.ok
+        ? null
+        : result.message || "Googleカレンダー同期に失敗しました。",
+      updatedAt: now,
+    };
+
+    await updateClientAppData(
+      (current) => ({
+        ...current,
+        reservations: current.reservations.map((item) =>
+          item.id === reservation.id ? nextReservation : item,
+        ),
+      }),
+      data,
+    );
+
+    setGoogleSyncMessage(
+      result.ok
+        ? "Googleカレンダーへ再同期しました。"
+        : "Googleカレンダー同期に失敗しました。予約自体は保存されています。",
+    );
+    setSaveState(result.ok ? "saved" : "error");
   }
 
   async function closeReservation(reservation: Reservation) {
@@ -827,6 +949,17 @@ export default function ReservationsPage() {
                 編集をキャンセル
               </button>
             ) : null}
+            {googleSyncMessage ? (
+              <p
+                className={`rounded-lg p-3 text-sm font-bold leading-6 ${
+                  googleSyncMessage.includes("失敗")
+                    ? "bg-rose-50 text-rose-800"
+                    : "bg-emerald-50 text-emerald-800"
+                }`}
+              >
+                {googleSyncMessage}
+              </p>
+            ) : null}
           </form>
         </Section>
 
@@ -921,6 +1054,21 @@ export default function ReservationsPage() {
                       <Badge className={reservationSessionStatusTone[sessionStatus]}>
                         {reservationSessionStatusLabels[sessionStatus]}
                       </Badge>
+                      <Badge
+                        className={
+                          googleSyncTone[
+                            reservation.googleSyncStatus ??
+                              (boat.googleCalendarSyncEnabled ? "not_synced" : "disabled")
+                          ]
+                        }
+                      >
+                        {
+                          googleSyncLabels[
+                            reservation.googleSyncStatus ??
+                              (boat.googleCalendarSyncEnabled ? "not_synced" : "disabled")
+                          ]
+                        }
+                      </Badge>
                       {overlap ? (
                         <Badge className="bg-amber-100 text-amber-900 ring-amber-200">
                           時間重複あり
@@ -954,6 +1102,42 @@ export default function ReservationsPage() {
                         {reservation.availableSeats}席
                       </p>
                       {reservation.comment ? <p>{reservation.comment}</p> : null}
+                    </div>
+
+                    <div className="mt-4 rounded-lg bg-slate-50 p-3 text-sm font-bold leading-6 text-slate-700">
+                      <p>
+                        Google同期:{" "}
+                        {
+                          googleSyncLabels[
+                            reservation.googleSyncStatus ??
+                              (boat.googleCalendarSyncEnabled ? "not_synced" : "disabled")
+                          ]
+                        }
+                      </p>
+                      <p>
+                        最終同期:{" "}
+                        {reservation.googleLastSyncedAt
+                          ? new Intl.DateTimeFormat("ja-JP", {
+                              dateStyle: "medium",
+                              timeStyle: "short",
+                            }).format(new Date(reservation.googleLastSyncedAt))
+                          : "未同期"}
+                      </p>
+                      {reservation.googleSyncError ? (
+                        <p className="text-rose-700">
+                          同期エラー: {reservation.googleSyncError}
+                        </p>
+                      ) : null}
+                      {shouldSyncReservationToGoogle(boat) && canOperate ? (
+                        <button
+                          type="button"
+                          onClick={() => void resyncGoogleCalendar(reservation)}
+                          disabled={saveState === "saving"}
+                          className="mt-2 flex min-h-10 w-full items-center justify-center rounded-lg border border-blue-200 bg-white px-3 text-sm font-black text-blue-900 disabled:bg-slate-100 disabled:text-slate-400"
+                        >
+                          Googleカレンダーへ再同期
+                        </button>
+                      ) : null}
                     </div>
 
                     {joinRequests.length > 0 ? (

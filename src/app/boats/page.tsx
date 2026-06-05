@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Camera,
+  CalendarPlus,
   ClipboardCheck,
   Edit3,
   Map,
@@ -27,6 +28,7 @@ import {
   useClientAppData,
 } from "@/lib/client-store";
 import { getInitialAppData } from "@/lib/data-source";
+import { syncGoogleCalendar } from "@/lib/google-calendar-sync";
 import {
   boatStatusLabels,
   boatStatusTone,
@@ -90,6 +92,9 @@ export default function BoatsPage() {
     fuelType: appData.boat.fuelType,
     engineInfo: appData.boat.engineInfo,
     nextInspectionDate: appData.boat.nextInspectionDate ?? "",
+    googleCalendarSyncEnabled: Boolean(appData.boat.googleCalendarSyncEnabled),
+    googleCalendarId: appData.boat.googleCalendarId ?? "",
+    googleCalendarName: appData.boat.googleCalendarName ?? "",
     notes: appData.boat.notes,
   });
   const [newBoatForm, setNewBoatForm] = useState({
@@ -99,6 +104,9 @@ export default function BoatsPage() {
     fuelType: "ガソリン",
     engineInfo: "",
     nextInspectionDate: "",
+    googleCalendarSyncEnabled: false,
+    googleCalendarId: "",
+    googleCalendarName: "",
     notes: "",
   });
   const [usageFilter, setUsageFilter] = useState<"this_month" | "last_month" | "all">(
@@ -177,6 +185,9 @@ export default function BoatsPage() {
       fuelType: appData.boat.fuelType,
       engineInfo: appData.boat.engineInfo,
       nextInspectionDate: appData.boat.nextInspectionDate ?? "",
+      googleCalendarSyncEnabled: Boolean(appData.boat.googleCalendarSyncEnabled),
+      googleCalendarId: appData.boat.googleCalendarId ?? "",
+      googleCalendarName: appData.boat.googleCalendarName ?? "",
       notes: appData.boat.notes,
     });
     setInspectionFiles([]);
@@ -234,6 +245,12 @@ export default function BoatsPage() {
         fuelType: form.fuelType,
         engineInfo: form.engineInfo,
         nextInspectionDate: form.nextInspectionDate || undefined,
+        googleCalendarSyncEnabled: form.googleCalendarSyncEnabled,
+        googleCalendarId: form.googleCalendarId,
+        googleCalendarName: form.googleCalendarName,
+        googleSyncError: form.googleCalendarSyncEnabled
+          ? appData.boat.googleSyncError ?? null
+          : null,
         notes: form.notes,
         updatedAt,
       };
@@ -389,6 +406,38 @@ export default function BoatsPage() {
     }
   }
 
+  async function testGoogleCalendarSync() {
+    if (!canEdit || saveState === "saving") return;
+    setSaveState("saving");
+
+    const targetBoat: Boat = {
+      ...appData.boat,
+      googleCalendarSyncEnabled: form.googleCalendarSyncEnabled,
+      googleCalendarId: form.googleCalendarId,
+      googleCalendarName: form.googleCalendarName,
+    };
+    const result = await syncGoogleCalendar({
+      action: "test",
+      boat: targetBoat,
+    });
+    const now = new Date().toISOString();
+
+    await updateClientAppData(
+      (current) =>
+        upsertBoatList(current, {
+          ...targetBoat,
+          googleLastSyncAt: result.ok ? now : appData.boat.googleLastSyncAt,
+          googleSyncError: result.ok
+            ? null
+            : result.message || "Googleカレンダーのテスト同期に失敗しました。",
+          updatedAt: now,
+        }),
+      appData,
+    );
+
+    setSaveState(result.ok ? "saved" : "error");
+  }
+
   function discardQueuedImage() {
     clearQueuedBoatImage();
     setHasQueuedImage(false);
@@ -412,6 +461,10 @@ export default function BoatsPage() {
       engineInfo: newBoatForm.engineInfo,
       imageUrl: safeBoatImageUrl(appData.boat.imageUrl),
       nextInspectionDate: newBoatForm.nextInspectionDate || undefined,
+      googleCalendarSyncEnabled: newBoatForm.googleCalendarSyncEnabled,
+      googleCalendarId: newBoatForm.googleCalendarId,
+      googleCalendarName: newBoatForm.googleCalendarName,
+      googleSyncError: null,
       notes: newBoatForm.notes,
       updatedAt: now,
     };
@@ -432,6 +485,9 @@ export default function BoatsPage() {
         fuelType: "ガソリン",
         engineInfo: "",
         nextInspectionDate: "",
+        googleCalendarSyncEnabled: false,
+        googleCalendarId: "",
+        googleCalendarName: "",
         notes: "",
       });
       setIsAddingBoat(false);
@@ -1069,6 +1125,42 @@ export default function BoatsPage() {
                 />
               </label>
 
+              <div className="mt-3 rounded-lg border border-sky-100 bg-sky-50 p-4">
+                <label className="flex min-h-11 items-center gap-2 text-sm font-black text-blue-950">
+                  <input
+                    type="checkbox"
+                    checked={newBoatForm.googleCalendarSyncEnabled}
+                    onChange={(event) =>
+                      updateNewBoatForm("googleCalendarSyncEnabled", event.target.checked)
+                    }
+                    className="size-5 accent-blue-800"
+                  />
+                  Googleカレンダー連携をON
+                </label>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="text-sm font-bold text-slate-700">GoogleカレンダーID</span>
+                    <input
+                      value={newBoatForm.googleCalendarId}
+                      onChange={(event) =>
+                        updateNewBoatForm("googleCalendarId", event.target.value)
+                      }
+                      className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-white px-3 text-base outline-none ring-blue-600 focus:ring-2"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-sm font-bold text-slate-700">カレンダー名</span>
+                    <input
+                      value={newBoatForm.googleCalendarName}
+                      onChange={(event) =>
+                        updateNewBoatForm("googleCalendarName", event.target.value)
+                      }
+                      className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-white px-3 text-base outline-none ring-blue-600 focus:ring-2"
+                    />
+                  </label>
+                </div>
+              </div>
+
               <button
                 type="submit"
                 disabled={saveState === "saving"}
@@ -1187,6 +1279,67 @@ export default function BoatsPage() {
                   className="mt-2 min-h-28 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-base outline-none ring-blue-600 focus:ring-2"
                 />
               </label>
+
+              <div className="mt-3 rounded-lg border border-sky-100 bg-sky-50 p-4">
+                <label className="flex min-h-11 items-center gap-2 text-sm font-black text-blue-950">
+                  <input
+                    type="checkbox"
+                    checked={form.googleCalendarSyncEnabled}
+                    onChange={(event) =>
+                      updateForm("googleCalendarSyncEnabled", event.target.checked)
+                    }
+                    className="size-5 accent-blue-800"
+                  />
+                  Googleカレンダー連携をON
+                </label>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="text-sm font-bold text-slate-700">GoogleカレンダーID</span>
+                    <input
+                      value={form.googleCalendarId}
+                      onChange={(event) =>
+                        updateForm("googleCalendarId", event.target.value)
+                      }
+                      className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-white px-3 text-base outline-none ring-blue-600 focus:ring-2"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-sm font-bold text-slate-700">カレンダー名</span>
+                    <input
+                      value={form.googleCalendarName}
+                      onChange={(event) =>
+                        updateForm("googleCalendarName", event.target.value)
+                      }
+                      className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-white px-3 text-base outline-none ring-blue-600 focus:ring-2"
+                    />
+                  </label>
+                </div>
+                <div className="mt-3 rounded-lg bg-white p-3 text-sm font-bold leading-6 text-slate-700">
+                  <p>
+                    最終同期:{" "}
+                    {appData.boat.googleLastSyncAt
+                      ? new Intl.DateTimeFormat("ja-JP", {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        }).format(new Date(appData.boat.googleLastSyncAt))
+                      : "未同期"}
+                  </p>
+                  {appData.boat.googleSyncError ? (
+                    <p className="mt-1 text-rose-700">
+                      同期エラー: {appData.boat.googleSyncError}
+                    </p>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void testGoogleCalendarSync()}
+                  disabled={saveState === "saving" || !form.googleCalendarId}
+                  className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-4 text-sm font-black text-blue-900 disabled:bg-slate-100 disabled:text-slate-400"
+                >
+                  <CalendarPlus size={18} aria-hidden="true" />
+                  テスト同期
+                </button>
+              </div>
 
               <label className="mt-3 block rounded-lg border border-dashed border-sky-200 bg-sky-50 p-4">
                 <div className="flex items-center gap-2 text-sm font-black text-blue-900">
