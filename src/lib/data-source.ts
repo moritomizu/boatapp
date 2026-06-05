@@ -50,6 +50,8 @@ const emptyData: AppData = {
   currentBoatId: "boat-unselected",
   currentUserId: "user-unselected",
   organizationMembers: [],
+  organizationRules: [],
+  organizationInvites: [],
   memberBoatPermissions: [],
   reservations: [],
   joinRequests: [],

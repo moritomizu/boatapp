@@ -68,6 +68,12 @@ export type SkillAssessmentStatus =
 
 export type JoinRequestStatus = "requested" | "approved" | "declined";
 
+export type OrganizationInviteStatus =
+  | "pending"
+  | "accepted"
+  | "expired"
+  | "revoked";
+
 export type BoatSkillLevel =
   | "trainee"
   | "beginner"
@@ -109,8 +115,48 @@ export type Organization = {
   name: string;
   description?: string;
   ownerUserId?: string;
+  contact?: string;
+  activityArea?: string;
+  ruleSummary?: string;
   createdAt: string;
   updatedAt?: string;
+};
+
+export type OrganizationRule = {
+  id: string;
+  organizationId: string;
+  monthlyReservationLimit: number;
+  standardUsageHours: number;
+  bookingWindowDays: number;
+  allowNightUse: boolean;
+  allowSoloUse: boolean;
+  allowJoinRequests: boolean;
+  allowGuestOnBoard: boolean;
+  requirePreDepartureCheck: boolean;
+  requirePostReturnCheck: boolean;
+  requireFullFuelReturn: boolean;
+  strictLimit?: boolean;
+  ruleText: string;
+  notes: string;
+  emergencyContact: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type OrganizationInvite = {
+  id: string;
+  organizationId: string;
+  email: string;
+  role: Exclude<UserRole, "admin">;
+  inviteCode: string;
+  status: OrganizationInviteStatus;
+  memo: string;
+  invitedBy: string;
+  expiresAt: string;
+  acceptedBy?: string;
+  acceptedAt?: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type Boat = {
@@ -435,6 +481,8 @@ export type AppData = {
   currentBoatId?: string;
   currentUserId?: string;
   organizationMembers: OrganizationMember[];
+  organizationRules: OrganizationRule[];
+  organizationInvites: OrganizationInvite[];
   memberBoatPermissions: MemberBoatPermission[];
   reservations: Reservation[];
   joinRequests: JoinRequest[];

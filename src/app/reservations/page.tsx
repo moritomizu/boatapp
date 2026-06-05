@@ -37,6 +37,7 @@ import {
   isReservationActiveForBooking,
   withReservationSessionStatus,
 } from "@/lib/reservations";
+import { getMonthlyReservationUsage } from "@/lib/usage-history";
 import type { Reservation, TargetFish } from "@/types/domain";
 
 const targetFishOptions: TargetFish[] = [
@@ -139,6 +140,14 @@ export default function ReservationsPage() {
   );
   const hasOverlap = conflictReservations.length > 0;
   const warnings = reservationWarnings(data, form.userId, form.boatId);
+  const targetUserIdForUsage = canAssignReservationUser
+    ? form.userId
+    : data.currentUser.id;
+  const monthlyUsage = getMonthlyReservationUsage(
+    data,
+    targetUserIdForUsage,
+    form.date,
+  );
   const calendarMonth = useMemo(() => {
     const base = new Date();
     base.setMonth(base.getMonth() + calendarOffset);
@@ -658,6 +667,25 @@ export default function ReservationsPage() {
                 ))}
               </div>
             ) : null}
+
+            <div
+              className={`rounded-lg border p-3 text-sm font-bold leading-6 ${
+                monthlyUsage.exceeds
+                  ? "border-amber-200 bg-amber-50 text-amber-900"
+                  : "border-sky-100 bg-sky-50 text-blue-900"
+              }`}
+            >
+              <p>
+                今月の利用状況: {monthlyUsage.used} / {monthlyUsage.limit}回
+              </p>
+              <p>残り: {monthlyUsage.remaining}回</p>
+              {monthlyUsage.exceeds ? (
+                <p className="mt-1 flex gap-2 text-amber-950">
+                  <AlertTriangle className="mt-0.5 shrink-0" size={16} aria-hidden="true" />
+                  このメンバーは今月の利用上限を超える可能性があります。
+                </p>
+              ) : null}
+            </div>
 
             {editingId ? (
               <div className="flex items-start gap-2 rounded-lg bg-blue-50 p-3 text-sm font-bold leading-6 text-blue-900">

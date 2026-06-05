@@ -15,7 +15,9 @@ import type {
   NotificationPreference,
   NotificationToken,
   Organization,
+  OrganizationInvite,
   OrganizationMember,
+  OrganizationRule,
   PostReturnCheck,
   PreDepartureCheck,
   Reservation,
@@ -28,6 +30,8 @@ import type {
 type CollectionMap = {
   organizations: Organization;
   organizationMembers: OrganizationMember;
+  organizationRules: OrganizationRule;
+  organizationInvites: OrganizationInvite;
   boats: Boat;
   users: AppUser;
   memberBoatPermissions: MemberBoatPermission;
@@ -50,6 +54,8 @@ type CollectionMap = {
 const collections = [
   "organizations",
   "organizationMembers",
+  "organizationRules",
+  "organizationInvites",
   "boats",
   "users",
   "memberBoatPermissions",
@@ -218,6 +224,8 @@ export async function getFirestoreAppData(fallback: AppData = mockData) {
   const [
     organizations,
     organizationMembers,
+    organizationRules,
+    organizationInvites,
     boats,
     users,
     memberBoatPermissions,
@@ -267,6 +275,11 @@ export async function getFirestoreAppData(fallback: AppData = mockData) {
       (organizationMembers as OrganizationMember[]).length > 0
         ? (organizationMembers as OrganizationMember[])
         : fallback.organizationMembers ?? [],
+    organizationRules:
+      (organizationRules as OrganizationRule[]).length > 0
+        ? (organizationRules as OrganizationRule[])
+        : fallback.organizationRules ?? [],
+    organizationInvites: organizationInvites as OrganizationInvite[],
     boat,
     boats: resolvedBoats,
     users: resolvedUsers,
@@ -314,6 +327,22 @@ export async function saveFirestoreAppData(
         "organizationMembers",
         data.organizationMembers ?? [],
         previousData?.organizationMembers,
+      ),
+    ),
+    writeCollection(
+      "organizationRules",
+      changedRows(
+        "organizationRules",
+        data.organizationRules ?? [],
+        previousData?.organizationRules,
+      ),
+    ),
+    writeCollection(
+      "organizationInvites",
+      changedRows(
+        "organizationInvites",
+        data.organizationInvites ?? [],
+        previousData?.organizationInvites,
       ),
     ),
     writeCollection(

@@ -13,6 +13,7 @@ import {
   LifeBuoy,
   LogOut,
   Navigation,
+  Settings,
   User,
   Ship,
 } from "lucide-react";
@@ -200,11 +201,18 @@ export function AppShell({ children }: { children: ReactNode }) {
                     プロフィール編集
                   </Link>
                   <Link
-                    href="/my-log"
+                    href="/usage-history"
                     className="flex min-h-11 items-center gap-2 rounded-lg bg-slate-50 px-3 text-sm font-black text-slate-800"
                   >
                     <BookOpen size={17} aria-hidden="true" />
-                    航海履歴
+                    利用履歴
+                  </Link>
+                  <Link
+                    href="/organization"
+                    className="flex min-h-11 items-center gap-2 rounded-lg bg-slate-50 px-3 text-sm font-black text-slate-800"
+                  >
+                    <Settings size={17} aria-hidden="true" />
+                    組織設定
                   </Link>
                   <Link
                     href="/members"

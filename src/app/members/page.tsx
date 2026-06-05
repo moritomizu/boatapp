@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useState } from "react";
 import {
   Camera,
@@ -29,6 +30,10 @@ import {
   uploadUserLicenseImage,
   uploadUserProfileImage,
 } from "@/lib/storage";
+import {
+  getUsableBoatNames,
+  getUserUsageSummary,
+} from "@/lib/usage-history";
 import type {
   AppUser,
   BoatSkillLevel,
@@ -455,6 +460,8 @@ export default function MembersPage() {
               const rating = averageRating(user.id);
               const skill = latestSkillAssessment(user.id);
               const ratings = recentRatings(user.id);
+              const usage = getUserUsageSummary(data, user.id);
+              const usableBoatNames = getUsableBoatNames(data, user.id);
 
               return (
               <Card key={user.id}>
@@ -528,6 +535,38 @@ export default function MembersPage() {
                       </p>
                     </div>
                   </div>
+                ) : null}
+
+                {canViewPermissions ? (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                    <div className="rounded-lg bg-sky-50 p-3">
+                      <p className="text-xs font-bold text-blue-800">今月の利用</p>
+                      <p className="mt-1 text-xl font-black text-blue-950">
+                        {usage.thisMonthCount}回
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 p-3">
+                      <p className="text-xs font-bold text-slate-500">累計利用</p>
+                      <p className="mt-1 text-xl font-black text-slate-950">
+                        {usage.totalCount}回
+                      </p>
+                    </div>
+                    <Link
+                      href={`/usage-history?userId=${user.id}`}
+                      className="flex min-h-16 items-center justify-center rounded-lg bg-blue-800 px-3 text-sm font-black text-white"
+                    >
+                      利用履歴を見る
+                    </Link>
+                  </div>
+                ) : null}
+
+                {canViewPermissions ? (
+                  <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm font-bold leading-6 text-slate-700">
+                    利用可能船舶:{" "}
+                    {usableBoatNames.length > 0
+                      ? usableBoatNames.join(" / ")
+                      : "未設定"}
+                  </p>
                 ) : null}
 
                 {canViewPermissions ? (
