@@ -7,6 +7,20 @@ import { AppShell } from "@/components/app-shell";
 import { Card, Section } from "@/components/ui";
 import { updateClientAppData, useClientAppData } from "@/lib/client-store";
 import { getInitialAppData } from "@/lib/data-source";
+import type { UserRole } from "@/types/domain";
+
+const roleRank: Record<UserRole, number> = {
+  member: 1,
+  owner: 2,
+  admin: 3,
+};
+
+function highestRole(...roles: Array<UserRole | undefined>) {
+  return roles.reduce<UserRole>((highest, role) => {
+    if (!role) return highest;
+    return roleRank[role] > roleRank[highest] ? role : highest;
+  }, "member");
+}
 
 export default function JoinPage() {
   const data = useClientAppData(getInitialAppData());
@@ -18,7 +32,8 @@ export default function JoinPage() {
   const alreadyMember = data.organizationMembers.some(
     (member) =>
       member.organizationId === data.organization.id &&
-      member.userId === data.currentUser.id &&
+      (member.userId === data.currentUser.id ||
+        Boolean(data.currentUser.email && member.email === data.currentUser.email)) &&
       member.isActive,
   );
 
@@ -28,43 +43,56 @@ export default function JoinPage() {
     const now = new Date().toISOString();
     await updateClientAppData(
       (current) => {
-        const userExists = current.users.some(
-          (user) => user.id === current.currentUser.id,
+        const existingUser = current.users.find(
+          (user) =>
+            user.id === current.currentUser.id ||
+            Boolean(current.currentUser.email && user.email === current.currentUser.email),
         );
-        const memberExists = current.organizationMembers.some(
+        const existingMember = current.organizationMembers.find(
           (member) =>
             member.organizationId === invite.organizationId &&
-            member.userId === current.currentUser.id,
+            (member.userId === current.currentUser.id ||
+              Boolean(current.currentUser.email && member.email === current.currentUser.email)),
+        );
+        const userId = existingUser?.id ?? current.currentUser.id;
+        const preservedRole = highestRole(
+          existingUser?.role,
+          existingMember?.role,
+          current.currentUser.role,
+          invite.role,
         );
 
         return {
           ...current,
-          users: userExists
+          users: existingUser
             ? current.users.map((user) =>
-                user.id === current.currentUser.id
-                  ? { ...user, role: invite.role, organizationId: invite.organizationId }
+                user.id === existingUser.id
+                  ? { ...user, role: preservedRole, organizationId: invite.organizationId }
                   : user,
               )
             : [
                 {
                   ...current.currentUser,
-                  role: invite.role,
+                  role: preservedRole,
                   organizationId: invite.organizationId,
                 },
                 ...current.users,
               ],
           currentUser: {
             ...current.currentUser,
-            role: invite.role,
+            id: userId,
+            role: preservedRole,
             organizationId: invite.organizationId,
           },
-          organizationMembers: memberExists
+          currentUserId: userId,
+          organizationMembers: existingMember
             ? current.organizationMembers.map((member) =>
                 member.organizationId === invite.organizationId &&
-                member.userId === current.currentUser.id
+                member.id === existingMember.id
                   ? {
                       ...member,
-                      role: invite.role,
+                      userId,
+                      role: preservedRole,
                       isActive: true,
                       updatedAt: now,
                     }
@@ -74,8 +102,8 @@ export default function JoinPage() {
                 {
                   id: `org-member-${crypto.randomUUID()}`,
                   organizationId: invite.organizationId,
-                  userId: current.currentUser.id,
-                  role: invite.role,
+                  userId,
+                  role: preservedRole,
                   displayName: current.currentUser.name,
                   email: current.currentUser.email,
                   isActive: true,
