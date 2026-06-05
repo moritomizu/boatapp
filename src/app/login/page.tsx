@@ -1,9 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Anchor, LogIn, UserPlus } from "lucide-react";
+import { LogIn, UserPlus } from "lucide-react";
 import {
   browserLocalPersistence,
   createUserWithEmailAndPassword,
@@ -155,15 +156,22 @@ export default function LoginPage() {
     <main className="min-h-screen bg-[linear-gradient(180deg,#e0f2fe_0%,#ffffff_52%,#f8fafc_100%)] px-4 py-6 text-slate-950">
       <div className="mx-auto flex min-h-[calc(100vh-48px)] w-full max-w-md flex-col justify-center gap-8">
         <div className="space-y-4">
-          <div className="grid size-16 place-items-center rounded-3xl bg-blue-800 text-white shadow-lg shadow-blue-900/20">
-            <Anchor size={32} aria-hidden="true" />
+          <div className="relative size-20 overflow-hidden rounded-full shadow-lg shadow-blue-900/20 ring-1 ring-slate-900/10">
+            <Image
+              src="/boat_os_logo.png"
+              alt="Boat OS"
+              width={80}
+              height={80}
+              className="h-full w-full object-cover"
+              priority
+            />
           </div>
           <div>
             <p className="text-sm font-bold uppercase tracking-[0.16em] text-blue-700">
               Boat Owner Operations
             </p>
             <h1 className="mt-2 text-4xl font-black tracking-normal text-blue-950">
-              TaPiYoTa Grand Boat Club
+              Boat OS
             </h1>
             <p className="mt-3 text-base leading-7 text-slate-600">
               共同保有艇を安全に運用するためのログイン画面です。
