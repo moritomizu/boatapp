@@ -168,10 +168,10 @@ export default function LoginPage() {
           </div>
           <div>
             <p className="text-sm font-bold uppercase tracking-[0.16em] text-blue-700">
-              Boat Owner Operations
+              Boat OS
             </p>
             <h1 className="mt-2 text-4xl font-black tracking-normal text-blue-950">
-              Boat OS
+              TaPiYoTa Grand Boat Club
             </h1>
             <p className="mt-3 text-base leading-7 text-slate-600">
               共同保有艇を安全に運用するためのログイン画面です。
