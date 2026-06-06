@@ -642,7 +642,7 @@ export default function HomePage() {
         {latestMyVoyage ? (
           <Section title="最近の航海">
             <Link
-              href={`/voyages?reservationId=${latestMyVoyage.reservationId}`}
+              href={`/voyage-logs/${latestMyVoyage.id}`}
               className="block"
             >
               <Card>

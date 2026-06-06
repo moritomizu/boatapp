@@ -1276,7 +1276,7 @@ export default function ReservationsPage() {
                       {phase === "past" ? (
                         <>
                           <Link
-                            href={`/voyages?reservationId=${reservation.id}`}
+                            href={voyage ? `/voyage-logs/${voyage.id}` : `/voyages?reservationId=${reservation.id}`}
                             className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
                           >
                             <Eye size={16} aria-hidden="true" />

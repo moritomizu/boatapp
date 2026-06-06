@@ -135,9 +135,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </span>
                 <ChevronDown size={15} aria-hidden="true" />
               </summary>
-              <div className="absolute right-0 top-12 z-50 w-72 rounded-lg border border-sky-100 bg-white p-3 shadow-xl">
-                <p className="text-xs font-black text-slate-500">
-                  利用する船を切り替え
+              <div className="fixed inset-x-3 bottom-24 z-50 max-h-[70vh] overflow-y-auto rounded-2xl border border-sky-100 bg-white p-4 shadow-2xl sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-12 sm:w-80 sm:max-w-[calc(100vw-16px)] sm:rounded-lg sm:p-3">
+                <p className="text-sm font-black text-blue-950 sm:text-xs sm:text-slate-500">
+                  船を切り替え
                 </p>
                 <div className="mt-2 space-y-2">
                   {boats.map((boat) => {
@@ -150,14 +150,14 @@ export function AppShell({ children }: { children: ReactNode }) {
                         type="button"
                         disabled={!usable}
                         onClick={() => void selectCurrentBoat(boat.id, data)}
-                        className="flex min-h-12 w-full items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 text-left disabled:opacity-50"
+                        className="flex min-h-14 w-full items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 text-left disabled:opacity-50"
                       >
-                        <span>
-                          <span className="block text-sm font-black text-slate-900">
+                        <span className="min-w-0">
+                          <span className="block truncate text-base font-black text-slate-900 sm:text-sm">
                             {boat.name}
                           </span>
                           <span className="block text-xs font-bold text-slate-500">
-                            {usable ? "表示切替可" : "利用権限なし"}
+                            {selected ? "現在選択中" : usable ? "表示切替可" : "利用権限なし"}
                           </span>
                         </span>
                         {selected ? <Check size={18} className="text-blue-800" /> : null}

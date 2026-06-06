@@ -203,6 +203,14 @@ export default function UsageHistoryPage() {
                     {entry.memo}
                   </p>
                 ) : null}
+                {entry.voyageId ? (
+                  <Link
+                    href={`/voyage-logs/${entry.voyageId}`}
+                    className="mt-3 flex min-h-11 items-center justify-center rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
+                  >
+                    航路を見る
+                  </Link>
+                ) : null}
               </Card>
             ))}
             {entries.length === 0 ? (

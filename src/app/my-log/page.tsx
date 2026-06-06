@@ -160,7 +160,7 @@ export default function MyLogPage() {
 
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     <Link
-                      href={`/voyages?reservationId=${voyage.reservationId}`}
+                      href={`/voyage-logs/${voyage.id}`}
                       className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
                     >
                       <Map size={17} aria-hidden="true" />

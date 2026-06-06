@@ -83,9 +83,11 @@ function loadGoogleMaps(apiKey: string) {
 export function VoyageMap({
   points,
   stopCandidates = [],
+  heightClassName = "h-80",
 }: {
   points: TrackPoint[];
   stopCandidates?: StopCandidate[];
+  heightClassName?: string;
 }) {
   const mapRef = useRef<HTMLDivElement>(null);
   const [loadError, setLoadError] = useState(false);
@@ -93,9 +95,11 @@ export function VoyageMap({
   const message = !apiKey
     ? "Google Maps APIキーが未設定です。"
     : points.length === 0
-      ? "表示できる位置情報がありません。"
+      ? "この航海には航跡データがありません。"
       : loadError
-        ? "Google Mapsを読み込めませんでした。APIキーと制限設定を確認してください。"
+        ? "航跡データの読み込みに失敗しました。再読み込みしてください。"
+        : points.length === 1
+          ? "航跡ラインを表示するには記録点が不足しています。"
         : "";
 
   useEffect(() => {
@@ -170,7 +174,7 @@ export function VoyageMap({
 
   return (
     <div className="overflow-hidden rounded-lg border border-sky-100 bg-slate-100">
-      <div ref={mapRef} className="h-80 w-full" />
+      <div ref={mapRef} className={`${heightClassName} w-full`} />
       {message ? (
         <p className="border-t border-slate-200 bg-white p-3 text-sm font-bold leading-6 text-slate-700">
           {message}

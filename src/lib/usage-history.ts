@@ -14,6 +14,7 @@ export type UsageHistoryEntry = {
   supportCount: number;
   handoverCount: number;
   hasVoyageLog: boolean;
+  voyageId?: string;
   memo: string;
 };
 
@@ -117,6 +118,7 @@ export function getUserUsageEntries(data: AppData, userId: string) {
         supportCount,
         handoverCount,
         hasVoyageLog: Boolean(voyage),
+        voyageId: voyage?.id,
         memo: voyage?.memo || reservation.comment,
       } satisfies UsageHistoryEntry;
     });

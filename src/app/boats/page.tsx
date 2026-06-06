@@ -775,7 +775,7 @@ export default function BoatsPage() {
                   </p>
                   {voyage ? (
                     <Link
-                      href={`/voyages?reservationId=${reservation.id}`}
+                      href={`/voyage-logs/${voyage.id}`}
                       className="mt-3 flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
                     >
                       <Map size={16} aria-hidden="true" />
