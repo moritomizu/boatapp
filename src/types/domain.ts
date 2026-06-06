@@ -26,7 +26,8 @@ export type NotificationCategory =
   | "check"
   | "handover"
   | "support"
-  | "maintenance";
+  | "maintenance"
+  | "membership";
 
 export type NotificationPriority = "normal" | "important" | "urgent";
 
@@ -584,6 +585,7 @@ export type AppNotification = {
   title: string;
   body: string;
   relatedPath: string;
+  recipientUserIds?: string[];
   readBy: string[];
   createdAt: string;
 };

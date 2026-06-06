@@ -54,6 +54,10 @@ export default function HomePage() {
   const data = useClientAppData(initialData);
   const boats = getBoats(data);
   const isAdmin = data.currentUser.role === "admin";
+  const pendingMembershipApplications = data.membershipApplications.filter(
+    (application) =>
+      application.status === "pending" || application.status === "reviewing",
+  );
 
   const now = new Date();
   const todayIso = now.toISOString();
@@ -209,7 +213,12 @@ export default function HomePage() {
         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
     )
     .slice(0, 3);
-  const unreadNotifications = data.notifications.filter(
+  const visibleNotifications = data.notifications.filter(
+    (notification) =>
+      !notification.recipientUserIds ||
+      notification.recipientUserIds.includes(data.currentUser.id),
+  );
+  const unreadNotifications = visibleNotifications.filter(
     (notification) => !notification.readBy.includes(data.currentUser.id),
   );
   const urgentNotifications = unreadNotifications.filter(
@@ -386,6 +395,24 @@ export default function HomePage() {
                   0,
                 )}
                 件のコメント/対応履歴があります。タップして確認できます。
+              </span>
+            </span>
+          </Link>
+        ) : null}
+
+        {isAdmin && pendingMembershipApplications.length > 0 ? (
+          <Link
+            href="/organization#membership-applications"
+            className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-950 shadow-sm"
+          >
+            <Users className="mt-0.5 shrink-0" size={22} aria-hidden="true" />
+            <span>
+              <span className="block text-base font-black">
+                参加申請があります
+              </span>
+              <span className="mt-1 block text-sm font-semibold leading-6">
+                {pendingMembershipApplications.length}
+                件の申請が未処理です。タップして承認・利用可能船舶を設定できます。
               </span>
             </span>
           </Link>

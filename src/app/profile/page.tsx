@@ -3,17 +3,23 @@
 import { useEffect, useMemo, useState } from "react";
 import { Save, User } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
-import { Card, Section } from "@/components/ui";
+import { Badge, Card, Section } from "@/components/ui";
 import {
   refreshClientAppData,
   updateClientAppData,
   useClientAppData,
 } from "@/lib/client-store";
 import { getInitialAppData } from "@/lib/data-source";
+import {
+  applicationStatusLabels,
+  applicationTypeLabels,
+  latestApplicationForCurrentUser,
+} from "@/lib/membership";
 
 export default function ProfilePage() {
   const initialData = useMemo(() => getInitialAppData(), []);
   const data = useClientAppData(initialData);
+  const latestApplication = latestApplicationForCurrentUser(data);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">(
     "idle",
   );
@@ -105,6 +111,36 @@ export default function ProfilePage() {
             連絡先、緊急連絡先、船舶免許メモを管理します。
           </p>
         </div>
+
+        {latestApplication?.adminMessage ? (
+          <div id="membership-message" className="scroll-mt-24">
+            <Section title="参加申請・承認メッセージ">
+              <Card>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-black text-blue-950">
+                      {applicationTypeLabels[latestApplication.applicationType]}
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-slate-500">
+                      {latestApplication.reviewedAt
+                        ? new Intl.DateTimeFormat("ja-JP", {
+                            dateStyle: "medium",
+                            timeStyle: "short",
+                          }).format(new Date(latestApplication.reviewedAt))
+                        : "管理者確認中"}
+                    </p>
+                  </div>
+                  <Badge className="bg-sky-100 text-blue-800 ring-sky-200">
+                    {applicationStatusLabels[latestApplication.status]}
+                  </Badge>
+                </div>
+                <p className="mt-3 rounded-lg bg-sky-50 p-3 text-sm font-bold leading-6 text-blue-900">
+                  {latestApplication.adminMessage}
+                </p>
+              </Card>
+            </Section>
+          </div>
+        ) : null}
 
         <Section title="プロフィール編集">
           <form

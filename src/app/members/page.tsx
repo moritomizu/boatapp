@@ -115,6 +115,10 @@ export default function MembersPage() {
     data.currentUser.role === "admin" || data.currentUser.role === "owner";
   const canManagePermissions = canEdit;
   const boats = getBoats(data);
+  const pendingMembershipApplications = data.membershipApplications.filter(
+    (application) =>
+      application.status === "pending" || application.status === "reviewing",
+  );
   const [editingMember, setEditingMember] = useState<AppUser | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | undefined>();
   const [licenseFiles, setLicenseFiles] = useState<File[]>([]);
@@ -416,31 +420,54 @@ export default function MembersPage() {
         </div>
 
         {canEdit ? (
-          <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
-            <div className="rounded-lg bg-sky-50 p-3 text-sm font-semibold text-blue-900">
-              管理者として表示中。メンバーの追加、編集、削除ができます。
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <a
-                href="#skill-assessment"
-                className="flex h-12 items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-4 text-sm font-black text-blue-900"
+          <div className="space-y-3">
+            {pendingMembershipApplications.length > 0 ? (
+              <Link
+                href="/organization#membership-applications"
+                className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-950 shadow-sm"
               >
-                <ClipboardCheck size={19} aria-hidden="true" />
-                スキル評価へ
-              </a>
-              <button
-                type="button"
-                onClick={() => {
-                  setAvatarFile(undefined);
-                  setLicenseFiles([]);
-                  setUploadMessage("");
-                  setEditingMember(blankMember(data.organization.id));
-                }}
-                className="flex h-12 items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
-              >
-                <Plus size={19} aria-hidden="true" />
-                メンバー追加
-              </button>
+                <ShieldCheck
+                  className="mt-0.5 shrink-0"
+                  size={20}
+                  aria-hidden="true"
+                />
+                <span>
+                  <span className="block text-base font-black">
+                    参加申請があります
+                  </span>
+                  <span className="mt-1 block text-sm font-semibold leading-6">
+                    {pendingMembershipApplications.length}
+                    件の申請が未処理です。承認後にロールと利用可能船舶を設定できます。
+                  </span>
+                </span>
+              </Link>
+            ) : null}
+            <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+              <div className="rounded-lg bg-sky-50 p-3 text-sm font-semibold text-blue-900">
+                管理者として表示中。メンバーの追加、編集、削除ができます。
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <a
+                  href="#skill-assessment"
+                  className="flex h-12 items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-4 text-sm font-black text-blue-900"
+                >
+                  <ClipboardCheck size={19} aria-hidden="true" />
+                  スキル評価へ
+                </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAvatarFile(undefined);
+                    setLicenseFiles([]);
+                    setUploadMessage("");
+                    setEditingMember(blankMember(data.organization.id));
+                  }}
+                  className="flex h-12 items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
+                >
+                  <Plus size={19} aria-hidden="true" />
+                  メンバー追加
+                </button>
+              </div>
             </div>
           </div>
         ) : (

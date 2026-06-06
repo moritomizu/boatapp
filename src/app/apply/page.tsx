@@ -22,6 +22,7 @@ export default function ApplyPage() {
   const searchParams = useSearchParams();
   const data = useClientAppData(getInitialAppData());
   const [state, setState] = useState<"idle" | "saving" | "error">("idle");
+  const [errorMessage, setErrorMessage] = useState("");
   const [form, setForm] = useState({
     applicationType: (searchParams.get("inviteCode") ? "invite" : "member") as MembershipApplicationType,
     inviteCode: searchParams.get("inviteCode") ?? "",
@@ -73,6 +74,7 @@ export default function ApplyPage() {
     event.preventDefault();
     if (state === "saving") return;
     setState("saving");
+    setErrorMessage("");
 
     const now = new Date().toISOString();
     const application: MembershipApplication = {
@@ -140,34 +142,17 @@ export default function ApplyPage() {
       await updateClientAppData(
         (current) => ({
           ...current,
-          users: current.users.some((user) => user.id === data.currentUser.id)
-            ? current.users.map((user) =>
-                user.id === data.currentUser.id
-                  ? {
-                      ...user,
-                      name: form.name,
-                      email: form.email,
-                      phone: form.phone,
-                      emergencyContact: form.emergencyContact,
-                    }
-                  : user,
-              )
-            : [
-                {
-                  ...data.currentUser,
-                  name: form.name,
-                  email: form.email,
-                  phone: form.phone,
-                  emergencyContact: form.emergencyContact,
-                },
-                ...current.users,
-              ],
           membershipApplications: [application, ...(current.membershipApplications ?? [])],
         }),
         data,
       );
       router.push("/pending");
-    } catch {
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error && error.message
+          ? error.message
+          : "Firestoreへの保存に失敗しました。",
+      );
       setState("error");
     }
   }
@@ -426,7 +411,9 @@ export default function ApplyPage() {
 
           {state === "error" ? (
             <p className="rounded-lg bg-rose-50 p-3 text-sm font-bold text-rose-800">
-              申請の保存に失敗しました。通信状態を確認してください。
+              申請の保存に失敗しました。Firestore Rulesで
+              membershipApplications の作成権限を確認してください。
+              {errorMessage ? ` 詳細: ${errorMessage}` : ""}
             </p>
           ) : null}
           <button

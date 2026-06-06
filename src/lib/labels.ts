@@ -85,6 +85,7 @@ export const notificationCategoryLabels: Record<NotificationCategory, string> = 
   handover: "申し送り",
   support: "サポート",
   maintenance: "メンテナンス",
+  membership: "参加申請",
 };
 
 export const notificationPriorityLabels: Record<NotificationPriority, string> = {

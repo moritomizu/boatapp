@@ -70,7 +70,11 @@ export function NotificationCenter({ data }: { data: AppData }) {
     ) ?? defaultPreference(appData.currentUser.id);
   const pushEnabled =
     permission === "granted" && preference.channels.includes("push");
-  const notifications = appData.notifications;
+  const notifications = appData.notifications.filter(
+    (notification) =>
+      !notification.recipientUserIds ||
+      notification.recipientUserIds.includes(appData.currentUser.id),
+  );
   const unreadNotifications = notifications.filter(
     (notification) => !notification.readBy.includes(appData.currentUser.id),
   );

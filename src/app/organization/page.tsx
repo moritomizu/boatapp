@@ -231,10 +231,11 @@ export default function OrganizationPage() {
     const approving = applicationForm.status === "approved";
     const selectedBoatIds = applicationForm.boatIds;
     const role = applicationForm.role;
+    const adminMessage = applicationForm.adminMessage.trim();
     const nextApplication: MembershipApplication = {
       ...application,
       status: applicationForm.status,
-      adminMessage: applicationForm.adminMessage,
+      adminMessage,
       rejectionReason: applicationForm.rejectionReason,
       adminMemo: applicationForm.adminMemo,
       approvedRole: approving ? role : application.approvedRole,
@@ -290,6 +291,26 @@ export default function OrganizationPage() {
             membershipApplications: current.membershipApplications.map((item) =>
               item.id === application.id ? nextApplication : item,
             ),
+            notifications: adminMessage
+              ? [
+                  {
+                    id: `notification-${crypto.randomUUID()}`,
+                    organizationId: current.organization.id,
+                    boatId: selectedBoatIds[0] ?? current.boat.id,
+                    category: "membership",
+                    priority: "important",
+                    title: approving
+                      ? "参加申請が承認されました"
+                      : "参加申請に管理者メッセージがあります",
+                    body: adminMessage,
+                    relatedPath: "/profile#membership-message",
+                    recipientUserIds: [application.userId],
+                    readBy: [],
+                    createdAt: now,
+                  },
+                  ...current.notifications,
+                ]
+              : current.notifications,
             users: approving
               ? userExists
                 ? current.users.map((user) =>
@@ -708,9 +729,10 @@ export default function OrganizationPage() {
           </div>
         </Section>
 
-        <Section title="参加申請">
-          <div className="space-y-3">
-            {data.membershipApplications.map((application) => (
+        <div id="membership-applications" className="scroll-mt-24">
+          <Section title="参加申請">
+            <div className="space-y-3">
+              {data.membershipApplications.map((application) => (
               <Card key={application.id}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -860,16 +882,17 @@ export default function OrganizationPage() {
                   </div>
                 ) : null}
               </Card>
-            ))}
-            {data.membershipApplications.length === 0 ? (
-              <Card>
-                <p className="text-sm font-semibold text-slate-600">
-                  参加申請はまだありません。
-                </p>
-              </Card>
-            ) : null}
-          </div>
-        </Section>
+              ))}
+              {data.membershipApplications.length === 0 ? (
+                <Card>
+                  <p className="text-sm font-semibold text-slate-600">
+                    参加申請はまだありません。
+                  </p>
+                </Card>
+              ) : null}
+            </div>
+          </Section>
+        </div>
 
         <Section title="メンバーと船舶">
           <div className="grid gap-3 sm:grid-cols-2">
