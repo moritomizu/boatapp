@@ -627,18 +627,34 @@ export default function ReservationsPage() {
                   />
                 ),
               )}
-              {calendarMonth.days.map((day) => (
+              {calendarMonth.days.map((day) => {
+                const isToday = day.dateKey === todayKey();
+
+                return (
                 <div
                   key={day.dateKey}
                   className={`min-h-24 rounded-lg border p-2 ${
-                    day.reservations.length > 0
-                      ? "border-blue-200 bg-sky-50"
-                      : "border-slate-100 bg-white"
+                    isToday
+                      ? "border-blue-300 bg-blue-50 ring-2 ring-blue-100"
+                      : day.reservations.length > 0
+                        ? "border-blue-200 bg-sky-50"
+                        : "border-slate-100 bg-white"
                   }`}
                 >
-                  <p className="text-sm font-black text-slate-800">
-                    {day.date.getDate()}
-                  </p>
+                  <div className="flex items-center justify-between gap-1">
+                    <p
+                      className={`text-sm font-black ${
+                        isToday ? "text-blue-900" : "text-slate-800"
+                      }`}
+                    >
+                      {day.date.getDate()}
+                    </p>
+                    {isToday ? (
+                      <span className="rounded-full bg-blue-800 px-1.5 py-0.5 text-[9px] font-black text-white">
+                        今日
+                      </span>
+                    ) : null}
+                  </div>
                   <div className="mt-1 space-y-1">
                     {day.reservations.slice(0, 2).map((reservation) => {
                       const user = data.users.find(
@@ -671,7 +687,8 @@ export default function ReservationsPage() {
                     </button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </Section>

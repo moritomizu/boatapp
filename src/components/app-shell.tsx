@@ -208,6 +208,13 @@ export function AppShell({ children }: { children: ReactNode }) {
                     利用履歴
                   </Link>
                   <Link
+                    href="/my-log"
+                    className="flex min-h-11 items-center gap-2 rounded-lg bg-slate-50 px-3 text-sm font-black text-slate-800"
+                  >
+                    <Navigation size={17} aria-hidden="true" />
+                    航海履歴
+                  </Link>
+                  <Link
                     href="/organization"
                     className="flex min-h-11 items-center gap-2 rounded-lg bg-slate-50 px-3 text-sm font-black text-slate-800"
                   >

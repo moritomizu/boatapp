@@ -239,6 +239,32 @@ export function CheckWorkflow<Key extends string, RecordType extends CheckRecord
         <p className="text-sm leading-6 text-slate-600">{description}</p>
       </div>
 
+      {savedRecord && mode === "post-return" && !savedRecord.hasIssue ? (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
+          <div className="space-y-3">
+            <div className="flex items-start gap-3">
+              <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-emerald-700 text-white">
+                <CheckCircle2 size={22} aria-hidden="true" />
+              </span>
+              <div>
+                <p className="text-lg font-black text-emerald-950">
+                  帰港後チェックを保存しました
+                </p>
+                <p className="mt-1 text-sm font-bold leading-6 text-emerald-900">
+                  最後に予約をクローズしてください。クローズすると、この出船のやることが完了します。
+                </p>
+              </div>
+            </div>
+            <Link
+              href={`/reservations#reservation-${reservationId}`}
+              className="flex min-h-14 w-full items-center justify-center rounded-lg bg-slate-900 px-4 text-base font-black text-white"
+            >
+              予約をクローズする
+            </Link>
+          </div>
+        </div>
+      ) : null}
+
       <form onSubmit={handleSubmit} className="space-y-5">
         <Card>
           <div className="grid gap-3 sm:grid-cols-3">

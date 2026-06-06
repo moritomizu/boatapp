@@ -213,6 +213,7 @@ export type Boat = {
   googleSyncError?: string | null;
   notes: string;
   isActive?: boolean;
+  displayOrder?: number;
   allowNightUse?: boolean;
   allowSoloUse?: boolean;
   allowBeginnerUse?: boolean;

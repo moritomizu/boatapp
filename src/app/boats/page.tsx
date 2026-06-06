@@ -773,15 +773,17 @@ export default function BoatsPage() {
                       ? ` / 航行距離 ${voyage.distanceKm.toFixed(1)}km`
                       : ""}
                   </p>
+                  {voyage ? (
+                    <Link
+                      href={`/voyages?reservationId=${reservation.id}`}
+                      className="mt-3 flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
+                    >
+                      <Map size={16} aria-hidden="true" />
+                      航路を見る
+                    </Link>
+                  ) : null}
                   {canEdit ? (
                     <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                      <Link
-                        href={`/voyages?reservationId=${reservation.id}`}
-                        className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
-                      >
-                        <Map size={16} aria-hidden="true" />
-                        航路を見る
-                      </Link>
                       <Link
                         href={`/members#trip-rating`}
                         className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 text-sm font-black text-amber-900"

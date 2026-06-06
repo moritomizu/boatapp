@@ -44,6 +44,7 @@ import {
   formatDate,
   formatTime,
   getReservationSessionStatus,
+  isReservationActiveForBooking,
   isSameDay,
 } from "@/lib/reservations";
 import type { JoinRequestStatus } from "@/types/domain";
@@ -51,17 +52,14 @@ import type { JoinRequestStatus } from "@/types/domain";
 export default function HomePage() {
   const initialData = useMemo(() => getInitialAppData(), []);
   const data = useClientAppData(initialData);
-  const boats = getBoats(data).sort(
-    (a, b) =>
-      new Date(a.createdAt ?? a.updatedAt).getTime() -
-      new Date(b.createdAt ?? b.updatedAt).getTime(),
-  );
+  const boats = getBoats(data);
   const isAdmin = data.currentUser.role === "admin";
 
   const now = new Date();
   const todayIso = now.toISOString();
   const twelveHoursAgo = now.getTime() - 12 * 60 * 60 * 1000;
-  const myReservations = data.reservations.filter(
+  const activeReservations = data.reservations.filter(isReservationActiveForBooking);
+  const myReservations = activeReservations.filter(
     (reservation) => reservation.userId === data.currentUser.id,
   );
   const myTodaysReservations = myReservations.filter((reservation) =>
@@ -72,16 +70,62 @@ export default function HomePage() {
     (voyage) =>
       voyage.userId === data.currentUser.id && voyage.status === "underway",
   );
+  const latestMyVoyage = data.voyageLogs
+    .filter((voyage) => voyage.userId === data.currentUser.id)
+    .sort(
+      (a, b) =>
+        new Date(b.returnedAt ?? b.departedAt ?? b.updatedAt).getTime() -
+        new Date(a.returnedAt ?? a.departedAt ?? a.updatedAt).getTime(),
+    )[0];
   const myActiveReservation = myActiveVoyage
     ? data.reservations.find(
         (reservation) => reservation.id === myActiveVoyage.reservationId,
       )
     : undefined;
-  const todaysReservations = data.reservations.filter((reservation) =>
+  const todaysReservations = activeReservations.filter((reservation) =>
     reservation.boatId === data.boat.id && isSameDay(reservation.startAt, todayIso),
   );
+  const myOverdueReservation = myReservations
+    .filter((reservation) => {
+      const status = getReservationSessionStatus(reservation, data);
+      return (
+        isSameDay(reservation.startAt, todayIso) &&
+        new Date(reservation.endAt).getTime() < now.getTime() &&
+        status !== "closed"
+      );
+    })
+    .sort(
+      (a, b) =>
+        new Date(b.endAt).getTime() - new Date(a.endAt).getTime(),
+    )[0];
+  const myCurrentReservation = myTodaysReservations
+    .filter(
+      (reservation) =>
+        new Date(reservation.startAt).getTime() <= now.getTime() &&
+        new Date(reservation.endAt).getTime() >= now.getTime(),
+    )
+    .sort(
+      (a, b) =>
+        new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
+    )[0];
+  const completedTodayReservation = myTodaysReservations
+    .filter(
+      (reservation) =>
+        getReservationSessionStatus(reservation, data) === "closed" &&
+        new Date(reservation.endAt).getTime() < now.getTime(),
+    )
+    .sort(
+      (a, b) =>
+        new Date(b.endAt).getTime() - new Date(a.endAt).getTime(),
+    )[0];
   const primaryReservation =
-    myActiveReservation ?? myTodaysReservations[0] ?? myNextReservation;
+    myActiveReservation ??
+    myCurrentReservation ??
+    myOverdueReservation ??
+    myTodaysReservations.find(
+      (reservation) => new Date(reservation.startAt).getTime() >= now.getTime(),
+    ) ??
+    myNextReservation;
   const primaryReservationId = primaryReservation?.id;
   const primaryReservationIsToday = primaryReservation
     ? isSameDay(primaryReservation.startAt, todayIso)
@@ -248,6 +292,8 @@ export default function HomePage() {
           ? "利用時間を過ぎています"
           : "今日の予約を進めます"
         : "次回予約があります"
+      : completedTodayReservation
+        ? "直近の利用は完了済みです"
       : selectedBoatIsFreeToday
         ? "本日は空きがあります"
         : "本日の利用状況を確認できます";
@@ -257,6 +303,8 @@ export default function HomePage() {
       ? primaryReservationIsToday && primaryReservationEnded
         ? `${boats.find((boat) => boat.id === primaryReservation.boatId)?.name ?? data.boat.name} / ${formatTime(primaryReservation.endAt)}終了予定でした。帰港後チェックや予約の完了状況を確認してください。`
         : `${boats.find((boat) => boat.id === primaryReservation.boatId)?.name ?? data.boat.name} / ${formatDate(primaryReservation.startAt)} ${formatTime(primaryReservation.startAt)} / ${primaryReservation.destinationArea}`
+      : completedTodayReservation
+        ? `${boats.find((boat) => boat.id === completedTodayReservation.boatId)?.name ?? data.boat.name} / ${formatTime(completedTodayReservation.endAt)}に完了しています。必要に応じて航海履歴を確認できます。`
       : selectedBoatIsFreeToday
         ? `${data.boat.name}は本日予約がありません。空きがあれば予約登録から利用予定を作れます。`
         : `${data.boat.name}は本日${todaysReservations.length}件の予約があります。直近は${todaysSelectedBoatUpcomingReservations[0] ? `${formatTime(todaysSelectedBoatUpcomingReservations[0].startAt)}開始` : "すべて終了済み"}です。`;
@@ -480,11 +528,19 @@ export default function HomePage() {
               ) : (
                 <div className="grid gap-2 sm:grid-cols-2">
                   <Link
-                    href="/reservations#new"
+                    href={completedTodayReservation ? "/my-log" : "/reservations#new"}
                     className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
                   >
-                    <CalendarDays size={18} aria-hidden="true" />
-                    {selectedBoatIsFreeToday ? "本日の予約を登録" : "予約を登録"}
+                    {completedTodayReservation ? (
+                      <Navigation size={18} aria-hidden="true" />
+                    ) : (
+                      <CalendarDays size={18} aria-hidden="true" />
+                    )}
+                    {completedTodayReservation
+                      ? "航海履歴を見る"
+                      : selectedBoatIsFreeToday
+                        ? "本日の予約を登録"
+                        : "予約を登録"}
                   </Link>
                   <Link
                     href="/reservations"
@@ -583,6 +639,35 @@ export default function HomePage() {
           </Section>
         ) : null}
 
+        {latestMyVoyage ? (
+          <Section title="最近の航海">
+            <Link
+              href={`/voyages?reservationId=${latestMyVoyage.reservationId}`}
+              className="block"
+            >
+              <Card>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-black text-blue-950">
+                      最近の航海を確認
+                    </p>
+                    <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">
+                      距離{" "}
+                      {latestMyVoyage.navigationSummary?.totalDistanceKm.toFixed(1) ??
+                        latestMyVoyage.distanceKm?.toFixed(1) ??
+                        "-"}
+                      km / 記録点{latestMyVoyage.trackPoints.length}件
+                    </p>
+                  </div>
+                  <Badge className={voyageStatusTone[latestMyVoyage.status]}>
+                    {voyageStatusLabels[latestMyVoyage.status]}
+                  </Badge>
+                </div>
+              </Card>
+            </Link>
+          </Section>
+        ) : null}
+
         <Section title="運行状況">
           <div className="space-y-3">
             {boats.map((boat) => {
@@ -602,7 +687,7 @@ export default function HomePage() {
               );
 
               const boatNextReservation = findNextReservation(
-                data.reservations.filter(
+                  activeReservations.filter(
                   (reservation) => reservation.boatId === boat.id,
                 ),
               );

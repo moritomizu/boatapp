@@ -7,6 +7,10 @@ const boatNameCollator = new Intl.Collator("ja-JP", {
 
 export function sortBoatsByDisplayName(boats: Boat[]) {
   return [...boats].sort((a, b) => {
+    const orderA = a.displayOrder ?? Number.POSITIVE_INFINITY;
+    const orderB = b.displayOrder ?? Number.POSITIVE_INFINITY;
+    if (orderA !== orderB) return orderA - orderB;
+
     const byName = boatNameCollator.compare(a.name, b.name);
     if (byName !== 0) return byName;
 
