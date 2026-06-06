@@ -106,7 +106,36 @@ export type TrackPoint = {
   latitude: number;
   longitude: number;
   accuracy?: number;
+  speed?: number;
+  speedKmh?: number;
+  heading?: number;
+  altitude?: number;
+  lowAccuracy?: boolean;
   capturedAt: string;
+};
+
+export type StopCandidate = {
+  id: string;
+  latitude: number;
+  longitude: number;
+  startedAt: string;
+  endedAt: string;
+  durationMinutes: number;
+  pointCount: number;
+};
+
+export type NavigationSummary = {
+  startedAt?: string;
+  endedAt?: string;
+  durationMinutes: number;
+  totalDistanceKm: number;
+  movingTimeMinutes: number;
+  stoppedTimeMinutes: number;
+  averageSpeedKmh: number;
+  maxSpeedKmh: number;
+  trackPointCount: number;
+  departurePoint?: TrackPoint;
+  returnPoint?: TrackPoint;
 };
 
 export type TargetFish =
@@ -403,6 +432,8 @@ export type VoyageLog = {
   durationMinutes?: number;
   distanceKm?: number;
   trackPoints: TrackPoint[];
+  navigationSummary?: NavigationSummary;
+  stopCandidates?: StopCandidate[];
   passengerCount: number;
   memo: string;
   reviewStatus?: VoyageReviewStatus;

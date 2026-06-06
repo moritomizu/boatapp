@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { TrackPoint } from "@/types/domain";
+import type { StopCandidate, TrackPoint } from "@/types/domain";
 
 type GoogleLatLngLiteral = {
   lat: number;
@@ -80,7 +80,13 @@ function loadGoogleMaps(apiKey: string) {
   return window.__tapiyotaGoogleMapsPromise;
 }
 
-export function VoyageMap({ points }: { points: TrackPoint[] }) {
+export function VoyageMap({
+  points,
+  stopCandidates = [],
+}: {
+  points: TrackPoint[];
+  stopCandidates?: StopCandidate[];
+}) {
   const mapRef = useRef<HTMLDivElement>(null);
   const [loadError, setLoadError] = useState(false);
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
@@ -140,6 +146,18 @@ export function VoyageMap({ points }: { points: TrackPoint[] }) {
             label: "帰",
           });
         }
+
+        stopCandidates.forEach((candidate, index) => {
+          new maps.Marker({
+            position: {
+              lat: candidate.latitude,
+              lng: candidate.longitude,
+            },
+            map,
+            title: `停船候補 ${candidate.durationMinutes}分`,
+            label: `${index + 1}`,
+          });
+        });
       })
       .catch(() => {
         setLoadError(true);
@@ -148,7 +166,7 @@ export function VoyageMap({ points }: { points: TrackPoint[] }) {
     return () => {
       cancelled = true;
     };
-  }, [apiKey, points]);
+  }, [apiKey, points, stopCandidates]);
 
   return (
     <div className="overflow-hidden rounded-lg border border-sky-100 bg-slate-100">

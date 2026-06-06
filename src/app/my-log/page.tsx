@@ -9,7 +9,10 @@ import { useClientAppData } from "@/lib/client-store";
 import { getInitialAppData } from "@/lib/data-source";
 import { targetFishLabels, voyageStatusLabels, voyageStatusTone } from "@/lib/labels";
 import { formatDate, formatTime } from "@/lib/reservations";
-import { formatDuration } from "@/lib/voyages";
+import {
+  calculateNavigationSummary,
+  formatDuration,
+} from "@/lib/voyages";
 
 export default function MyLogPage() {
   const initialData = getInitialAppData();
@@ -71,6 +74,13 @@ export default function MyLogPage() {
                 (item) => item.id === voyage.reservationId,
               );
               const boat = findBoat(data, voyage.boatId);
+              const summary =
+                voyage.navigationSummary ??
+                calculateNavigationSummary(
+                  voyage.trackPoints,
+                  voyage.departedAt,
+                  voyage.returnedAt,
+                );
 
               return (
                 <Card key={voyage.id}>
@@ -110,9 +120,27 @@ export default function MyLogPage() {
                     <div className="rounded-lg bg-slate-50 p-3">
                       <p className="text-xs font-bold text-slate-500">距離</p>
                       <p className="mt-1 font-black text-slate-950">
-                        {voyage.distanceKm !== undefined
-                          ? `${voyage.distanceKm.toFixed(1)}km`
-                          : "-"}
+                        {summary.totalDistanceKm.toFixed(1)}km
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 p-3">
+                      <p className="text-xs font-bold text-slate-500">平均速度</p>
+                      <p className="mt-1 font-black text-slate-950">
+                        {summary.averageSpeedKmh.toFixed(1)}km/h
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 p-3">
+                      <p className="text-xs font-bold text-slate-500">最高速度</p>
+                      <p className="mt-1 font-black text-slate-950">
+                        {summary.maxSpeedKmh.toFixed(1)}km/h
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 p-3">
+                      <p className="text-xs font-bold text-slate-500">航跡</p>
+                      <p className="mt-1 font-black text-slate-950">
+                        {summary.trackPointCount > 1
+                          ? `${summary.trackPointCount}点`
+                          : "なし"}
                       </p>
                     </div>
                   </div>

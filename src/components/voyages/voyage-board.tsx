@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Anchor,
   CheckCircle2,
+  Clock,
   LifeBuoy,
   MapPin,
   Navigation,
@@ -33,8 +34,12 @@ import {
   calculateDistanceKm,
   calculateDurationMinutes,
   calculateMaxSpeedKmh,
+  calculateNavigationSummary,
+  detectStopCandidates,
+  enrichTrackPointSpeed,
   createVoyageLog,
   formatDuration,
+  shouldRecordTrackPoint,
 } from "@/lib/voyages";
 import type {
   AppData,
@@ -49,6 +54,8 @@ type VoyageBoardProps = {
 };
 
 const nowIso = () => new Date().toISOString();
+const autoRecordIntervalMs = 10000;
+const minimumRecordDistanceMeters = 12;
 
 function getPosition() {
   return new Promise<TrackPoint>((resolve, reject) => {
@@ -59,15 +66,21 @@ function getPosition() {
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        const speed = position.coords.speed ?? undefined;
         resolve({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
           accuracy: position.coords.accuracy,
-          capturedAt: nowIso(),
+          speed,
+          speedKmh: speed !== undefined ? Number((speed * 3.6).toFixed(1)) : undefined,
+          heading: position.coords.heading ?? undefined,
+          altitude: position.coords.altitude ?? undefined,
+          lowAccuracy: position.coords.accuracy > 80,
+          capturedAt: new Date(position.timestamp || Date.now()).toISOString(),
         });
       },
       reject,
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 15000 },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 },
     );
   });
 }
@@ -90,6 +103,7 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
   const [reviewState, setReviewState] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
+  const autoRecordInFlight = useRef(false);
 
   const selectedReservation = appData.reservations.find(
     (reservation) => reservation.id === selectedReservationId,
@@ -99,6 +113,14 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
   );
   const activeVoyageUser = activeVoyage
     ? appData.users.find((user) => user.id === activeVoyage.userId)
+    : undefined;
+  const activeSummary = activeVoyage
+    ? activeVoyage.navigationSummary ??
+      calculateNavigationSummary(
+        activeVoyage.trackPoints,
+        activeVoyage.departedAt,
+        undefined,
+      )
     : undefined;
   const canOperateActiveVoyage = activeVoyage
     ? activeVoyage.userId === appData.currentUser.id ||
@@ -127,14 +149,27 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
     ? voyageReservation(detailVoyage)
     : undefined;
   const averageSpeedKmh = detailVoyage
-    ? calculateAverageSpeedKmh(
-        detailVoyage.distanceKm,
-        detailVoyage.durationMinutes,
-      )
+    ? detailVoyage.navigationSummary?.averageSpeedKmh ??
+      calculateAverageSpeedKmh(
+          detailVoyage.distanceKm,
+          detailVoyage.durationMinutes,
+        )
     : 0;
   const maxSpeedKmh = detailVoyage
-    ? calculateMaxSpeedKmh(detailVoyage.trackPoints)
+    ? detailVoyage.navigationSummary?.maxSpeedKmh ??
+      calculateMaxSpeedKmh(detailVoyage.trackPoints)
     : 0;
+  const detailSummary = detailVoyage
+    ? detailVoyage.navigationSummary ??
+      calculateNavigationSummary(
+        detailVoyage.trackPoints,
+        detailVoyage.departedAt,
+        detailVoyage.returnedAt,
+      )
+    : undefined;
+  const detailStopCandidates = detailVoyage
+    ? detailVoyage.stopCandidates ?? detectStopCandidates(detailVoyage.trackPoints)
+    : [];
   const canReview =
     appData.currentUser.role === "admin" || appData.currentUser.role === "owner";
   const skillSummary = useMemo(() => {
@@ -157,13 +192,78 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
     };
   }, [appData.voyageLogs]);
 
+  useEffect(() => {
+    if (!activeVoyage || !canOperateActiveVoyage) return;
+    const activeVoyageId = activeVoyage.id;
+
+    async function recordAutomatically() {
+      if (autoRecordInFlight.current) return;
+      autoRecordInFlight.current = true;
+
+      try {
+        const rawPoint = await getPosition();
+        let didSave = false;
+        await updateClientAppData(
+          (current) => {
+            const target = current.voyageLogs.find(
+              (voyage) => voyage.id === activeVoyageId && voyage.status === "underway",
+            );
+            if (!target) return current;
+
+            const point = enrichTrackPointSpeed(target.trackPoints, rawPoint);
+            if (
+              !shouldRecordTrackPoint(target.trackPoints, point, {
+                minDistanceMeters: minimumRecordDistanceMeters,
+              })
+            ) {
+              return current;
+            }
+
+            didSave = true;
+
+            return {
+              ...current,
+              voyageLogs: current.voyageLogs.map((voyage) =>
+                voyage.id === target.id
+                  ? {
+                      ...voyage,
+                      trackPoints: [...target.trackPoints, point],
+                      updatedAt: point.capturedAt,
+                    }
+                  : voyage,
+              ),
+            };
+          },
+          appData,
+        );
+        setLocationMessage(
+          didSave
+            ? "航行ログを自動記録しました。"
+            : "航行ログを記録中です。移動距離が小さいため今回の地点は集約しました。",
+        );
+      } catch {
+        setLocationMessage(
+          "GPSが不安定です。通信状態、位置情報許可、省電力モードを確認してください。",
+        );
+      } finally {
+        autoRecordInFlight.current = false;
+      }
+    }
+
+    const timer = window.setInterval(() => {
+      void recordAutomatically();
+    }, autoRecordIntervalMs);
+
+    return () => window.clearInterval(timer);
+  }, [activeVoyage, appData, canOperateActiveVoyage]);
+
   async function startVoyage() {
     if (!selectedReservation || !canStartSelectedVoyage || actionState === "saving") return;
     setActionState("saving");
     setLocationMessage("現在地を取得しています...");
 
     try {
-      const point = await getPosition();
+      const point = enrichTrackPointSpeed([], await getPosition());
       const voyage = createVoyageLog({
         organizationId: appData.organization.id,
         boatId: appData.boat.id,
@@ -172,6 +272,8 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
         status: "underway",
         departedAt: point.capturedAt,
         trackPoints: [point],
+        navigationSummary: calculateNavigationSummary([point], point.capturedAt),
+        stopCandidates: [],
         passengerCount: selectedReservation.passengerCount,
         memo,
       });
@@ -202,12 +304,16 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
     setLocationMessage("現在地を記録しています...");
 
     try {
-      const point = await getPosition();
+      const point = enrichTrackPointSpeed(activeVoyage.trackPoints, await getPosition());
       const nextVoyages = appData.voyageLogs.map((voyage) =>
         voyage.id === activeVoyage.id
           ? {
               ...voyage,
               trackPoints: [...voyage.trackPoints, point],
+              navigationSummary: calculateNavigationSummary(
+                [...voyage.trackPoints, point],
+                voyage.departedAt,
+              ),
               updatedAt: point.capturedAt,
             }
           : voyage,
@@ -231,7 +337,7 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
     setLocationMessage("帰港位置を記録しています...");
 
     try {
-      const point = await getPosition();
+      const point = enrichTrackPointSpeed(activeVoyage.trackPoints, await getPosition());
       const returnedAt = point.capturedAt;
       const trackPoints = [...activeVoyage.trackPoints, point];
       const durationMinutes = calculateDurationMinutes(
@@ -239,6 +345,12 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
         returnedAt,
       );
       const distanceKm = Number(calculateDistanceKm(trackPoints).toFixed(1));
+      const navigationSummary = calculateNavigationSummary(
+        trackPoints,
+        activeVoyage.departedAt,
+        returnedAt,
+      );
+      const stopCandidates = detectStopCandidates(trackPoints);
       const nextVoyages = appData.voyageLogs.map((voyage) =>
         voyage.id === activeVoyage.id
           ? {
@@ -248,6 +360,8 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
               durationMinutes,
               distanceKm,
               trackPoints,
+              navigationSummary,
+              stopCandidates,
               memo: memo || voyage.memo,
               updatedAt: returnedAt,
             }
@@ -317,7 +431,10 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
           出船セッション
         </h1>
         <p className="text-sm leading-6 text-slate-600">
-          出船開始から帰港までを記録し、利用時間・航行距離・経験値を残します。
+          出船開始から帰港までGPS航跡を記録し、距離・時間・速度を後から振り返れます。
+        </p>
+        <p className="rounded-lg bg-amber-50 p-3 text-sm font-bold leading-6 text-amber-900">
+          航行中はできるだけBoatOSを開いたままにしてください。省電力モードや画面ロック中は端末によって記録が途切れる場合があります。
         </p>
       </div>
 
@@ -367,6 +484,36 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
                     {activeVoyage.trackPoints.length}件
                   </p>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="rounded-lg bg-slate-50 p-3">
+                  <p className="text-xs font-bold text-slate-500">記録間隔</p>
+                  <p className="mt-1 font-black text-slate-950">10秒</p>
+                </div>
+                <div className="rounded-lg bg-slate-50 p-3">
+                  <p className="text-xs font-bold text-slate-500">距離</p>
+                  <p className="mt-1 font-black text-slate-950">
+                    {activeSummary?.totalDistanceKm.toFixed(1) ?? "0.0"}km
+                  </p>
+                </div>
+                <div className="rounded-lg bg-slate-50 p-3">
+                  <p className="text-xs font-bold text-slate-500">最大速度</p>
+                  <p className="mt-1 font-black text-slate-950">
+                    {activeSummary?.maxSpeedKmh.toFixed(1) ?? "0.0"}km/h
+                  </p>
+                </div>
+                <div className="rounded-lg bg-slate-50 p-3">
+                  <p className="text-xs font-bold text-slate-500">GPS精度</p>
+                  <p className="mt-1 font-black text-slate-950">
+                    {activeVoyage.trackPoints.at(-1)?.lowAccuracy ? "低め" : "記録中"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2 rounded-lg bg-blue-50 p-3 text-sm font-bold leading-6 text-blue-900">
+                <Clock className="mt-0.5 shrink-0" size={18} aria-hidden="true" />
+                GPSを10秒ごとに確認し、約12m以上移動した地点を航跡として保存します。
               </div>
 
               <label className="block">
@@ -634,7 +781,10 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
                 </p>
               </div>
 
-              <VoyageMap points={detailVoyage.trackPoints} />
+              <VoyageMap
+                points={detailVoyage.trackPoints}
+                stopCandidates={detailStopCandidates}
+              />
 
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <div className="rounded-lg bg-slate-50 p-3">
@@ -663,7 +813,53 @@ export function VoyageBoard({ data, initialReservationId }: VoyageBoardProps) {
                     {maxSpeedKmh.toFixed(1)}km/h
                   </p>
                 </div>
+                <div className="rounded-lg bg-slate-50 p-3">
+                  <p className="text-xs font-bold text-slate-500">移動時間</p>
+                  <p className="mt-1 font-black text-slate-950">
+                    {formatDuration(detailSummary?.movingTimeMinutes)}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-slate-50 p-3">
+                  <p className="text-xs font-bold text-slate-500">停船時間</p>
+                  <p className="mt-1 font-black text-slate-950">
+                    {formatDuration(detailSummary?.stoppedTimeMinutes)}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-slate-50 p-3">
+                  <p className="text-xs font-bold text-slate-500">停船候補</p>
+                  <p className="mt-1 font-black text-slate-950">
+                    {detailStopCandidates.length}件
+                  </p>
+                </div>
+                <div className="rounded-lg bg-slate-50 p-3">
+                  <p className="text-xs font-bold text-slate-500">記録点</p>
+                  <p className="mt-1 font-black text-slate-950">
+                    {detailVoyage.trackPoints.length}件
+                  </p>
+                </div>
               </div>
+
+              {detailStopCandidates.length > 0 ? (
+                <div className="space-y-2 rounded-lg bg-amber-50 p-3">
+                  <p className="text-sm font-black text-amber-950">
+                    停船候補
+                  </p>
+                  {detailStopCandidates.map((candidate, index) => (
+                    <div
+                      key={candidate.id}
+                      className="rounded-lg bg-white p-3 text-sm font-semibold leading-6 text-slate-700"
+                    >
+                      <span className="font-black text-amber-900">
+                        #{index + 1}
+                      </span>{" "}
+                      {formatTime(candidate.startedAt)} -{" "}
+                      {formatTime(candidate.endedAt)} /{" "}
+                      {formatDuration(candidate.durationMinutes)} / 記録点
+                      {candidate.pointCount}件
+                    </div>
+                  ))}
+                </div>
+              ) : null}
 
               <div className="space-y-2 rounded-lg bg-slate-50 p-3">
                 <p className="text-sm font-black text-slate-900">記録点</p>
