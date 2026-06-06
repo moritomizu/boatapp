@@ -156,12 +156,12 @@ export default function LoginPage() {
     <main className="min-h-screen bg-[linear-gradient(180deg,#e0f2fe_0%,#ffffff_52%,#f8fafc_100%)] px-4 py-6 text-slate-950">
       <div className="mx-auto flex min-h-[calc(100vh-48px)] w-full max-w-md flex-col justify-center gap-8">
         <div className="space-y-4">
-          <div className="relative size-20 overflow-hidden rounded-full shadow-lg shadow-blue-900/20 ring-1 ring-slate-900/10">
+          <div className="relative size-14 overflow-hidden rounded-full shadow-lg shadow-blue-900/20 ring-1 ring-slate-900/10">
             <Image
               src="/boat_os_logo.png"
               alt="Boat OS"
-              width={80}
-              height={80}
+              width={56}
+              height={56}
               className="h-full w-full object-cover"
               priority
             />
@@ -174,7 +174,7 @@ export default function LoginPage() {
               TaPiYoTa Grand Boat Club
             </h1>
             <p className="mt-3 text-base leading-7 text-slate-600">
-              共同保有艇を安全に運用するためのログイン画面です。
+              共同保有艇を安全に運用するためのクラブ運営OSです。
             </p>
           </div>
         </div>
@@ -202,6 +202,23 @@ export default function LoginPage() {
             >
               新規会員登録
             </button>
+          </div>
+          <div className="rounded-lg bg-sky-50 p-3 text-sm font-bold leading-6 text-blue-900">
+            {authMode === "login" ? (
+              <>
+                <p>すでにアカウントをお持ちの方</p>
+                <p className="mt-1 font-semibold text-blue-800">
+                  メールアドレス、またはGoogleアカウントでログインしてください。
+                </p>
+              </>
+            ) : (
+              <>
+                <p>メンバーとして参加したい方</p>
+                <p className="mt-1 font-semibold text-blue-800">
+                  まずはアカウントを作成し、所属クラブへの参加申請を行います。
+                </p>
+              </>
+            )}
           </div>
           {authMode === "signup" ? (
             <label className="block">
@@ -255,6 +272,11 @@ export default function LoginPage() {
                 ? "会員登録する"
                 : "ログイン"}
           </button>
+          {authMode === "signup" ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-bold leading-6 text-amber-900">
+              新規登録しただけでは、すべての船や予約機能は利用できません。管理者の承認後、利用できる船や機能が表示されます。
+            </div>
+          ) : null}
           <button
             type="button"
             onClick={handleGoogleLogin}
@@ -269,6 +291,14 @@ export default function LoginPage() {
           <p className="rounded-lg bg-sky-50 px-3 py-3 text-sm leading-6 text-blue-900">
             {message}
           </p>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-700">
+            <p className="font-black text-slate-900">
+              自分の船やクラブでBoat OSを使いたい方
+            </p>
+            <p className="mt-1 font-semibold">
+              共同保有艇、ボートクラブ、遊漁船事業での導入相談は、管理者までお問い合わせください。
+            </p>
+          </div>
         </form>
 
         <Link
