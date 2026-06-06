@@ -241,6 +241,7 @@ export const mockData: AppData = {
       updatedAt: "2026-06-01T00:00:00.000+09:00",
     },
   ],
+  membershipApplications: [],
   memberBoatPermissions: [
     {
       id: "perm-admin-tapiyota",

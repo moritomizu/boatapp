@@ -24,6 +24,7 @@ import { getInitialAppData } from "@/lib/data-source";
 import { firebaseAuth } from "@/lib/firebase";
 import { canUseBoat, getBoats } from "@/lib/boat-utils";
 import { getReservationSessionStatus } from "@/lib/reservations";
+import { hasActiveMembership } from "@/lib/membership";
 
 const navItems = [
   { href: "/home", label: "ホーム", icon: Home },
@@ -45,6 +46,13 @@ const isSameDateKey = (value: string) => {
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const data = useClientAppData(getInitialAppData());
+  const membershipActive = hasActiveMembership(data);
+  const membershipAllowedPath =
+    pathname === "/apply" ||
+    pathname === "/pending" ||
+    pathname === "/profile" ||
+    pathname === "/login" ||
+    pathname.startsWith("/join");
   const boats = getBoats(data);
   const usableBoats = boats.filter((boat) => canUseBoat(data, data.currentUser, boat));
   const activeVoyage = data.voyageLogs.find(
@@ -244,7 +252,34 @@ export function AppShell({ children }: { children: ReactNode }) {
       </header>
 
       <main className="mx-auto w-full max-w-5xl px-4 pb-28 pt-5">
-        {children}
+        {!membershipActive && !membershipAllowedPath ? (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-950">
+              <p className="text-lg font-black">
+                管理者の承認後に利用できます
+              </p>
+              <p className="mt-2 text-sm font-bold leading-6">
+                予約、出船チェック、航海ログ、サポート要請などの機能は、所属クラブへの参加申請と管理者承認後に表示されます。
+              </p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Link
+                href="/pending"
+                className="flex min-h-12 items-center justify-center rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
+              >
+                承認状況を見る
+              </Link>
+              <Link
+                href="/apply"
+                className="flex min-h-12 items-center justify-center rounded-lg border border-sky-200 bg-white px-4 text-sm font-black text-blue-900"
+              >
+                参加申請へ
+              </Link>
+            </div>
+          </div>
+        ) : (
+          children
+        )}
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-sky-100 bg-white/95 shadow-[0_-8px_28px_rgba(15,23,42,0.08)] backdrop-blur md:hidden">

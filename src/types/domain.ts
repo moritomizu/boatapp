@@ -80,6 +80,32 @@ export type OrganizationInviteStatus =
   | "expired"
   | "revoked";
 
+export type MembershipApplicationType =
+  | "member"
+  | "invite"
+  | "boat_owner"
+  | "boatos_adoption"
+  | "inquiry";
+
+export type MembershipApplicationStatus =
+  | "pending"
+  | "reviewing"
+  | "additional_info_required"
+  | "approved"
+  | "rejected"
+  | "on_hold";
+
+export type PermissionTemplate =
+  | "trainee"
+  | "light_member"
+  | "standard_member"
+  | "advanced_member"
+  | "owner"
+  | "supporter"
+  | "custom";
+
+export type LicenseType = "first_class" | "second_class" | "special" | "none";
+
 export type BoatSkillLevel =
   | "trainee"
   | "beginner"
@@ -264,6 +290,74 @@ export type MemberBoatPermission = {
   notes: string;
   createdAt: string;
   updatedAt: string;
+};
+
+export type MembershipApplication = {
+  id: string;
+  userId: string;
+  organizationId?: string;
+  applicationType: MembershipApplicationType;
+  status: MembershipApplicationStatus;
+  inviteCode?: string;
+  profile: {
+    name: string;
+    email: string;
+    phone?: string;
+    birthDate?: string;
+    emergencyContact?: string;
+    area?: string;
+  };
+  licenseInfo?: {
+    hasLicense: boolean;
+    licenseType?: LicenseType;
+    acquiredYear?: number;
+  };
+  experienceInfo?: {
+    boatingExperience?: string;
+    nightNavigationExperience?: boolean;
+    dockingExperience?: boolean;
+    previousBoatTypes?: string[];
+  };
+  usageIntent?: {
+    purposes?: string[];
+    desiredFrequency?: "monthly_1" | "monthly_2" | "monthly_3_plus";
+    wantsSoloNavigation?: boolean;
+    wantsNightUse?: boolean;
+    wantsGuestUse?: boolean;
+    wantsEventUse?: boolean;
+  };
+  boatOwnerInfo?: {
+    boatName?: string;
+    boatType?: string;
+    size?: string;
+    makerModel?: string;
+    engineType?: string;
+    capacity?: number;
+    inspectionStatus?: string;
+    insuranceStatus?: string;
+    banStatus?: string;
+    homePort?: string;
+    currentUsageFrequency?: string;
+  };
+  adoptionInfo?: {
+    organizationName?: string;
+    businessType?: string;
+    boatCount?: number;
+    currentManagementTools?: string[];
+    painPoints?: string;
+  };
+  message?: string;
+  referrer?: string;
+  adminMemo?: string;
+  adminMessage?: string;
+  rejectionReason?: string;
+  approvedRole?: UserRole;
+  permissionTemplate?: PermissionTemplate;
+  approvedBoatIds?: string[];
+  createdAt: string;
+  updatedAt: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
 };
 
 export type Reservation = {
@@ -530,6 +624,7 @@ export type AppData = {
   organizationMembers: OrganizationMember[];
   organizationRules: OrganizationRule[];
   organizationInvites: OrganizationInvite[];
+  membershipApplications: MembershipApplication[];
   memberBoatPermissions: MemberBoatPermission[];
   reservations: Reservation[];
   joinRequests: JoinRequest[];

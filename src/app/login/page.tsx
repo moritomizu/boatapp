@@ -91,7 +91,7 @@ export default function LoginPage() {
 
       resetClientAppData();
       setMessage(authMode === "signup" ? "会員登録しました。" : "ログインしました。");
-      router.push("/home");
+      router.push(authMode === "signup" ? "/apply" : "/home");
     } catch (error) {
       setMessage(
         error instanceof Error && error.message
@@ -298,6 +298,12 @@ export default function LoginPage() {
             <p className="mt-1 font-semibold">
               共同保有艇、ボートクラブ、遊漁船事業での導入相談は、管理者までお問い合わせください。
             </p>
+            <Link
+              href="/apply"
+              className="mt-3 flex min-h-11 items-center justify-center rounded-lg bg-white px-4 text-sm font-black text-blue-900 ring-1 ring-sky-100"
+            >
+              参加申請・導入相談へ
+            </Link>
           </div>
         </form>
 

@@ -17,8 +17,21 @@ import { getBoats } from "@/lib/boat-utils";
 import { updateClientAppData, useClientAppData } from "@/lib/client-store";
 import { getInitialAppData } from "@/lib/data-source";
 import { roleLabels } from "@/lib/labels";
+import {
+  applicationStatusLabels,
+  applicationTypeLabels,
+  createBoatPermissionsForApplication,
+  permissionTemplateLabels,
+  templateDefaults,
+} from "@/lib/membership";
 import { getOrganizationRule } from "@/lib/usage-history";
-import type { OrganizationInvite, OrganizationRule, UserRole } from "@/types/domain";
+import type {
+  MembershipApplication,
+  OrganizationInvite,
+  OrganizationRule,
+  PermissionTemplate,
+  UserRole,
+} from "@/types/domain";
 
 const inviteStatuses = {
   pending: "未参加",
@@ -72,6 +85,16 @@ export default function OrganizationPage() {
       .toISOString()
       .slice(0, 10),
   }));
+  const [applicationForm, setApplicationForm] = useState({
+    applicationId: "",
+    status: "reviewing" as MembershipApplication["status"],
+    adminMessage: "",
+    rejectionReason: "",
+    adminMemo: "",
+    template: "standard_member" as PermissionTemplate,
+    role: "member" as UserRole,
+    boatIds: boats.map((boat) => boat.id),
+  });
 
   const activeMembers = data.organizationMembers.filter(
     (member) => member.organizationId === data.organization.id && member.isActive,
@@ -185,6 +208,139 @@ export default function OrganizationPage() {
     const url = `${inviteUrlBase}${code}`;
     await navigator.clipboard?.writeText(url);
     setCopyMessage("招待URLをコピーしました。");
+  }
+
+  function selectApplication(application: MembershipApplication) {
+    const template = application.permissionTemplate ?? "standard_member";
+    setApplicationForm({
+      applicationId: application.id,
+      status: application.status === "pending" ? "reviewing" : application.status,
+      adminMessage: application.adminMessage ?? "",
+      rejectionReason: application.rejectionReason ?? "",
+      adminMemo: application.adminMemo ?? "",
+      template,
+      role: application.approvedRole ?? templateDefaults(template).role,
+      boatIds: application.approvedBoatIds ?? boats.map((boat) => boat.id),
+    });
+  }
+
+  async function saveApplicationDecision(application: MembershipApplication) {
+    if (data.currentUser.role !== "admin" || saveState === "saving") return;
+    setSaveState("saving");
+    const now = new Date().toISOString();
+    const approving = applicationForm.status === "approved";
+    const selectedBoatIds = applicationForm.boatIds;
+    const role = applicationForm.role;
+    const nextApplication: MembershipApplication = {
+      ...application,
+      status: applicationForm.status,
+      adminMessage: applicationForm.adminMessage,
+      rejectionReason: applicationForm.rejectionReason,
+      adminMemo: applicationForm.adminMemo,
+      approvedRole: approving ? role : application.approvedRole,
+      permissionTemplate: applicationForm.template,
+      approvedBoatIds: approving ? selectedBoatIds : application.approvedBoatIds,
+      reviewedAt: now,
+      reviewedBy: data.currentUser.id,
+      updatedAt: now,
+    };
+
+    try {
+      await updateClientAppData(
+        (current) => {
+          const userExists = current.users.some(
+            (user) =>
+              user.id === application.userId ||
+              user.email === application.profile.email,
+          );
+          const nextUser = {
+            id: application.userId,
+            organizationId: application.organizationId ?? current.organization.id,
+            name: application.profile.name,
+            email: application.profile.email,
+            phone: application.profile.phone,
+            emergencyContact: application.profile.emergencyContact,
+            role,
+            canSolo: templateDefaults(applicationForm.template).canSolo,
+            canNightUse: templateDefaults(applicationForm.template).canNightUse,
+            notes: application.message ?? "",
+            createdAt: application.createdAt,
+          };
+          const memberExists = current.organizationMembers.some(
+            (member) =>
+              member.organizationId === current.organization.id &&
+              member.userId === application.userId,
+          );
+          const permissionIds = new Set(
+            current.memberBoatPermissions
+              .filter((permission) => permission.userId === application.userId)
+              .map((permission) => permission.boatId),
+          );
+          const newPermissions = approving
+            ? createBoatPermissionsForApplication(
+                current,
+                nextApplication,
+                applicationForm.template,
+                selectedBoatIds.filter((boatId) => !permissionIds.has(boatId)),
+              )
+            : [];
+
+          return {
+            ...current,
+            membershipApplications: current.membershipApplications.map((item) =>
+              item.id === application.id ? nextApplication : item,
+            ),
+            users: approving
+              ? userExists
+                ? current.users.map((user) =>
+                    user.id === application.userId ||
+                    user.email === application.profile.email
+                      ? { ...user, ...nextUser, id: user.id }
+                      : user,
+                  )
+                : [nextUser, ...current.users]
+              : current.users,
+            organizationMembers: approving
+              ? memberExists
+                ? current.organizationMembers.map((member) =>
+                    member.organizationId === current.organization.id &&
+                    member.userId === application.userId
+                      ? {
+                          ...member,
+                          role,
+                          displayName: application.profile.name,
+                          email: application.profile.email,
+                          isActive: true,
+                          updatedAt: now,
+                        }
+                      : member,
+                  )
+                : [
+                    {
+                      id: `org-member-${crypto.randomUUID()}`,
+                      organizationId: current.organization.id,
+                      userId: application.userId,
+                      role,
+                      displayName: application.profile.name,
+                      email: application.profile.email,
+                      isActive: true,
+                      createdAt: now,
+                      updatedAt: now,
+                    },
+                    ...current.organizationMembers,
+                  ]
+              : current.organizationMembers,
+            memberBoatPermissions: approving
+              ? [...newPermissions, ...current.memberBoatPermissions]
+              : current.memberBoatPermissions,
+          };
+        },
+        data,
+      );
+      setSaveState("saved");
+    } catch {
+      setSaveState("error");
+    }
   }
 
   return (
@@ -546,6 +702,169 @@ export default function OrganizationPage() {
               <Card>
                 <p className="text-sm font-semibold text-slate-600">
                   招待はまだありません。
+                </p>
+              </Card>
+            ) : null}
+          </div>
+        </Section>
+
+        <Section title="参加申請">
+          <div className="space-y-3">
+            {data.membershipApplications.map((application) => (
+              <Card key={application.id}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-black text-blue-950">
+                      {application.profile.name}
+                    </p>
+                    <p className="mt-1 text-sm font-bold text-slate-500">
+                      {application.profile.email} /{" "}
+                      {applicationTypeLabels[application.applicationType]}
+                    </p>
+                  </div>
+                  <Badge className="bg-amber-100 text-amber-900 ring-amber-200">
+                    {applicationStatusLabels[application.status]}
+                  </Badge>
+                </div>
+                <div className="mt-3 grid gap-2 text-sm leading-6 text-slate-700 sm:grid-cols-2">
+                  <p>免許: {application.licenseInfo?.hasLicense ? "あり" : "なし"}</p>
+                  <p>経験: {application.experienceInfo?.boatingExperience ?? "-"}</p>
+                  <p>希望頻度: {application.usageIntent?.desiredFrequency ?? "-"}</p>
+                  <p>
+                    申請日:{" "}
+                    {new Intl.DateTimeFormat("ja-JP", {
+                      dateStyle: "medium",
+                    }).format(new Date(application.createdAt))}
+                  </p>
+                </div>
+                {application.message ? (
+                  <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-700">
+                    {application.message}
+                  </p>
+                ) : null}
+                {data.currentUser.role === "admin" ? (
+                  <div className="mt-3 space-y-3 rounded-lg border border-sky-100 bg-sky-50 p-3">
+                    <button
+                      type="button"
+                      onClick={() => selectApplication(application)}
+                      className="min-h-10 rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
+                    >
+                      この申請を編集
+                    </button>
+                    {applicationForm.applicationId === application.id ? (
+                      <div className="space-y-3">
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <label className="block">
+                            <span className="text-sm font-bold text-slate-700">ステータス</span>
+                            <select
+                              value={applicationForm.status}
+                              onChange={(event) =>
+                                setApplicationForm((current) => ({
+                                  ...current,
+                                  status: event.target.value as MembershipApplication["status"],
+                                }))
+                              }
+                              className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-white px-3 text-base"
+                            >
+                              {Object.entries(applicationStatusLabels).map(([value, label]) => (
+                                <option key={value} value={value}>
+                                  {label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="block">
+                            <span className="text-sm font-bold text-slate-700">テンプレート</span>
+                            <select
+                              value={applicationForm.template}
+                              onChange={(event) => {
+                                const template = event.target.value as PermissionTemplate;
+                                setApplicationForm((current) => ({
+                                  ...current,
+                                  template,
+                                  role: templateDefaults(template).role,
+                                }));
+                              }}
+                              className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-white px-3 text-base"
+                            >
+                              {Object.entries(permissionTemplateLabels).map(([value, label]) => (
+                                <option key={value} value={value}>
+                                  {label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="block">
+                            <span className="text-sm font-bold text-slate-700">ロール</span>
+                            <select
+                              value={applicationForm.role}
+                              onChange={(event) =>
+                                setApplicationForm((current) => ({
+                                  ...current,
+                                  role: event.target.value as UserRole,
+                                }))
+                              }
+                              className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-white px-3 text-base"
+                            >
+                              {(["owner", "member"] as UserRole[]).map((role) => (
+                                <option key={role} value={role}>
+                                  {roleLabels[role]}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {boats.map((boat) => (
+                            <label key={boat.id} className="flex min-h-11 items-center gap-2 rounded-lg bg-white px-3 text-sm font-bold">
+                              <input
+                                type="checkbox"
+                                checked={applicationForm.boatIds.includes(boat.id)}
+                                onChange={(event) =>
+                                  setApplicationForm((current) => ({
+                                    ...current,
+                                    boatIds: event.target.checked
+                                      ? [...current.boatIds, boat.id]
+                                      : current.boatIds.filter((id) => id !== boat.id),
+                                  }))
+                                }
+                                className="size-5 accent-blue-800"
+                              />
+                              {boat.name}
+                            </label>
+                          ))}
+                        </div>
+                        <label className="block">
+                          <span className="text-sm font-bold text-slate-700">管理者メッセージ</span>
+                          <textarea
+                            value={applicationForm.adminMessage}
+                            onChange={(event) =>
+                              setApplicationForm((current) => ({
+                                ...current,
+                                adminMessage: event.target.value,
+                              }))
+                            }
+                            className="mt-2 min-h-20 w-full rounded-lg border border-slate-200 bg-white px-3 py-3 text-base"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => void saveApplicationDecision(application)}
+                          disabled={saveState === "saving"}
+                          className="min-h-12 w-full rounded-lg bg-blue-800 px-4 text-sm font-black text-white disabled:bg-slate-300"
+                        >
+                          申請処理を保存
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </Card>
+            ))}
+            {data.membershipApplications.length === 0 ? (
+              <Card>
+                <p className="text-sm font-semibold text-slate-600">
+                  参加申請はまだありません。
                 </p>
               </Card>
             ) : null}

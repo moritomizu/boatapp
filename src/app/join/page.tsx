@@ -7,7 +7,7 @@ import { AppShell } from "@/components/app-shell";
 import { Card, Section } from "@/components/ui";
 import { updateClientAppData, useClientAppData } from "@/lib/client-store";
 import { getInitialAppData } from "@/lib/data-source";
-import type { UserRole } from "@/types/domain";
+import type { MembershipApplication, UserRole } from "@/types/domain";
 
 const roleRank: Record<UserRole, number> = {
   member: 1,
@@ -61,6 +61,23 @@ export default function JoinPage() {
           current.currentUser.role,
           invite.role,
         );
+        const application: MembershipApplication = {
+          id: `application-${crypto.randomUUID()}`,
+          userId,
+          organizationId: invite.organizationId,
+          applicationType: "invite",
+          status: "pending",
+          inviteCode: invite.inviteCode,
+          profile: {
+            name: current.currentUser.name,
+            email: current.currentUser.email,
+          },
+          adminMessage:
+            "招待コードを確認しました。管理者承認後に利用できる船や機能が表示されます。",
+          approvedRole: preservedRole,
+          createdAt: now,
+          updatedAt: now,
+        };
 
         return {
           ...current,
@@ -85,33 +102,7 @@ export default function JoinPage() {
             organizationId: invite.organizationId,
           },
           currentUserId: userId,
-          organizationMembers: existingMember
-            ? current.organizationMembers.map((member) =>
-                member.organizationId === invite.organizationId &&
-                member.id === existingMember.id
-                  ? {
-                      ...member,
-                      userId,
-                      role: preservedRole,
-                      isActive: true,
-                      updatedAt: now,
-                    }
-                  : member,
-              )
-            : [
-                {
-                  id: `org-member-${crypto.randomUUID()}`,
-                  organizationId: invite.organizationId,
-                  userId,
-                  role: preservedRole,
-                  displayName: current.currentUser.name,
-                  email: current.currentUser.email,
-                  isActive: true,
-                  createdAt: now,
-                  updatedAt: now,
-                },
-                ...current.organizationMembers,
-              ],
+          membershipApplications: [application, ...(current.membershipApplications ?? [])],
           organizationInvites: current.organizationInvites.map((item) =>
             item.id === invite.id
               ? {

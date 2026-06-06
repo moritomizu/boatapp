@@ -124,6 +124,8 @@ function normalizeAppData(data: AppData, fallback: AppData): AppData {
       data.organizationRules ?? fallback.organizationRules ?? [],
     organizationInvites:
       data.organizationInvites ?? fallback.organizationInvites ?? [],
+    membershipApplications:
+      data.membershipApplications ?? fallback.membershipApplications ?? [],
     memberBoatPermissions:
       data.memberBoatPermissions ?? fallback.memberBoatPermissions ?? [],
     joinRequests: data.joinRequests ?? fallback.joinRequests ?? [],

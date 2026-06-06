@@ -12,6 +12,7 @@ import type {
   MaintenanceLog,
   MemberBoatPermission,
   MemberTripRating,
+  MembershipApplication,
   NotificationPreference,
   NotificationToken,
   Organization,
@@ -32,6 +33,7 @@ type CollectionMap = {
   organizationMembers: OrganizationMember;
   organizationRules: OrganizationRule;
   organizationInvites: OrganizationInvite;
+  membershipApplications: MembershipApplication;
   boats: Boat;
   users: AppUser;
   memberBoatPermissions: MemberBoatPermission;
@@ -56,6 +58,7 @@ const collections = [
   "organizationMembers",
   "organizationRules",
   "organizationInvites",
+  "membershipApplications",
   "boats",
   "users",
   "memberBoatPermissions",
@@ -226,6 +229,7 @@ export async function getFirestoreAppData(fallback: AppData = mockData) {
     organizationMembers,
     organizationRules,
     organizationInvites,
+    membershipApplications,
     boats,
     users,
     memberBoatPermissions,
@@ -280,6 +284,7 @@ export async function getFirestoreAppData(fallback: AppData = mockData) {
         ? (organizationRules as OrganizationRule[])
         : fallback.organizationRules ?? [],
     organizationInvites: organizationInvites as OrganizationInvite[],
+    membershipApplications: membershipApplications as MembershipApplication[],
     boat,
     boats: resolvedBoats,
     users: resolvedUsers,
@@ -343,6 +348,14 @@ export async function saveFirestoreAppData(
         "organizationInvites",
         data.organizationInvites ?? [],
         previousData?.organizationInvites,
+      ),
+    ),
+    writeCollection(
+      "membershipApplications",
+      changedRows(
+        "membershipApplications",
+        data.membershipApplications ?? [],
+        previousData?.membershipApplications,
       ),
     ),
     writeCollection(

@@ -52,6 +52,7 @@ const emptyData: AppData = {
   organizationMembers: [],
   organizationRules: [],
   organizationInvites: [],
+  membershipApplications: [],
   memberBoatPermissions: [],
   reservations: [],
   joinRequests: [],
