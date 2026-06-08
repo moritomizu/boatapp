@@ -114,6 +114,31 @@ export type BoatSkillLevel =
   | "advanced"
   | "owner";
 
+export type BoatOwnershipType =
+  | "sole_owner"
+  | "co_owner"
+  | "partner_owner"
+  | "managed_boat";
+
+export type MemberSubscriptionStatus =
+  | "active"
+  | "paused"
+  | "cancelled"
+  | "trial";
+
+export type RevenueAllocationMethod =
+  | "manual"
+  | "most_used_boat"
+  | "usage_count_proration"
+  | "usage_time_proration"
+  | "custom";
+
+export type MonthlyRevenueReportStatus =
+  | "draft"
+  | "reviewing"
+  | "confirmed"
+  | "reopened";
+
 export type SupportLocation = {
   latitude: number;
   longitude: number;
@@ -219,6 +244,114 @@ export type OrganizationInvite = {
   acceptedAt?: string;
   createdAt: string;
   updatedAt: string;
+};
+
+export type BoatOwnership = {
+  id: string;
+  organizationId: string;
+  boatId: string;
+  ownerUserId?: string;
+  ownerName: string;
+  ownershipType: BoatOwnershipType;
+  ownershipSharePercent?: number;
+  isPayoutRecipient: boolean;
+  payoutSharePercent?: number;
+  payoutMemo?: string;
+  adminMemo?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MembershipPlan = {
+  id: string;
+  organizationId: string;
+  name: string;
+  description?: string;
+  monthlyFee: number;
+  monthlyReservationLimit?: number;
+  weekendReservationLimit?: number;
+  accessibleBoatIds?: string[];
+  canGuestUse?: boolean;
+  canNightUse?: boolean;
+  canEventUse?: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MemberSubscription = {
+  id: string;
+  organizationId: string;
+  userId: string;
+  membershipPlanId: string;
+  status: MemberSubscriptionStatus;
+  startedAt: string;
+  endedAt?: string;
+  monthlyFeeSnapshot: number;
+  planNameSnapshot: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type BoatRevenuePolicy = {
+  id: string;
+  organizationId: string;
+  boatId: string;
+  ownerReturnRate: number;
+  operationFeeRate: number;
+  maintenanceReserveRate: number;
+  localManagementRate: number;
+  allocationMethod: RevenueAllocationMethod;
+  allowManualAdjustment: boolean;
+  memo?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MonthlyBoatRevenueSummary = {
+  boatId: string;
+  boatNameSnapshot: string;
+  usageCount: number;
+  usageHours: number;
+  navigationHours?: number;
+  navigationDistanceKm?: number;
+  guestUseCount?: number;
+  ownerBlockedDays?: number;
+  maintenanceBlockedDays?: number;
+  cancelledCount?: number;
+  weatherCancelledCount?: number;
+  suggestedRevenueByMostUsedBoat?: number;
+  suggestedRevenueByUsageCount?: number;
+  suggestedRevenueByUsageTime?: number;
+  finalAllocatedRevenue: number;
+  ownerReturnAmount: number;
+  operationFeeAmount: number;
+  maintenanceReserveAmount: number;
+  localManagementAmount: number;
+  adjustmentReason?: string;
+  adminMemo?: string;
+};
+
+export type MonthlyRevenueReport = {
+  id: string;
+  organizationId: string;
+  yearMonth: string;
+  status: MonthlyRevenueReportStatus;
+  totalMembers: number;
+  activeMembers: number;
+  totalMembershipRevenue: number;
+  totalReservations?: number;
+  completedReservations?: number;
+  cancelledReservations?: number;
+  weatherCancelledReservations?: number;
+  totalUsageHours?: number;
+  totalNavigationHours?: number;
+  totalNavigationDistanceKm?: number;
+  boatSummaries: MonthlyBoatRevenueSummary[];
+  createdAt: string;
+  updatedAt: string;
+  confirmedAt?: string;
+  confirmedBy?: string;
 };
 
 export type Boat = {
@@ -627,6 +760,11 @@ export type AppData = {
   organizationRules: OrganizationRule[];
   organizationInvites: OrganizationInvite[];
   membershipApplications: MembershipApplication[];
+  boatOwnerships: BoatOwnership[];
+  membershipPlans: MembershipPlan[];
+  memberSubscriptions: MemberSubscription[];
+  boatRevenuePolicies: BoatRevenuePolicy[];
+  monthlyRevenueReports: MonthlyRevenueReport[];
   memberBoatPermissions: MemberBoatPermission[];
   reservations: Reservation[];
   joinRequests: JoinRequest[];

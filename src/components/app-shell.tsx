@@ -229,6 +229,15 @@ export function AppShell({ children }: { children: ReactNode }) {
                     <Settings size={17} aria-hidden="true" />
                     組織設定
                   </Link>
+                  {data.currentUser.role === "admin" || data.currentUser.role === "owner" ? (
+                    <Link
+                      href="/revenue"
+                      className="flex min-h-11 items-center gap-2 rounded-lg bg-slate-50 px-3 text-sm font-black text-slate-800"
+                    >
+                      <BookOpen size={17} aria-hidden="true" />
+                      会費配分
+                    </Link>
+                  ) : null}
                   <Link
                     href="/members"
                     className="flex min-h-11 items-center gap-2 rounded-lg bg-slate-50 px-3 text-sm font-black text-slate-800"

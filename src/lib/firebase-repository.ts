@@ -7,12 +7,17 @@ import type {
   AppNotification,
   AppUser,
   Boat,
+  BoatOwnership,
+  BoatRevenuePolicy,
   HandoverNote,
   JoinRequest,
   MaintenanceLog,
   MemberBoatPermission,
+  MemberSubscription,
   MemberTripRating,
   MembershipApplication,
+  MembershipPlan,
+  MonthlyRevenueReport,
   NotificationPreference,
   NotificationToken,
   Organization,
@@ -34,6 +39,11 @@ type CollectionMap = {
   organizationRules: OrganizationRule;
   organizationInvites: OrganizationInvite;
   membershipApplications: MembershipApplication;
+  boatOwnerships: BoatOwnership;
+  membershipPlans: MembershipPlan;
+  memberSubscriptions: MemberSubscription;
+  boatRevenuePolicies: BoatRevenuePolicy;
+  monthlyRevenueReports: MonthlyRevenueReport;
   boats: Boat;
   users: AppUser;
   memberBoatPermissions: MemberBoatPermission;
@@ -59,6 +69,11 @@ const collections = [
   "organizationRules",
   "organizationInvites",
   "membershipApplications",
+  "boatOwnerships",
+  "membershipPlans",
+  "memberSubscriptions",
+  "boatRevenuePolicies",
+  "monthlyRevenueReports",
   "boats",
   "users",
   "memberBoatPermissions",
@@ -230,6 +245,11 @@ export async function getFirestoreAppData(fallback: AppData = mockData) {
     organizationRules,
     organizationInvites,
     membershipApplications,
+    boatOwnerships,
+    membershipPlans,
+    memberSubscriptions,
+    boatRevenuePolicies,
+    monthlyRevenueReports,
     boats,
     users,
     memberBoatPermissions,
@@ -285,6 +305,11 @@ export async function getFirestoreAppData(fallback: AppData = mockData) {
         : fallback.organizationRules ?? [],
     organizationInvites: organizationInvites as OrganizationInvite[],
     membershipApplications: membershipApplications as MembershipApplication[],
+    boatOwnerships: boatOwnerships as BoatOwnership[],
+    membershipPlans: membershipPlans as MembershipPlan[],
+    memberSubscriptions: memberSubscriptions as MemberSubscription[],
+    boatRevenuePolicies: boatRevenuePolicies as BoatRevenuePolicy[],
+    monthlyRevenueReports: monthlyRevenueReports as MonthlyRevenueReport[],
     boat,
     boats: resolvedBoats,
     users: resolvedUsers,
@@ -356,6 +381,46 @@ export async function saveFirestoreAppData(
         "membershipApplications",
         data.membershipApplications ?? [],
         previousData?.membershipApplications,
+      ),
+    ),
+    writeCollection(
+      "boatOwnerships",
+      changedRows(
+        "boatOwnerships",
+        data.boatOwnerships ?? [],
+        previousData?.boatOwnerships,
+      ),
+    ),
+    writeCollection(
+      "membershipPlans",
+      changedRows(
+        "membershipPlans",
+        data.membershipPlans ?? [],
+        previousData?.membershipPlans,
+      ),
+    ),
+    writeCollection(
+      "memberSubscriptions",
+      changedRows(
+        "memberSubscriptions",
+        data.memberSubscriptions ?? [],
+        previousData?.memberSubscriptions,
+      ),
+    ),
+    writeCollection(
+      "boatRevenuePolicies",
+      changedRows(
+        "boatRevenuePolicies",
+        data.boatRevenuePolicies ?? [],
+        previousData?.boatRevenuePolicies,
+      ),
+    ),
+    writeCollection(
+      "monthlyRevenueReports",
+      changedRows(
+        "monthlyRevenueReports",
+        data.monthlyRevenueReports ?? [],
+        previousData?.monthlyRevenueReports,
       ),
     ),
     writeCollection(
