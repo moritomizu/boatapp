@@ -98,13 +98,15 @@ function normalizeAppData(data: AppData, fallback: AppData): AppData {
         }
       : undefined;
   const currentUser =
-    users.find((user) => user.email === authEmail) ??
-    users.find((user) => authUid && user.id === `auth-${authUid}`) ??
-    authFallbackUser ??
-    users.find((user) => user.id === data.currentUserId) ??
-    users.find((user) => user.email === data.currentUser?.email) ??
-    data.currentUser ??
-    fallback.currentUser;
+    authEmail || authUid
+      ? users.find((user) => user.email === authEmail) ??
+        users.find((user) => authUid && user.id === `auth-${authUid}`) ??
+        authFallbackUser ??
+        fallback.currentUser
+      : users.find((user) => user.id === data.currentUserId) ??
+        users.find((user) => user.email === data.currentUser?.email) ??
+        data.currentUser ??
+        fallback.currentUser;
   const boats = sourceBoats.filter((boat) => boat.organizationId === organizationId);
   const lastBoatId = isBrowser() ? window.localStorage.getItem(LAST_BOAT_KEY) : undefined;
   const requestedBoatId = lastBoatId || data.currentBoatId || data.boat?.id;

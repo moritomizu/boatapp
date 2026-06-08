@@ -14,6 +14,7 @@ import {
   setPersistence,
   signOut,
   signInWithEmailAndPassword,
+  signInWithPopup,
   signInWithRedirect,
   updateProfile,
 } from "firebase/auth";
@@ -159,14 +160,43 @@ export default function LoginPage() {
         provider.addScope("email");
         provider.addScope("profile");
         provider.setCustomParameters({
-          prompt: "select_account consent",
+          prompt: "select_account",
           max_age: "0",
         });
-        if (typeof window !== "undefined") {
-          window.sessionStorage.setItem(GOOGLE_REDIRECT_PENDING_KEY, "true");
+        try {
+          const credential = await signInWithPopup(firebaseAuth, provider);
+          resetClientAppData();
+          rememberAuthenticatedUser(credential.user);
+          setMessage(
+            `${credential.user.email ?? "Googleアカウント"} でログインしました。ホームへ移動します。`,
+          );
+          router.replace("/home");
+          return;
+        } catch (popupError) {
+          const code =
+            typeof popupError === "object" &&
+            popupError !== null &&
+            "code" in popupError
+              ? String((popupError as { code?: unknown }).code)
+              : "";
+          if (
+            code !== "auth/popup-blocked" &&
+            code !== "auth/popup-closed-by-user" &&
+            code !== "auth/cancelled-popup-request" &&
+            code !== "auth/operation-not-supported-in-this-environment"
+          ) {
+            throw popupError;
+          }
+          if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+            setMessage("Googleログインがキャンセルされました。もう一度お試しください。");
+            return;
+          }
+          if (typeof window !== "undefined") {
+            window.sessionStorage.setItem(GOOGLE_REDIRECT_PENDING_KEY, "true");
+          }
+          await signInWithRedirect(firebaseAuth, provider);
+          return;
         }
-        await signInWithRedirect(firebaseAuth, provider);
-        return;
       }
 
       resetClientAppData();
