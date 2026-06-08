@@ -267,7 +267,10 @@ export async function selectCurrentBoat(boatId: string, fallback: AppData = getI
 }
 
 export function loadClientAppData(fallback: AppData = getInitialAppData()) {
-  if (shouldUseFirestore()) return cachedSnapshot ?? fallback;
+  if (shouldUseFirestore()) {
+    cachedSnapshot = normalizeAppData(cachedSnapshot ?? fallback, fallback);
+    return cachedSnapshot;
+  }
   if (!isBrowser()) return fallback;
 
   const stored = window.localStorage.getItem(STORAGE_KEY);
@@ -332,7 +335,7 @@ export async function refreshClientAppData(
     })
     .catch((error) => {
       console.error("Failed to load Firestore app data", error);
-      cachedSnapshot = cachedSnapshot ?? fallback;
+      cachedSnapshot = normalizeAppData(cachedSnapshot ?? fallback, fallback);
       firestoreLoaded = true;
       if (isBrowser()) window.dispatchEvent(new Event(STORE_EVENT));
 
