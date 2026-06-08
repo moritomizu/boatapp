@@ -9,6 +9,7 @@ import {
   saveFirestoreAppData,
 } from "@/lib/firebase-repository";
 import { firebaseAuth } from "@/lib/firebase";
+import { isBootstrapAdminEmail, normalizeEmail } from "@/lib/bootstrap-admin";
 import type { AppData, AppUser, UserRole } from "@/types/domain";
 
 const STORAGE_KEY = "tapiyota-grand-boat-club:app-data:v1";
@@ -23,13 +24,6 @@ const UNSELECTED_BOAT_ID = "boat-unselected";
 
 const isBrowser = () => typeof window !== "undefined";
 const shouldUseFirestore = () => !useMockData && canUseFirestore;
-const normalizeEmail = (email?: string | null) => email?.trim().toLowerCase() ?? "";
-const bootstrapAdminEmails = new Set(
-  (process.env.NEXT_PUBLIC_BOOTSTRAP_ADMIN_EMAILS ?? "moritomizu@gmail.com")
-    .split(",")
-    .map((email) => normalizeEmail(email))
-    .filter(Boolean),
-);
 
 let cachedRaw: string | null | undefined;
 let cachedSnapshot: AppData | undefined;
@@ -44,10 +38,6 @@ function storedAuthIdentity() {
     email: window.localStorage.getItem(AUTH_EMAIL_KEY) ?? undefined,
     name: window.localStorage.getItem(AUTH_NAME_KEY) ?? undefined,
   };
-}
-
-function isBootstrapAdmin(email?: string | null) {
-  return bootstrapAdminEmails.has(normalizeEmail(email));
 }
 
 function completeUser(
@@ -150,7 +140,7 @@ function normalizeAppData(data: AppData, fallback: AppData): AppData {
   const fallbackRole: UserRole =
     matchedMember?.role ??
     (approvedApplication?.approvedRole as UserRole | undefined) ??
-    (isBootstrapAdmin(authEmail) ? "admin" : "member");
+    (isBootstrapAdminEmail(authEmail) ? "admin" : "member");
   const fallbackCanOperate = fallbackRole === "admin" || fallbackRole === "owner";
   const users = rawUsers.map((user) =>
     completeUser(user, {
@@ -163,7 +153,7 @@ function normalizeAppData(data: AppData, fallback: AppData): AppData {
     ? users.find((user) => normalizeEmail(user.email) === normalizedAuthEmail)
     : undefined;
   const roleFromMembership =
-    matchedMember?.role ?? (isBootstrapAdmin(authEmail) ? "admin" : undefined);
+    matchedMember?.role ?? (isBootstrapAdminEmail(authEmail) ? "admin" : undefined);
   const resolvedMatchedUser: AppUser | undefined = matchedUser
     ? {
         ...matchedUser,

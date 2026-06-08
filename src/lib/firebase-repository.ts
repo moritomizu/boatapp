@@ -1,6 +1,7 @@
 "use client";
 
 import { firebaseAuth, firestore, isFirebaseConfigured } from "@/lib/firebase";
+import { isBootstrapAdminEmail, normalizeEmail } from "@/lib/bootstrap-admin";
 import { mockData } from "@/lib/mock-data";
 import type {
   AppData,
@@ -106,14 +107,6 @@ const collections = [
 export const canUseFirestore =
   isFirebaseConfigured && Boolean(firestore);
 
-const normalizeEmail = (email?: string | null) => email?.trim().toLowerCase() ?? "";
-const bootstrapAdminEmails = new Set(
-  (process.env.NEXT_PUBLIC_BOOTSTRAP_ADMIN_EMAILS ?? "moritomizu@gmail.com")
-    .split(",")
-    .map((email) => normalizeEmail(email))
-    .filter(Boolean),
-);
-
 type FirestoreValue =
   | string
   | number
@@ -199,7 +192,7 @@ function currentAuthFallbackUser(
   const role: UserRole =
     matchedMember?.role ??
     approvedApplication?.approvedRole ??
-    (bootstrapAdminEmails.has(normalizedEmail) ? "admin" : "member");
+    (isBootstrapAdminEmail(normalizedEmail) ? "admin" : "member");
   const canOperate = role === "admin" || role === "owner";
 
   return {
@@ -357,7 +350,7 @@ export async function getFirestoreAppData(fallback: AppData = mockData) {
     : undefined;
   const roleFromMembership =
     matchedMember?.role ??
-    (bootstrapAdminEmails.has(normalizedAuthEmail) ? "admin" : undefined);
+    (isBootstrapAdminEmail(normalizedAuthEmail) ? "admin" : undefined);
   const matchedUser = normalizedAuthEmail
     ? resolvedUsers.find((user) => normalizeEmail(user.email) === normalizedAuthEmail)
     : undefined;

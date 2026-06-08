@@ -5,6 +5,7 @@ import type {
   PermissionTemplate,
   UserRole,
 } from "@/types/domain";
+import { isBootstrapAdminEmail, normalizeEmail } from "@/lib/bootstrap-admin";
 
 export const applicationTypeLabels: Record<MembershipApplication["applicationType"], string> = {
   member: "メンバー参加",
@@ -33,10 +34,12 @@ export const permissionTemplateLabels: Record<PermissionTemplate, string> = {
   custom: "カスタム",
 };
 
-const normalizeEmail = (email?: string | null) => email?.trim().toLowerCase() ?? "";
-
 export function hasActiveMembership(data: AppData) {
-  if (data.currentUser.role === "admin" || data.currentUser.role === "owner") {
+  if (
+    data.currentUser.role === "admin" ||
+    data.currentUser.role === "owner" ||
+    isBootstrapAdminEmail(data.currentUser.email)
+  ) {
     return true;
   }
 
