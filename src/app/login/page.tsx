@@ -10,8 +10,8 @@ import {
   createUserWithEmailAndPassword,
   getRedirectResult,
   GoogleAuthProvider,
-  onAuthStateChanged,
   setPersistence,
+  signOut,
   signInWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
@@ -19,6 +19,8 @@ import {
 } from "firebase/auth";
 import { firebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
 import { resetClientAppData } from "@/lib/client-store";
+
+const GOOGLE_REDIRECT_PENDING_KEY = "boatos:google-redirect-pending";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -35,24 +37,30 @@ export default function LoginPage() {
 
   useEffect(() => {
     let cancelled = false;
-    let unsubscribe: (() => void) | undefined;
 
     async function completeRedirectLogin() {
       if (!firebaseAuth || !isFirebaseConfigured) return;
       try {
         await setPersistence(firebaseAuth, browserLocalPersistence);
-        unsubscribe = onAuthStateChanged(firebaseAuth, (user) => {
-          if (!user || cancelled) return;
-          resetClientAppData();
-          setMessage("ログインしました。ホームへ移動します。");
-          router.replace("/home");
-        });
         const result = await getRedirectResult(firebaseAuth);
-        if (!result || cancelled) return;
+        const wasRedirectPending =
+          typeof window !== "undefined" &&
+          window.sessionStorage.getItem(GOOGLE_REDIRECT_PENDING_KEY) === "true";
+        if (typeof window !== "undefined") {
+          window.sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING_KEY);
+        }
+        if (!result && !wasRedirectPending) return;
+        const user = result?.user ?? firebaseAuth.currentUser;
+        if (!user || cancelled) return;
         resetClientAppData();
-        setMessage("Googleログインでログインしました。");
+        setMessage(
+          `${user.email ?? "Googleアカウント"} でログインしました。ホームへ移動します。`,
+        );
         router.replace("/home");
       } catch (error) {
+        if (typeof window !== "undefined") {
+          window.sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING_KEY);
+        }
         if (cancelled) return;
         setMessage(
           error instanceof Error && error.message
@@ -66,7 +74,6 @@ export default function LoginPage() {
 
     return () => {
       cancelled = true;
-      unsubscribe?.();
     };
   }, [router]);
 
@@ -79,6 +86,10 @@ export default function LoginPage() {
       if (firebaseAuth && isFirebaseConfigured) {
         resetClientAppData();
         await setPersistence(firebaseAuth, browserLocalPersistence);
+        if (firebaseAuth.currentUser) {
+          await signOut(firebaseAuth);
+          resetClientAppData();
+        }
         if (authMode === "signup") {
           const credential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
           if (displayName.trim()) {
@@ -110,14 +121,20 @@ export default function LoginPage() {
       if (firebaseAuth && isFirebaseConfigured) {
         resetClientAppData();
         await setPersistence(firebaseAuth, browserLocalPersistence);
+        if (firebaseAuth.currentUser) {
+          await signOut(firebaseAuth);
+          resetClientAppData();
+        }
         const provider = new GoogleAuthProvider();
         provider.addScope("email");
         provider.addScope("profile");
         provider.setCustomParameters({ prompt: "select_account" });
         try {
-          await signInWithPopup(firebaseAuth, provider);
+          const credential = await signInWithPopup(firebaseAuth, provider);
           resetClientAppData();
-          setMessage("Googleログインでログインしました。");
+          setMessage(
+            `${credential.user.email ?? "Googleアカウント"} でログインしました。`,
+          );
           router.replace("/home");
           return;
         } catch (popupError) {
@@ -131,6 +148,9 @@ export default function LoginPage() {
             code === "auth/popup-blocked" ||
             code === "auth/operation-not-supported-in-this-environment"
           ) {
+            if (typeof window !== "undefined") {
+              window.sessionStorage.setItem(GOOGLE_REDIRECT_PENDING_KEY, "true");
+            }
             await signInWithRedirect(firebaseAuth, provider);
             return;
           }
