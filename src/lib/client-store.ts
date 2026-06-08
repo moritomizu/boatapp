@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { getInitialAppData } from "@/lib/data-source";
 import { useMockData } from "@/lib/data-source";
 import {
@@ -332,7 +332,8 @@ export async function selectCurrentBoat(boatId: string, fallback: AppData = getI
 
 export function loadClientAppData(fallback: AppData = getInitialAppData()) {
   if (shouldUseFirestore()) {
-    cachedSnapshot = normalizeAppData(cachedSnapshot ?? fallback, fallback);
+    if (cachedSnapshot) return cachedSnapshot;
+    cachedSnapshot = normalizeAppData(fallback, fallback);
     return cachedSnapshot;
   }
   if (!isBrowser()) return fallback;
@@ -444,23 +445,31 @@ export function resetClientAppData() {
 }
 
 export function useClientAppData(fallback: AppData = getInitialAppData()) {
-  return useSyncExternalStore(
-    (onStoreChange) => {
+  const [stableFallback] = useState(fallback);
+  const subscribe = useCallback((onStoreChange: () => void) => {
       window.addEventListener(STORE_EVENT, onStoreChange);
       window.addEventListener("storage", onStoreChange);
-      void refreshClientAppData(fallback)
-        .then(onStoreChange)
-        .catch((error) => {
-          console.error("Failed to refresh app data", error);
-          onStoreChange();
-        });
 
       return () => {
         window.removeEventListener(STORE_EVENT, onStoreChange);
         window.removeEventListener("storage", onStoreChange);
       };
-    },
-    () => loadClientAppData(fallback),
-    () => fallback,
+  }, []);
+  const getSnapshot = useCallback(
+    () => loadClientAppData(stableFallback),
+    [stableFallback],
+  );
+  const getServerSnapshot = useCallback(() => stableFallback, [stableFallback]);
+
+  useEffect(() => {
+    void refreshClientAppData(stableFallback).catch((error) => {
+      console.error("Failed to refresh app data", error);
+    });
+  }, [stableFallback]);
+
+  return useSyncExternalStore(
+    subscribe,
+    getSnapshot,
+    getServerSnapshot,
   );
 }
