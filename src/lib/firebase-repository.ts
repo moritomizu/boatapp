@@ -145,6 +145,15 @@ async function readCollection<K extends keyof CollectionMap>(name: K) {
   return snapshot.docs.map((document) => document.data() as CollectionMap[K]);
 }
 
+async function readCollectionSafely<K extends keyof CollectionMap>(name: K) {
+  try {
+    return await readCollection(name);
+  } catch (error) {
+    console.warn(`Failed to read Firestore collection: ${name}`, error);
+    return [] as CollectionMap[K][];
+  }
+}
+
 async function getCurrentAuthEmail() {
   const auth = firebaseAuth;
   if (!auth) return undefined;
@@ -321,7 +330,7 @@ export async function getFirestoreAppData(fallback: AppData = mockData) {
     notifications,
     notificationPreferences,
     notificationTokens,
-  ] = await Promise.all(collections.map((name) => readCollection(name)));
+  ] = await Promise.all(collections.map((name) => readCollectionSafely(name)));
 
   const organization =
     (organizations as Organization[]).find(
