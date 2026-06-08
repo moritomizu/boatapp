@@ -3,6 +3,7 @@
 import Image from "next/image";
 
 export default function Error({
+  error,
   reset,
 }: {
   error: Error & { digest?: string };
@@ -44,6 +45,17 @@ export default function Error({
         <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
           通信状態または古いキャッシュの影響で表示に失敗した可能性があります。
         </p>
+        <details className="mt-4 rounded-lg bg-slate-50 p-3 text-left text-xs leading-5 text-slate-600">
+          <summary className="cursor-pointer font-black text-slate-800">
+            エラー詳細を表示
+          </summary>
+          <p className="mt-2 break-words">
+            {error.message || "エラーメッセージなし"}
+          </p>
+          {error.digest ? (
+            <p className="mt-2 break-words">digest: {error.digest}</p>
+          ) : null}
+        </details>
         <div className="mt-5 grid gap-2">
           <button
             type="button"

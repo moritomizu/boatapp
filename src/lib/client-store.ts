@@ -10,7 +10,7 @@ import {
 } from "@/lib/firebase-repository";
 import { firebaseAuth } from "@/lib/firebase";
 import { isBootstrapAdminEmail, normalizeEmail } from "@/lib/bootstrap-admin";
-import type { AppData, AppUser, UserRole } from "@/types/domain";
+import type { AppData, AppNotification, AppUser, UserRole } from "@/types/domain";
 
 const STORAGE_KEY = "tapiyota-grand-boat-club:app-data:v1";
 const STORE_EVENT = "tapiyota-grand-boat-club:app-data-updated";
@@ -65,6 +65,27 @@ function completeUser(
     canNightUse: Boolean(user.canNightUse),
     notes: user.notes ?? "",
     createdAt: user.createdAt || new Date().toISOString(),
+  };
+}
+
+function completeNotification(
+  notification: Partial<AppNotification>,
+  fallback: { organizationId: string; boatId: string },
+): AppNotification {
+  return {
+    id: notification.id || `notification-${crypto.randomUUID()}`,
+    organizationId: notification.organizationId || fallback.organizationId,
+    boatId: notification.boatId || fallback.boatId,
+    category: notification.category ?? "support",
+    priority: notification.priority ?? "normal",
+    title: notification.title || "通知",
+    body: notification.body || "",
+    relatedPath: notification.relatedPath || "/notifications",
+    recipientUserIds: Array.isArray(notification.recipientUserIds)
+      ? notification.recipientUserIds
+      : undefined,
+    readBy: Array.isArray(notification.readBy) ? notification.readBy : [],
+    createdAt: notification.createdAt || new Date().toISOString(),
   };
 }
 
@@ -222,6 +243,13 @@ function normalizeAppData(data: AppData, fallback: AppData): AppData {
     boats[0] ??
     (data.boat?.id !== UNSELECTED_BOAT_ID ? data.boat : undefined) ??
     fallback.boat;
+  const notifications = (data.notifications ?? fallback.notifications ?? []).map(
+    (notification) =>
+      completeNotification(notification, {
+        organizationId,
+        boatId: selectedBoat.id,
+      }),
+  );
 
   if (isBrowser()) {
     window.localStorage.setItem(LAST_ORGANIZATION_KEY, organizationId);
@@ -269,6 +297,9 @@ function normalizeAppData(data: AppData, fallback: AppData): AppData {
     joinRequests: data.joinRequests ?? fallback.joinRequests ?? [],
     memberTripRatings: data.memberTripRatings ?? fallback.memberTripRatings ?? [],
     skillAssessments: data.skillAssessments ?? fallback.skillAssessments ?? [],
+    notifications,
+    notificationPreferences:
+      data.notificationPreferences ?? fallback.notificationPreferences ?? [],
     notificationTokens: data.notificationTokens ?? fallback.notificationTokens ?? [],
   };
 }

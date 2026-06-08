@@ -216,11 +216,14 @@ export default function HomePage() {
     .slice(0, 3);
   const visibleNotifications = data.notifications.filter(
     (notification) =>
-      !notification.recipientUserIds ||
+      !Array.isArray(notification.recipientUserIds) ||
       notification.recipientUserIds.includes(data.currentUser.id),
   );
   const unreadNotifications = visibleNotifications.filter(
-    (notification) => !notification.readBy.includes(data.currentUser.id),
+    (notification) =>
+      !(Array.isArray(notification.readBy) ? notification.readBy : []).includes(
+        data.currentUser.id,
+      ),
   );
   const urgentNotifications = unreadNotifications.filter(
     (notification) => notification.priority === "urgent",
@@ -229,15 +232,20 @@ export default function HomePage() {
     (notification) => {
       if (
         notification.category !== "support" ||
-        !notification.relatedPath.includes("#support-detail")
+        !notification.relatedPath?.includes("#support-detail")
       ) {
         return false;
       }
 
-      const supportId = new URL(
-        notification.relatedPath,
-        "https://tapiyota.local",
-      ).searchParams.get("supportId");
+      let supportId: string | null = null;
+      try {
+        supportId = new URL(
+          notification.relatedPath || "/notifications",
+          "https://tapiyota.local",
+        ).searchParams.get("supportId");
+      } catch {
+        supportId = null;
+      }
       const supportRequest = data.supportRequests.find(
         (request) => request.id === supportId,
       );
