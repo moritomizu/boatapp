@@ -15,6 +15,9 @@ const STORAGE_KEY = "tapiyota-grand-boat-club:app-data:v1";
 const STORE_EVENT = "tapiyota-grand-boat-club:app-data-updated";
 const LAST_ORGANIZATION_KEY = "tapiyota-grand-boat-club:last-organization-id";
 const LAST_BOAT_KEY = "tapiyota-grand-boat-club:last-boat-id";
+const AUTH_UID_KEY = "tapiyota-grand-boat-club:auth-uid";
+const AUTH_EMAIL_KEY = "tapiyota-grand-boat-club:auth-email";
+const AUTH_NAME_KEY = "tapiyota-grand-boat-club:auth-name";
 const UNSELECTED_ORGANIZATION_ID = "org-unselected";
 const UNSELECTED_BOAT_ID = "boat-unselected";
 
@@ -25,6 +28,16 @@ let cachedRaw: string | null | undefined;
 let cachedSnapshot: AppData | undefined;
 let firestoreLoaded = false;
 let firestoreRefreshPromise: Promise<AppData> | undefined;
+
+function storedAuthIdentity() {
+  if (!isBrowser()) return {};
+
+  return {
+    uid: window.localStorage.getItem(AUTH_UID_KEY) ?? undefined,
+    email: window.localStorage.getItem(AUTH_EMAIL_KEY) ?? undefined,
+    name: window.localStorage.getItem(AUTH_NAME_KEY) ?? undefined,
+  };
+}
 
 function normalizeAppData(data: AppData, fallback: AppData): AppData {
   const sourceBoats = data.boats?.length
@@ -65,16 +78,17 @@ function normalizeAppData(data: AppData, fallback: AppData): AppData {
     knownOrganizationIds.values().next().value ||
     fallback.organization.id;
   const users = data.users?.length ? data.users : fallback.users;
-  const authEmail = shouldUseFirestore()
-    ? firebaseAuth?.currentUser?.email
-    : undefined;
   const authUser = shouldUseFirestore() ? firebaseAuth?.currentUser : undefined;
+  const storedAuth = shouldUseFirestore() ? storedAuthIdentity() : {};
+  const authEmail = authUser?.email ?? storedAuth.email;
+  const authUid = authUser?.uid ?? storedAuth.uid;
+  const authName = authUser?.displayName ?? storedAuth.name;
   const authFallbackUser =
     authEmail && !users.some((user) => user.email === authEmail)
       ? {
-          id: authUser?.uid ? `auth-${authUser.uid}` : `auth-${authEmail}`,
+          id: authUid ? `auth-${authUid}` : `auth-${authEmail}`,
           organizationId,
-          name: authUser?.displayName || authEmail.split("@")[0] || "ログインユーザー",
+          name: authName || authEmail.split("@")[0] || "ログインユーザー",
           email: authEmail,
           role: "member" as const,
           canSolo: false,
@@ -85,6 +99,7 @@ function normalizeAppData(data: AppData, fallback: AppData): AppData {
       : undefined;
   const currentUser =
     users.find((user) => user.email === authEmail) ??
+    users.find((user) => authUid && user.id === `auth-${authUid}`) ??
     authFallbackUser ??
     users.find((user) => user.id === data.currentUserId) ??
     users.find((user) => user.email === data.currentUser?.email) ??
@@ -256,11 +271,30 @@ export async function refreshClientAppData(
   return firestoreRefreshPromise;
 }
 
+export function rememberAuthenticatedUser(user: {
+  uid?: string | null;
+  email?: string | null;
+  displayName?: string | null;
+}) {
+  if (!isBrowser()) return;
+  if (user.uid) window.localStorage.setItem(AUTH_UID_KEY, user.uid);
+  if (user.email) window.localStorage.setItem(AUTH_EMAIL_KEY, user.email);
+  if (user.displayName) window.localStorage.setItem(AUTH_NAME_KEY, user.displayName);
+  cachedRaw = null;
+  cachedSnapshot = undefined;
+  firestoreLoaded = false;
+  firestoreRefreshPromise = undefined;
+  window.dispatchEvent(new Event(STORE_EVENT));
+}
+
 export function resetClientAppData() {
   if (!isBrowser()) return;
   window.localStorage.removeItem(STORAGE_KEY);
   window.localStorage.removeItem(LAST_ORGANIZATION_KEY);
   window.localStorage.removeItem(LAST_BOAT_KEY);
+  window.localStorage.removeItem(AUTH_UID_KEY);
+  window.localStorage.removeItem(AUTH_EMAIL_KEY);
+  window.localStorage.removeItem(AUTH_NAME_KEY);
   cachedRaw = null;
   cachedSnapshot = undefined;
   firestoreLoaded = false;

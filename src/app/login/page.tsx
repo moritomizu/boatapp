@@ -13,12 +13,14 @@ import {
   setPersistence,
   signOut,
   signInWithEmailAndPassword,
-  signInWithPopup,
   signInWithRedirect,
   updateProfile,
 } from "firebase/auth";
 import { firebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
-import { resetClientAppData } from "@/lib/client-store";
+import {
+  rememberAuthenticatedUser,
+  resetClientAppData,
+} from "@/lib/client-store";
 
 const GOOGLE_REDIRECT_PENDING_KEY = "boatos:google-redirect-pending";
 
@@ -53,6 +55,7 @@ export default function LoginPage() {
         const user = result?.user ?? firebaseAuth.currentUser;
         if (!user || cancelled) return;
         resetClientAppData();
+        rememberAuthenticatedUser(user);
         setMessage(
           `${user.email ?? "Googleアカウント"} でログインしました。ホームへ移動します。`,
         );
@@ -95,12 +98,13 @@ export default function LoginPage() {
           if (displayName.trim()) {
             await updateProfile(credential.user, { displayName: displayName.trim() });
           }
+          rememberAuthenticatedUser(credential.user);
         } else {
-          await signInWithEmailAndPassword(firebaseAuth, email, password);
+          const credential = await signInWithEmailAndPassword(firebaseAuth, email, password);
+          rememberAuthenticatedUser(credential.user);
         }
       }
 
-      resetClientAppData();
       setMessage(authMode === "signup" ? "会員登録しました。" : "ログインしました。");
       router.push(authMode === "signup" ? "/apply" : "/home");
     } catch (error) {
@@ -128,34 +132,15 @@ export default function LoginPage() {
         const provider = new GoogleAuthProvider();
         provider.addScope("email");
         provider.addScope("profile");
-        provider.setCustomParameters({ prompt: "select_account" });
-        try {
-          const credential = await signInWithPopup(firebaseAuth, provider);
-          resetClientAppData();
-          setMessage(
-            `${credential.user.email ?? "Googleアカウント"} でログインしました。`,
-          );
-          router.replace("/home");
-          return;
-        } catch (popupError) {
-          const code =
-            typeof popupError === "object" &&
-            popupError !== null &&
-            "code" in popupError
-              ? String((popupError as { code?: unknown }).code)
-              : "";
-          if (
-            code === "auth/popup-blocked" ||
-            code === "auth/operation-not-supported-in-this-environment"
-          ) {
-            if (typeof window !== "undefined") {
-              window.sessionStorage.setItem(GOOGLE_REDIRECT_PENDING_KEY, "true");
-            }
-            await signInWithRedirect(firebaseAuth, provider);
-            return;
-          }
-          throw popupError;
+        provider.setCustomParameters({
+          prompt: "select_account consent",
+          max_age: "0",
+        });
+        if (typeof window !== "undefined") {
+          window.sessionStorage.setItem(GOOGLE_REDIRECT_PENDING_KEY, "true");
         }
+        await signInWithRedirect(firebaseAuth, provider);
+        return;
       }
 
       resetClientAppData();
