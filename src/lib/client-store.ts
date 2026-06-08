@@ -50,6 +50,34 @@ function isBootstrapAdmin(email?: string | null) {
   return bootstrapAdminEmails.has(normalizeEmail(email));
 }
 
+function completeUser(
+  user: AppUser,
+  options: {
+    organizationId: string;
+    authEmail?: string | null;
+    authName?: string | null;
+  },
+): AppUser {
+  const email = user.email || options.authEmail || "";
+  const name =
+    user.name ||
+    options.authName ||
+    email.split("@")[0] ||
+    "ログインユーザー";
+
+  return {
+    ...user,
+    organizationId: user.organizationId || options.organizationId,
+    name,
+    email,
+    role: user.role ?? "member",
+    canSolo: Boolean(user.canSolo),
+    canNightUse: Boolean(user.canNightUse),
+    notes: user.notes ?? "",
+    createdAt: user.createdAt || new Date().toISOString(),
+  };
+}
+
 function normalizeAppData(data: AppData, fallback: AppData): AppData {
   const sourceBoats = data.boats?.length
     ? data.boats
@@ -88,7 +116,7 @@ function normalizeAppData(data: AppData, fallback: AppData): AppData {
       : undefined) ||
     knownOrganizationIds.values().next().value ||
     fallback.organization.id;
-  const users = data.users?.length ? data.users : fallback.users;
+  const rawUsers = data.users?.length ? data.users : fallback.users;
   const organizationMembers =
     data.organizationMembers ?? fallback.organizationMembers ?? [];
   const membershipApplications =
@@ -124,6 +152,13 @@ function normalizeAppData(data: AppData, fallback: AppData): AppData {
     (approvedApplication?.approvedRole as UserRole | undefined) ??
     (isBootstrapAdmin(authEmail) ? "admin" : "member");
   const fallbackCanOperate = fallbackRole === "admin" || fallbackRole === "owner";
+  const users = rawUsers.map((user) =>
+    completeUser(user, {
+      organizationId,
+      authEmail: normalizeEmail(user.email) === normalizedAuthEmail ? authEmail : undefined,
+      authName: normalizeEmail(user.email) === normalizedAuthEmail ? authName : undefined,
+    }),
+  );
   const matchedUser = normalizedAuthEmail
     ? users.find((user) => normalizeEmail(user.email) === normalizedAuthEmail)
     : undefined;
@@ -168,7 +203,7 @@ function normalizeAppData(data: AppData, fallback: AppData): AppData {
           createdAt: new Date().toISOString(),
         }
       : undefined;
-  const currentUser =
+  const resolvedCurrentUser =
     authEmail || authUid
       ? resolvedMatchedUser ??
         users.find((user) => authUid && user.id === `auth-${authUid}`) ??
@@ -181,6 +216,11 @@ function normalizeAppData(data: AppData, fallback: AppData): AppData {
         ) ??
         data.currentUser ??
         fallback.currentUser;
+  const currentUser = completeUser(resolvedCurrentUser, {
+    organizationId,
+    authEmail,
+    authName,
+  });
   const boats = sourceBoats.filter((boat) => boat.organizationId === organizationId);
   const lastBoatId = isBrowser() ? window.localStorage.getItem(LAST_BOAT_KEY) : undefined;
   const requestedBoatId = lastBoatId || data.currentBoatId || data.boat?.id;

@@ -46,6 +46,10 @@ const isSameDateKey = (value: string) => {
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const data = useClientAppData(getInitialAppData());
+  const currentUserName =
+    data.currentUser.name ||
+    data.currentUser.email?.split("@")[0] ||
+    "利用者";
   const membershipActive = hasActiveMembership(data);
   const membershipAllowedPath =
     pathname === "/apply" ||
@@ -189,13 +193,13 @@ export function AppShell({ children }: { children: ReactNode }) {
                 aria-label={`現在の利用者: ${data.currentUser.name}`}
               >
                 <Badge className="bg-sky-100 text-blue-800 ring-sky-200">
-                  {data.currentUser.name.slice(0, 1)}
+                  {currentUserName.slice(0, 1)}
                 </Badge>
                 <ChevronDown size={15} aria-hidden="true" />
               </summary>
               <div className="absolute right-0 top-12 z-50 w-64 rounded-lg border border-sky-100 bg-white p-3 shadow-xl">
                 <p className="text-sm font-black text-blue-950">
-                  {data.currentUser.name}
+                  {currentUserName}
                 </p>
                 <p className="mt-1 text-xs font-bold text-slate-500">
                   {data.organization.name}

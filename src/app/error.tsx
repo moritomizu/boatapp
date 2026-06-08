@@ -8,6 +8,23 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  async function clearCacheAndReload() {
+    try {
+      if ("serviceWorker" in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map((registration) => registration.unregister()));
+      }
+      if ("caches" in window) {
+        const cacheKeys = await caches.keys();
+        await Promise.all(cacheKeys.map((key) => caches.delete(key)));
+      }
+      window.localStorage.removeItem("tapiyota-grand-boat-club:app-data:v1");
+      window.location.href = "/login";
+    } catch {
+      window.location.href = "/login";
+    }
+  }
+
   return (
     <main className="grid min-h-screen place-items-center bg-slate-50 px-4">
       <div className="w-full max-w-md rounded-lg border border-sky-100 bg-white p-5 text-center shadow-sm">
@@ -41,6 +58,13 @@ export default function Error({
           >
             ホームへ戻る
           </a>
+          <button
+            type="button"
+            onClick={() => void clearCacheAndReload()}
+            className="flex h-12 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 px-4 text-sm font-black text-amber-900"
+          >
+            キャッシュをクリアしてログインへ
+          </button>
         </div>
       </div>
     </main>

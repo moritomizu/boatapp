@@ -1,4 +1,4 @@
-const CACHE_NAME = "tapiyota-grand-boat-club-v4";
+const CACHE_NAME = "tapiyota-grand-boat-club-v5";
 const CORE_ASSETS = [
   "/login",
   "/manifest.webmanifest",
