@@ -137,10 +137,13 @@ function normalizeAppData(data: AppData, fallback: AppData): AppData {
             new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
         )[0]
     : undefined;
+  const isBootstrapAdmin = isBootstrapAdminEmail(authEmail);
   const fallbackRole: UserRole =
-    matchedMember?.role ??
+    isBootstrapAdmin
+      ? "admin"
+      : matchedMember?.role ??
     (approvedApplication?.approvedRole as UserRole | undefined) ??
-    (isBootstrapAdminEmail(authEmail) ? "admin" : "member");
+    "member";
   const fallbackCanOperate = fallbackRole === "admin" || fallbackRole === "owner";
   const users = rawUsers.map((user) =>
     completeUser(user, {
@@ -153,7 +156,7 @@ function normalizeAppData(data: AppData, fallback: AppData): AppData {
     ? users.find((user) => normalizeEmail(user.email) === normalizedAuthEmail)
     : undefined;
   const roleFromMembership =
-    matchedMember?.role ?? (isBootstrapAdminEmail(authEmail) ? "admin" : undefined);
+    isBootstrapAdmin ? "admin" : matchedMember?.role;
   const resolvedMatchedUser: AppUser | undefined = matchedUser
     ? {
         ...matchedUser,

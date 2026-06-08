@@ -189,10 +189,13 @@ function currentAuthFallbackUser(
       (a, b) =>
         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
     )[0];
+  const isBootstrapAdmin = isBootstrapAdminEmail(normalizedEmail);
   const role: UserRole =
-    matchedMember?.role ??
+    isBootstrapAdmin
+      ? "admin"
+      : matchedMember?.role ??
     approvedApplication?.approvedRole ??
-    (isBootstrapAdminEmail(normalizedEmail) ? "admin" : "member");
+    "member";
   const canOperate = role === "admin" || role === "owner";
 
   return {
@@ -349,8 +352,7 @@ export async function getFirestoreAppData(fallback: AppData = mockData) {
       )
     : undefined;
   const roleFromMembership =
-    matchedMember?.role ??
-    (isBootstrapAdminEmail(normalizedAuthEmail) ? "admin" : undefined);
+    isBootstrapAdminEmail(normalizedAuthEmail) ? "admin" : matchedMember?.role;
   const matchedUser = normalizedAuthEmail
     ? resolvedUsers.find((user) => normalizeEmail(user.email) === normalizedAuthEmail)
     : undefined;

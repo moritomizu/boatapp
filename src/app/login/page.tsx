@@ -22,8 +22,10 @@ import type { User } from "firebase/auth";
 import { firebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
 import {
   rememberAuthenticatedUser,
+  refreshClientAppData,
   resetClientAppData,
 } from "@/lib/client-store";
+import { getInitialAppData } from "@/lib/data-source";
 
 const GOOGLE_REDIRECT_PENDING_KEY = "boatos:google-redirect-pending";
 
@@ -83,6 +85,7 @@ export default function LoginPage() {
         }
         resetClientAppData();
         rememberAuthenticatedUser(user);
+        await refreshClientAppData(getInitialAppData(), { force: true });
         setMessage(
           `${user.email ?? "Googleアカウント"} でログインしました。ホームへ移動します。`,
         );
@@ -126,9 +129,11 @@ export default function LoginPage() {
             await updateProfile(credential.user, { displayName: displayName.trim() });
           }
           rememberAuthenticatedUser(credential.user);
+          await refreshClientAppData(getInitialAppData(), { force: true });
         } else {
           const credential = await signInWithEmailAndPassword(firebaseAuth, email, password);
           rememberAuthenticatedUser(credential.user);
+          await refreshClientAppData(getInitialAppData(), { force: true });
         }
       }
 
@@ -167,6 +172,7 @@ export default function LoginPage() {
           const credential = await signInWithPopup(firebaseAuth, provider);
           resetClientAppData();
           rememberAuthenticatedUser(credential.user);
+          await refreshClientAppData(getInitialAppData(), { force: true });
           setMessage(
             `${credential.user.email ?? "Googleアカウント"} でログインしました。ホームへ移動します。`,
           );

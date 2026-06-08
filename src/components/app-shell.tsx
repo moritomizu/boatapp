@@ -17,11 +17,24 @@ import {
   User,
   Ship,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
+import {
+  browserLocalPersistence,
+  onAuthStateChanged,
+  setPersistence,
+} from "firebase/auth";
 import { Badge } from "@/components/ui";
-import { resetClientAppData, selectCurrentBoat, useClientAppData } from "@/lib/client-store";
+import {
+  rememberAuthenticatedUser,
+  refreshClientAppData,
+  resetClientAppData,
+  selectCurrentBoat,
+  useClientAppData,
+} from "@/lib/client-store";
 import { getInitialAppData } from "@/lib/data-source";
-import { firebaseAuth } from "@/lib/firebase";
+import { firebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
+import { normalizeEmail } from "@/lib/bootstrap-admin";
 import { canUseBoat, getBoats } from "@/lib/boat-utils";
 import { getReservationSessionStatus } from "@/lib/reservations";
 import { hasActiveMembership } from "@/lib/membership";
@@ -45,18 +58,51 @@ const isSameDateKey = (value: string) => {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const data = useClientAppData(getInitialAppData());
+  const initialData = getInitialAppData();
+  const data = useClientAppData(initialData);
+  const [authReady, setAuthReady] = useState(
+    !isFirebaseConfigured || !firebaseAuth || Boolean(firebaseAuth.currentUser),
+  );
+  const [signedInEmail, setSignedInEmail] = useState(
+    firebaseAuth?.currentUser?.email ?? "",
+  );
   const currentUserName =
     data.currentUser.name ||
     data.currentUser.email?.split("@")[0] ||
     "利用者";
-  const membershipActive = hasActiveMembership(data);
   const membershipAllowedPath =
     pathname === "/apply" ||
     pathname === "/pending" ||
     pathname === "/profile" ||
     pathname === "/login" ||
     pathname.startsWith("/join");
+  const membershipActive = hasActiveMembership(data);
+  const authDataSynced =
+    !signedInEmail ||
+    normalizeEmail(data.currentUser.email) === normalizeEmail(signedInEmail);
+
+  useEffect(() => {
+    if (!firebaseAuth || !isFirebaseConfigured) {
+      return;
+    }
+
+    let active = true;
+    void setPersistence(firebaseAuth, browserLocalPersistence).catch(() => undefined);
+    const unsubscribe = onAuthStateChanged(firebaseAuth, (user) => {
+      if (!active) return;
+      setAuthReady(true);
+      setSignedInEmail(user?.email ?? "");
+      if (user) {
+        rememberAuthenticatedUser(user);
+        void refreshClientAppData(initialData, { force: true });
+      }
+    });
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [initialData]);
   const boats = getBoats(data);
   const usableBoats = boats.filter((boat) => canUseBoat(data, data.currentUser, boat));
   const activeVoyage = data.voyageLogs.find(
@@ -101,6 +147,85 @@ export function AppShell({ children }: { children: ReactNode }) {
         !postCheckDone
       ? "帰港"
       : "出船";
+
+  if (!authReady && !membershipAllowedPath) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-slate-50 px-4 text-slate-950">
+        <div className="w-full max-w-sm rounded-lg border border-sky-100 bg-white p-5 text-center shadow-sm">
+          <div className="mx-auto grid size-14 place-items-center overflow-hidden rounded-full bg-blue-700 p-1">
+            <Image
+              src="/tapiyota_icon.jpg"
+              alt=""
+              width={48}
+              height={48}
+              className="h-full w-full object-contain"
+              aria-hidden="true"
+              priority
+            />
+          </div>
+          <p className="mt-4 text-lg font-black text-blue-950">
+            ログイン状態を確認しています
+          </p>
+          <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
+            Google認証とクラブ情報を読み込んでいます。数秒お待ちください。
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isFirebaseConfigured && authReady && !signedInEmail && !membershipAllowedPath) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-slate-50 px-4 text-slate-950">
+        <div className="w-full max-w-sm rounded-lg border border-sky-100 bg-white p-5 text-center shadow-sm">
+          <p className="text-lg font-black text-blue-950">
+            ログインが必要です
+          </p>
+          <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
+            セッションを確認できませんでした。もう一度ログインしてください。
+          </p>
+          <Link
+            href="/login"
+            className="mt-4 flex h-12 items-center justify-center rounded-lg bg-blue-800 px-4 text-sm font-black text-white"
+          >
+            ログインへ
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (
+    isFirebaseConfigured &&
+    authReady &&
+    signedInEmail &&
+    !authDataSynced &&
+    !membershipAllowedPath
+  ) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-slate-50 px-4 text-slate-950">
+        <div className="w-full max-w-sm rounded-lg border border-sky-100 bg-white p-5 text-center shadow-sm">
+          <div className="mx-auto grid size-14 place-items-center overflow-hidden rounded-full bg-blue-700 p-1">
+            <Image
+              src="/tapiyota_icon.jpg"
+              alt=""
+              width={48}
+              height={48}
+              className="h-full w-full object-contain"
+              aria-hidden="true"
+              priority
+            />
+          </div>
+          <p className="mt-4 text-lg font-black text-blue-950">
+            クラブ情報を読み込んでいます
+          </p>
+          <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
+            {signedInEmail} の権限情報を反映しています。
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   async function logout() {
     if (firebaseAuth) {
@@ -190,7 +315,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <details className="relative">
               <summary
                 className="flex cursor-pointer list-none items-center gap-2 rounded-full border border-sky-200 px-3 py-2 text-left text-xs font-semibold text-blue-900 marker:hidden"
-                aria-label={`現在の利用者: ${data.currentUser.name}`}
+                aria-label={`現在の利用者: ${currentUserName}`}
               >
                 <Badge className="bg-sky-100 text-blue-800 ring-sky-200">
                   {currentUserName.slice(0, 1)}
