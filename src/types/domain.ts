@@ -139,6 +139,35 @@ export type MonthlyRevenueReportStatus =
   | "confirmed"
   | "reopened";
 
+export type FundType = "boat_maintenance" | "organization_safety";
+
+export type FundTransactionType =
+  | "contribution"
+  | "expense"
+  | "adjustment";
+
+export type FundTransactionReason =
+  | "monthly_allocation"
+  | "regular_maintenance"
+  | "minor_repair"
+  | "consumables"
+  | "safety_equipment"
+  | "damage_repair"
+  | "user_damage"
+  | "insurance_related"
+  | "owner_contribution"
+  | "manual_adjustment"
+  | "other";
+
+export type CostResponsibility =
+  | "boat_maintenance_fund"
+  | "organization_safety_fund"
+  | "boat_owner"
+  | "user"
+  | "insurance"
+  | "undecided"
+  | "other";
+
 export type SupportLocation = {
   latitude: number;
   longitude: number;
@@ -352,6 +381,47 @@ export type MonthlyRevenueReport = {
   updatedAt: string;
   confirmedAt?: string;
   confirmedBy?: string;
+};
+
+export type BoatMaintenanceFund = {
+  id: string;
+  organizationId: string;
+  boatId: string;
+  balance: number;
+  totalContributed: number;
+  totalSpent: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type OrganizationSafetyFund = {
+  id: string;
+  organizationId: string;
+  balance: number;
+  totalContributed: number;
+  totalSpent: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FundTransaction = {
+  id: string;
+  organizationId: string;
+  fundType: FundType;
+  boatId?: string;
+  type: FundTransactionType;
+  amount: number;
+  reason: FundTransactionReason;
+  costResponsibility: CostResponsibility;
+  description?: string;
+  relatedBoatId?: string;
+  relatedReservationId?: string;
+  relatedVoyageLogId?: string;
+  relatedMaintenanceLogId?: string;
+  receiptImageUrls?: string[];
+  adminMemo?: string;
+  createdAt: string;
+  createdBy: string;
 };
 
 export type Boat = {
@@ -644,6 +714,12 @@ export type MaintenanceLog = {
   title: string;
   body: string;
   cost: number;
+  hasCost?: boolean;
+  costResponsibility?: CostResponsibility;
+  useFund?: boolean;
+  fundTransactionId?: string;
+  receiptImageUrls?: string[];
+  adminMemo?: string;
   performedAt: string;
   createdBy: string;
   createdAt: string;
@@ -765,6 +841,9 @@ export type AppData = {
   memberSubscriptions: MemberSubscription[];
   boatRevenuePolicies: BoatRevenuePolicy[];
   monthlyRevenueReports: MonthlyRevenueReport[];
+  boatMaintenanceFunds: BoatMaintenanceFund[];
+  organizationSafetyFunds: OrganizationSafetyFund[];
+  fundTransactions: FundTransaction[];
   memberBoatPermissions: MemberBoatPermission[];
   reservations: Reservation[];
   joinRequests: JoinRequest[];

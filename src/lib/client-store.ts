@@ -136,6 +136,12 @@ function normalizeAppData(data: AppData, fallback: AppData): AppData {
       data.boatRevenuePolicies ?? fallback.boatRevenuePolicies ?? [],
     monthlyRevenueReports:
       data.monthlyRevenueReports ?? fallback.monthlyRevenueReports ?? [],
+    boatMaintenanceFunds:
+      data.boatMaintenanceFunds ?? fallback.boatMaintenanceFunds ?? [],
+    organizationSafetyFunds:
+      data.organizationSafetyFunds ?? fallback.organizationSafetyFunds ?? [],
+    fundTransactions:
+      data.fundTransactions ?? fallback.fundTransactions ?? [],
     memberBoatPermissions:
       data.memberBoatPermissions ?? fallback.memberBoatPermissions ?? [],
     joinRequests: data.joinRequests ?? fallback.joinRequests ?? [],

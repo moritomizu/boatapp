@@ -15,6 +15,15 @@ import { Badge, Card, Section } from "@/components/ui";
 import { getBoatName } from "@/lib/boat-utils";
 import { updateClientAppData, useClientAppData } from "@/lib/client-store";
 import {
+  costResponsibilities,
+  costResponsibilityLabels,
+  fundTransactionReasonLabels,
+  getBoatFund,
+  getSafetyFund,
+  recalculateFunds,
+  fundReasons,
+} from "@/lib/funds";
+import {
   handoverCategoryLabels,
   handoverPriorityLabels,
   handoverPriorityTone,
@@ -25,6 +34,9 @@ import { createHandoverNote } from "@/lib/mock-data";
 import { uploadHandoverAttachment } from "@/lib/storage";
 import type {
   AppData,
+  CostResponsibility,
+  FundTransaction,
+  FundTransactionReason,
   HandoverCategory,
   HandoverNote,
   HandoverPriority,
@@ -71,6 +83,10 @@ export function HandoverBoard({
     "idle",
   );
   const [maintenanceCost, setMaintenanceCost] = useState(0);
+  const [maintenanceResponsibility, setMaintenanceResponsibility] =
+    useState<CostResponsibility>("boat_maintenance_fund");
+  const [maintenanceReason, setMaintenanceReason] =
+    useState<FundTransactionReason>("regular_maintenance");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [attachmentMessage, setAttachmentMessage] = useState("");
 
@@ -228,10 +244,62 @@ export function HandoverBoard({
       title: note.title,
       body: `申し送りからメンテナンス台帳へ昇格\n\n${note.body}`,
       cost: maintenanceCost || note.estimatedCost || 0,
+      hasCost: (maintenanceCost || note.estimatedCost || 0) > 0,
+      costResponsibility: maintenanceResponsibility,
+      useFund:
+        maintenanceResponsibility === "boat_maintenance_fund" ||
+        maintenanceResponsibility === "organization_safety_fund",
       performedAt: now,
       createdBy: appData.currentUser.id,
       createdAt: now,
     };
+    const shouldCreateFundTransaction =
+      appData.currentUser.role === "admin" &&
+      log.cost > 0 &&
+      (maintenanceResponsibility === "boat_maintenance_fund" ||
+        maintenanceResponsibility === "organization_safety_fund");
+    if (shouldCreateFundTransaction) {
+      const balance =
+        maintenanceResponsibility === "boat_maintenance_fund"
+          ? getBoatFund(appData, note.boatId).balance
+          : getSafetyFund(appData).balance;
+      if (balance - log.cost < 0) {
+        const proceed = window.confirm(
+          "この支出により残高がマイナスになります。登録しますか？",
+        );
+        if (!proceed) {
+          setPromoteState("idle");
+          return;
+        }
+      }
+    }
+    const fundTransaction: FundTransaction | undefined = shouldCreateFundTransaction
+      ? {
+          id: `fund-tx-${crypto.randomUUID()}`,
+          organizationId: note.organizationId,
+          fundType:
+            maintenanceResponsibility === "boat_maintenance_fund"
+              ? "boat_maintenance"
+              : "organization_safety",
+          boatId:
+            maintenanceResponsibility === "boat_maintenance_fund"
+              ? note.boatId
+              : undefined,
+          type: "expense",
+          amount: log.cost,
+          reason: maintenanceReason,
+          costResponsibility: maintenanceResponsibility,
+          description: log.title,
+          relatedBoatId: note.boatId,
+          relatedMaintenanceLogId: log.id,
+          adminMemo: "申し送りから整備記録へ昇格時に作成",
+          createdAt: now,
+          createdBy: appData.currentUser.id,
+        }
+      : undefined;
+    const logWithFund = fundTransaction
+      ? { ...log, fundTransactionId: fundTransaction.id }
+      : log;
     const nextNotes = notes.map((item) =>
       item.id === note.id && item.status === "unconfirmed"
         ? { ...item, status: "in_progress" as HandoverStatus, updatedAt: now }
@@ -239,11 +307,15 @@ export function HandoverBoard({
     );
 
     await updateClientAppData(
-      (current) => ({
-        ...current,
-        handoverNotes: nextNotes,
-        maintenanceLogs: [log, ...current.maintenanceLogs],
-      }),
+      (current) =>
+        recalculateFunds({
+          ...current,
+          handoverNotes: nextNotes,
+          maintenanceLogs: [logWithFund, ...current.maintenanceLogs],
+          fundTransactions: fundTransaction
+            ? [fundTransaction, ...current.fundTransactions]
+            : current.fundTransactions,
+        }),
       appData,
     );
     setPromoteState("done");
@@ -679,6 +751,56 @@ export function HandoverBoard({
                       className="mt-2 h-12 w-full rounded-lg border border-sky-200 bg-white px-3 text-base outline-none ring-blue-600 focus:ring-2"
                     />
                   </label>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="text-sm font-bold text-blue-950">
+                        費用負担区分
+                      </span>
+                      <select
+                        value={maintenanceResponsibility}
+                        onChange={(event) =>
+                          setMaintenanceResponsibility(
+                            event.target.value as CostResponsibility,
+                          )
+                        }
+                        className="mt-2 h-12 w-full rounded-lg border border-sky-200 bg-white px-3 text-base outline-none ring-blue-600 focus:ring-2"
+                      >
+                        {costResponsibilities.map((responsibility) => (
+                          <option key={responsibility} value={responsibility}>
+                            {costResponsibilityLabels[responsibility]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block">
+                      <span className="text-sm font-bold text-blue-950">
+                        支出理由
+                      </span>
+                      <select
+                        value={maintenanceReason}
+                        onChange={(event) =>
+                          setMaintenanceReason(
+                            event.target.value as FundTransactionReason,
+                          )
+                        }
+                        className="mt-2 h-12 w-full rounded-lg border border-sky-200 bg-white px-3 text-base outline-none ring-blue-600 focus:ring-2"
+                      >
+                        {fundReasons.map((reason) => (
+                          <option key={reason} value={reason}>
+                            {fundTransactionReasonLabels[reason]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  {appData.currentUser.role === "admin" &&
+                  maintenanceCost > 0 &&
+                  (maintenanceResponsibility === "boat_maintenance_fund" ||
+                    maintenanceResponsibility === "organization_safety_fund") ? (
+                    <p className="rounded-lg bg-amber-50 p-3 text-sm font-bold leading-6 text-amber-900">
+                      昇格時に基金台帳へ支出履歴も作成します。残高不足時は基金管理画面で確認してください。
+                    </p>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => promoteToMaintenanceLog(selectedNote)}

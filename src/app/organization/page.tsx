@@ -895,7 +895,7 @@ export default function OrganizationPage() {
         </div>
 
         <Section title="メンバーと船舶">
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-4">
             <Link
               href="/members"
               className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-white px-4 text-sm font-black text-blue-900 ring-1 ring-sky-100"
@@ -916,6 +916,13 @@ export default function OrganizationPage() {
             >
               <ShieldCheck size={18} aria-hidden="true" />
               会費配分へ
+            </Link>
+            <Link
+              href="/funds"
+              className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-white px-4 text-sm font-black text-blue-900 ring-1 ring-sky-100"
+            >
+              <ShieldCheck size={18} aria-hidden="true" />
+              基金管理へ
             </Link>
           </div>
         </Section>

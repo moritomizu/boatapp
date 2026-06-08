@@ -7,8 +7,10 @@ import type {
   AppNotification,
   AppUser,
   Boat,
+  BoatMaintenanceFund,
   BoatOwnership,
   BoatRevenuePolicy,
+  FundTransaction,
   HandoverNote,
   JoinRequest,
   MaintenanceLog,
@@ -24,6 +26,7 @@ import type {
   OrganizationInvite,
   OrganizationMember,
   OrganizationRule,
+  OrganizationSafetyFund,
   PostReturnCheck,
   PreDepartureCheck,
   Reservation,
@@ -44,6 +47,9 @@ type CollectionMap = {
   memberSubscriptions: MemberSubscription;
   boatRevenuePolicies: BoatRevenuePolicy;
   monthlyRevenueReports: MonthlyRevenueReport;
+  boatMaintenanceFunds: BoatMaintenanceFund;
+  organizationSafetyFunds: OrganizationSafetyFund;
+  fundTransactions: FundTransaction;
   boats: Boat;
   users: AppUser;
   memberBoatPermissions: MemberBoatPermission;
@@ -74,6 +80,9 @@ const collections = [
   "memberSubscriptions",
   "boatRevenuePolicies",
   "monthlyRevenueReports",
+  "boatMaintenanceFunds",
+  "organizationSafetyFunds",
+  "fundTransactions",
   "boats",
   "users",
   "memberBoatPermissions",
@@ -250,6 +259,9 @@ export async function getFirestoreAppData(fallback: AppData = mockData) {
     memberSubscriptions,
     boatRevenuePolicies,
     monthlyRevenueReports,
+    boatMaintenanceFunds,
+    organizationSafetyFunds,
+    fundTransactions,
     boats,
     users,
     memberBoatPermissions,
@@ -310,6 +322,10 @@ export async function getFirestoreAppData(fallback: AppData = mockData) {
     memberSubscriptions: memberSubscriptions as MemberSubscription[],
     boatRevenuePolicies: boatRevenuePolicies as BoatRevenuePolicy[],
     monthlyRevenueReports: monthlyRevenueReports as MonthlyRevenueReport[],
+    boatMaintenanceFunds: boatMaintenanceFunds as BoatMaintenanceFund[],
+    organizationSafetyFunds:
+      organizationSafetyFunds as OrganizationSafetyFund[],
+    fundTransactions: fundTransactions as FundTransaction[],
     boat,
     boats: resolvedBoats,
     users: resolvedUsers,
@@ -421,6 +437,30 @@ export async function saveFirestoreAppData(
         "monthlyRevenueReports",
         data.monthlyRevenueReports ?? [],
         previousData?.monthlyRevenueReports,
+      ),
+    ),
+    writeCollection(
+      "boatMaintenanceFunds",
+      changedRows(
+        "boatMaintenanceFunds",
+        data.boatMaintenanceFunds ?? [],
+        previousData?.boatMaintenanceFunds,
+      ),
+    ),
+    writeCollection(
+      "organizationSafetyFunds",
+      changedRows(
+        "organizationSafetyFunds",
+        data.organizationSafetyFunds ?? [],
+        previousData?.organizationSafetyFunds,
+      ),
+    ),
+    writeCollection(
+      "fundTransactions",
+      changedRows(
+        "fundTransactions",
+        data.fundTransactions ?? [],
+        previousData?.fundTransactions,
       ),
     ),
     writeCollection(

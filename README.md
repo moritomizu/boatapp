@@ -665,6 +665,32 @@ service firebase.storage {
 
 Firestore接続時は、上記5コレクションをログイン済み管理者/オーナーが読み書きできるようにRulesへ追加してください。実運用では `monthlyRevenueReports` の確定済みデータはadminのみ再編集できるように絞り込む想定です。
 
+## メンテ積立・安全基金
+
+`/funds` に、管理者/オーナー向けの基金台帳画面を追加しています。
+
+今回の実装範囲:
+
+- 船ごとのメンテ積立残高表示
+- organization単位の共通安全基金残高表示
+- 積立/支出/調整の履歴登録
+- 支出理由と費用負担区分の選択
+- メンテナンス台帳との紐付け
+- 残高不足時の確認ダイアログ
+- adminによる全船/共通基金管理
+- ownerによる自分の船の積立状況確認
+- 船舶情報内のメンテナンス台帳から基金台帳への導線
+
+追加データ構造:
+
+- `boatMaintenanceFunds`
+- `organizationSafetyFunds`
+- `fundTransactions`
+
+残高は `fundTransactions` から再計算できる構造にしています。表示速度のため `boatMaintenanceFunds` / `organizationSafetyFunds` に集計値も持ちますが、トランザクション登録時に再計算して整合性を保つ方針です。
+
+Firestore接続時は、上記3コレクションをRulesへ追加してください。テスト段階ではログイン済みadmin/ownerの読み書きを許可し、実運用ではownerは自分が還元対象者に設定された船の `boatMaintenanceFunds` と該当 `fundTransactions` のみ読めるように制限する想定です。
+
 ## 今後追加予定の機能
 
 - 船舶カルテ

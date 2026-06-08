@@ -28,6 +28,7 @@ import {
   useClientAppData,
 } from "@/lib/client-store";
 import { getInitialAppData } from "@/lib/data-source";
+import { costResponsibilityLabels } from "@/lib/funds";
 import { syncGoogleCalendar } from "@/lib/google-calendar-sync";
 import {
   boatStatusLabels,
@@ -951,7 +952,18 @@ export default function BoatsPage() {
                         currency: "JPY",
                         maximumFractionDigits: 0,
                       }).format(log.cost)}
+                      {log.costResponsibility
+                        ? ` / 負担区分: ${costResponsibilityLabels[log.costResponsibility]}`
+                        : ""}
                     </p>
+                    {log.fundTransactionId ? (
+                      <Link
+                        href="/funds"
+                        className="mt-3 inline-flex min-h-10 items-center justify-center rounded-lg bg-sky-50 px-3 text-sm font-black text-blue-900"
+                      >
+                        基金台帳で確認
+                      </Link>
+                    ) : null}
                   </Card>
                 );
               })}

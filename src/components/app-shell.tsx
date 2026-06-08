@@ -238,6 +238,15 @@ export function AppShell({ children }: { children: ReactNode }) {
                       会費配分
                     </Link>
                   ) : null}
+                  {data.currentUser.role === "admin" || data.currentUser.role === "owner" ? (
+                    <Link
+                      href="/funds"
+                      className="flex min-h-11 items-center gap-2 rounded-lg bg-slate-50 px-3 text-sm font-black text-slate-800"
+                    >
+                      <Settings size={17} aria-hidden="true" />
+                      基金管理
+                    </Link>
+                  ) : null}
                   <Link
                     href="/members"
                     className="flex min-h-11 items-center gap-2 rounded-lg bg-slate-50 px-3 text-sm font-black text-slate-800"
