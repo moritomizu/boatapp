@@ -17,7 +17,7 @@ import {
   User,
   Ship,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
   browserLocalPersistence,
@@ -58,7 +58,7 @@ const isSameDateKey = (value: string) => {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const initialData = getInitialAppData();
+  const initialData = useMemo(() => getInitialAppData(), []);
   const data = useClientAppData(initialData);
   const [authReady, setAuthReady] = useState(
     !isFirebaseConfigured || !firebaseAuth || Boolean(firebaseAuth.currentUser),
