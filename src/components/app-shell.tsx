@@ -222,6 +222,15 @@ export function AppShell({ children }: { children: ReactNode }) {
                     <Navigation size={17} aria-hidden="true" />
                     航海履歴
                   </Link>
+                  {data.currentUser.role === "admin" || data.currentUser.role === "owner" ? (
+                    <Link
+                      href="/admin"
+                      className="flex min-h-11 items-center gap-2 rounded-lg bg-slate-50 px-3 text-sm font-black text-slate-800"
+                    >
+                      <Home size={17} aria-hidden="true" />
+                      運営TOP
+                    </Link>
+                  ) : null}
                   <Link
                     href="/organization"
                     className="flex min-h-11 items-center gap-2 rounded-lg bg-slate-50 px-3 text-sm font-black text-slate-800"

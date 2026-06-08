@@ -54,6 +54,7 @@ export default function HomePage() {
   const data = useClientAppData(initialData);
   const boats = getBoats(data);
   const isAdmin = data.currentUser.role === "admin";
+  const isOperator = data.currentUser.role === "admin" || data.currentUser.role === "owner";
   const pendingMembershipApplications = data.membershipApplications.filter(
     (application) =>
       application.status === "pending" || application.status === "reviewing",
@@ -263,6 +264,9 @@ export default function HomePage() {
       : false;
   const selectedBoatIsFreeToday = todaysReservations.length === 0;
   const actions = [
+    ...(isOperator
+      ? [{ href: "/admin", label: "運営TOP", icon: Compass }]
+      : []),
     { href: "/reservations#new", label: "予約する", icon: CalendarDays },
     { href: "/reservations", label: "予約カレンダーを見る", icon: ClipboardCheck },
     {
@@ -429,9 +433,26 @@ export default function HomePage() {
               ? " 全船の管理、メンバー管理、予約補正、サポート対応ができます。"
               : data.currentUser.role === "owner"
                 ? " 予約、出船記録、申し送り、サポート対応ができます。"
-                : " 予約、出船前後チェック、航行ログ、申し送り、サポート要請ができます。"}
+            : " 予約、出船前後チェック、航行ログ、申し送り、サポート要請ができます。"}
           </div>
         </div>
+
+        {isOperator ? (
+          <Link
+            href="/admin"
+            className="flex items-start gap-3 rounded-lg border border-blue-200 bg-white p-4 text-blue-950 shadow-sm"
+          >
+            <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-blue-800 text-white">
+              <Compass size={22} aria-hidden="true" />
+            </span>
+            <span>
+              <span className="block text-base font-black">運営TOP</span>
+              <span className="mt-1 block text-sm font-semibold leading-6 text-slate-600">
+                今日の予約、出船中、申請待ち、サポート、基金、月次配分をまとめて確認できます。
+              </span>
+            </span>
+          </Link>
+        ) : null}
 
         <Section title="次にやること">
           <Card>
