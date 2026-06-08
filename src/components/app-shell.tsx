@@ -335,7 +335,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     className="flex min-h-11 items-center gap-2 rounded-lg bg-slate-50 px-3 text-sm font-black text-slate-800"
                   >
                     <User size={17} aria-hidden="true" />
-                    プロフィール編集
+                    自分のプロフィール
                   </Link>
                   <Link
                     href="/usage-history"

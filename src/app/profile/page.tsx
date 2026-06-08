@@ -142,7 +142,7 @@ export default function ProfilePage() {
           </div>
         ) : null}
 
-        <Section title="プロフィール編集">
+        <Section title="自分のプロフィール">
           <form
             onSubmit={saveProfile}
             className="space-y-4 rounded-lg border border-sky-100 bg-white p-4 shadow-sm"

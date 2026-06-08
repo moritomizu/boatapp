@@ -1225,11 +1225,14 @@ export default function MembersPage() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-black text-blue-700">
-                    メンバー編集
+                    管理者によるメンバー編集
                   </p>
                   <h2 className="mt-1 text-xl font-black text-blue-950">
                     利用条件と権限
                   </h2>
+                  <p className="mt-1 text-sm font-semibold leading-6 text-slate-500">
+                    本人のプロフィールではなく、クラブ運営上の権限・利用条件を管理します。
+                  </p>
                 </div>
                 <button
                   type="button"
