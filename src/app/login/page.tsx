@@ -10,12 +10,14 @@ import {
   createUserWithEmailAndPassword,
   getRedirectResult,
   GoogleAuthProvider,
+  onAuthStateChanged,
   setPersistence,
   signOut,
   signInWithEmailAndPassword,
   signInWithRedirect,
   updateProfile,
 } from "firebase/auth";
+import type { User } from "firebase/auth";
 import { firebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
 import {
   rememberAuthenticatedUser,
@@ -23,6 +25,23 @@ import {
 } from "@/lib/client-store";
 
 const GOOGLE_REDIRECT_PENDING_KEY = "boatos:google-redirect-pending";
+
+function waitForFirebaseUser(timeoutMs = 7000): Promise<User | null> {
+  const auth = firebaseAuth;
+  if (!auth) return Promise.resolve(null);
+  if (auth.currentUser) return Promise.resolve(auth.currentUser);
+
+  return new Promise<User | null>((resolve) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      unsubscribe();
+      resolve(user);
+    });
+    window.setTimeout(() => {
+      unsubscribe();
+      resolve(auth.currentUser);
+    }, timeoutMs);
+  });
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -52,8 +71,15 @@ export default function LoginPage() {
           window.sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING_KEY);
         }
         if (!result && !wasRedirectPending) return;
-        const user = result?.user ?? firebaseAuth.currentUser;
-        if (!user || cancelled) return;
+        const user = result?.user ?? firebaseAuth.currentUser ?? await waitForFirebaseUser();
+        if (!user || cancelled) {
+          if (!cancelled) {
+            setMessage(
+              "Google認証後のユーザー情報を取得できませんでした。もう一度Googleでログインしてください。",
+            );
+          }
+          return;
+        }
         resetClientAppData();
         rememberAuthenticatedUser(user);
         setMessage(
