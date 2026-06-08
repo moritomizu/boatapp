@@ -33,6 +33,7 @@ import type {
   SkillAssessment,
   SupportMessage,
   SupportRequest,
+  UserRole,
   VoyageLog,
 } from "@/types/domain";
 
@@ -105,6 +106,14 @@ const collections = [
 export const canUseFirestore =
   isFirebaseConfigured && Boolean(firestore);
 
+const normalizeEmail = (email?: string | null) => email?.trim().toLowerCase() ?? "";
+const bootstrapAdminEmails = new Set(
+  (process.env.NEXT_PUBLIC_BOOTSTRAP_ADMIN_EMAILS ?? "moritomizu@gmail.com")
+    .split(",")
+    .map((email) => normalizeEmail(email))
+    .filter(Boolean),
+);
+
 type FirestoreValue =
   | string
   | number
@@ -162,20 +171,57 @@ async function getCurrentAuthEmail() {
   });
 }
 
-function currentAuthFallbackUser(organizationId: string): AppUser | undefined {
+function currentAuthFallbackUser(
+  organizationId: string,
+  organizationMembers: OrganizationMember[] = [],
+  membershipApplications: MembershipApplication[] = [],
+): AppUser | undefined {
   const authUser = firebaseAuth?.currentUser;
   const email = authUser?.email;
   if (!email) return undefined;
+  const normalizedEmail = normalizeEmail(email);
+  const matchedMember = organizationMembers.find(
+    (member) =>
+      member.isActive &&
+      member.organizationId === organizationId &&
+      normalizeEmail(member.email) === normalizedEmail,
+  );
+  const approvedApplication = membershipApplications
+    .filter(
+      (application) =>
+        application.status === "approved" &&
+        normalizeEmail(application.profile.email) === normalizedEmail,
+    )
+    .sort(
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+    )[0];
+  const role: UserRole =
+    matchedMember?.role ??
+    approvedApplication?.approvedRole ??
+    (bootstrapAdminEmails.has(normalizedEmail) ? "admin" : "member");
+  const canOperate = role === "admin" || role === "owner";
 
   return {
-    id: authUser.uid ? `auth-${authUser.uid}` : `auth-${email}`,
+    id:
+      matchedMember?.userId ??
+      approvedApplication?.userId ??
+      (authUser.uid ? `auth-${authUser.uid}` : `auth-${normalizedEmail}`),
     organizationId,
-    name: authUser.displayName || email.split("@")[0] || "ログインユーザー",
+    name:
+      matchedMember?.displayName ||
+      approvedApplication?.profile.name ||
+      authUser.displayName ||
+      email.split("@")[0] ||
+      "ログインユーザー",
     email,
-    role: "member",
-    canSolo: false,
-    canNightUse: false,
-    notes: "Firebase Authで登録済み。管理者によるメンバー権限設定待ちです。",
+    role,
+    canSolo: canOperate,
+    canNightUse: canOperate,
+    notes:
+      role === "admin"
+        ? "Bootstrap adminとして復旧しました。Firestoreのusers/organizationMembersにも同じメールを登録してください。"
+        : "Firebase Authで登録済み。管理者によるメンバー権限設定待ちです。",
     createdAt: authUser.metadata.creationTime
       ? new Date(authUser.metadata.creationTime).toISOString()
       : new Date().toISOString(),
@@ -300,9 +346,41 @@ export async function getFirestoreAppData(fallback: AppData = mockData) {
   const resolvedUsers =
     (users as AppUser[]).length > 0 ? (users as AppUser[]) : fallback.users;
   const authEmail = await getCurrentAuthEmail();
+  const normalizedAuthEmail = normalizeEmail(authEmail);
+  const matchedMember = normalizedAuthEmail
+    ? (organizationMembers as OrganizationMember[]).find(
+        (member) =>
+          member.isActive &&
+          member.organizationId === organization.id &&
+          normalizeEmail(member.email) === normalizedAuthEmail,
+      )
+    : undefined;
+  const roleFromMembership =
+    matchedMember?.role ??
+    (bootstrapAdminEmails.has(normalizedAuthEmail) ? "admin" : undefined);
+  const matchedUser = normalizedAuthEmail
+    ? resolvedUsers.find((user) => normalizeEmail(user.email) === normalizedAuthEmail)
+    : undefined;
   const currentUser =
-    resolvedUsers.find((user) => user.email === authEmail) ??
-    currentAuthFallbackUser(organization.id) ??
+    (matchedUser
+      ? {
+          ...matchedUser,
+          role: roleFromMembership ?? matchedUser.role,
+          canSolo:
+            matchedUser.canSolo ||
+            roleFromMembership === "admin" ||
+            roleFromMembership === "owner",
+          canNightUse:
+            matchedUser.canNightUse ||
+            roleFromMembership === "admin" ||
+            roleFromMembership === "owner",
+        }
+      : undefined) ??
+    currentAuthFallbackUser(
+      organization.id,
+      organizationMembers as OrganizationMember[],
+      membershipApplications as MembershipApplication[],
+    ) ??
     fallback.currentUser;
 
   return {

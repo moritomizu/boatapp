@@ -9,7 +9,7 @@ import {
   saveFirestoreAppData,
 } from "@/lib/firebase-repository";
 import { firebaseAuth } from "@/lib/firebase";
-import type { AppData } from "@/types/domain";
+import type { AppData, AppUser, UserRole } from "@/types/domain";
 
 const STORAGE_KEY = "tapiyota-grand-boat-club:app-data:v1";
 const STORE_EVENT = "tapiyota-grand-boat-club:app-data-updated";
@@ -23,6 +23,13 @@ const UNSELECTED_BOAT_ID = "boat-unselected";
 
 const isBrowser = () => typeof window !== "undefined";
 const shouldUseFirestore = () => !useMockData && canUseFirestore;
+const normalizeEmail = (email?: string | null) => email?.trim().toLowerCase() ?? "";
+const bootstrapAdminEmails = new Set(
+  (process.env.NEXT_PUBLIC_BOOTSTRAP_ADMIN_EMAILS ?? "moritomizu@gmail.com")
+    .split(",")
+    .map((email) => normalizeEmail(email))
+    .filter(Boolean),
+);
 
 let cachedRaw: string | null | undefined;
 let cachedSnapshot: AppData | undefined;
@@ -37,6 +44,10 @@ function storedAuthIdentity() {
     email: window.localStorage.getItem(AUTH_EMAIL_KEY) ?? undefined,
     name: window.localStorage.getItem(AUTH_NAME_KEY) ?? undefined,
   };
+}
+
+function isBootstrapAdmin(email?: string | null) {
+  return bootstrapAdminEmails.has(normalizeEmail(email));
 }
 
 function normalizeAppData(data: AppData, fallback: AppData): AppData {
@@ -78,33 +89,96 @@ function normalizeAppData(data: AppData, fallback: AppData): AppData {
     knownOrganizationIds.values().next().value ||
     fallback.organization.id;
   const users = data.users?.length ? data.users : fallback.users;
+  const organizationMembers =
+    data.organizationMembers ?? fallback.organizationMembers ?? [];
+  const membershipApplications =
+    data.membershipApplications ?? fallback.membershipApplications ?? [];
   const authUser = shouldUseFirestore() ? firebaseAuth?.currentUser : undefined;
   const storedAuth = shouldUseFirestore() ? storedAuthIdentity() : {};
   const authEmail = authUser?.email ?? storedAuth.email;
+  const normalizedAuthEmail = normalizeEmail(authEmail);
   const authUid = authUser?.uid ?? storedAuth.uid;
   const authName = authUser?.displayName ?? storedAuth.name;
-  const authFallbackUser =
-    authEmail && !users.some((user) => user.email === authEmail)
+  const matchedMember = normalizedAuthEmail
+    ? organizationMembers.find(
+        (member) =>
+          member.isActive &&
+          member.organizationId === organizationId &&
+          normalizeEmail(member.email) === normalizedAuthEmail,
+      )
+    : undefined;
+  const approvedApplication = normalizedAuthEmail
+    ? membershipApplications
+        .filter(
+          (application) =>
+            application.status === "approved" &&
+            normalizeEmail(application.profile.email) === normalizedAuthEmail,
+        )
+        .sort(
+          (a, b) =>
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+        )[0]
+    : undefined;
+  const fallbackRole: UserRole =
+    matchedMember?.role ??
+    (approvedApplication?.approvedRole as UserRole | undefined) ??
+    (isBootstrapAdmin(authEmail) ? "admin" : "member");
+  const fallbackCanOperate = fallbackRole === "admin" || fallbackRole === "owner";
+  const matchedUser = normalizedAuthEmail
+    ? users.find((user) => normalizeEmail(user.email) === normalizedAuthEmail)
+    : undefined;
+  const roleFromMembership =
+    matchedMember?.role ?? (isBootstrapAdmin(authEmail) ? "admin" : undefined);
+  const resolvedMatchedUser: AppUser | undefined = matchedUser
+    ? {
+        ...matchedUser,
+        role: roleFromMembership ?? matchedUser.role,
+        canSolo:
+          matchedUser.canSolo ||
+          roleFromMembership === "admin" ||
+          roleFromMembership === "owner",
+        canNightUse:
+          matchedUser.canNightUse ||
+          roleFromMembership === "admin" ||
+          roleFromMembership === "owner",
+      }
+    : undefined;
+  const authFallbackUser: AppUser | undefined =
+    authEmail && !matchedUser
       ? {
-          id: authUid ? `auth-${authUid}` : `auth-${authEmail}`,
+          id:
+            matchedMember?.userId ??
+            approvedApplication?.userId ??
+            (authUid ? `auth-${authUid}` : `auth-${normalizedAuthEmail}`),
           organizationId,
-          name: authName || authEmail.split("@")[0] || "ログインユーザー",
+          name:
+            matchedMember?.displayName ||
+            approvedApplication?.profile.name ||
+            authName ||
+            authEmail.split("@")[0] ||
+            "ログインユーザー",
           email: authEmail,
-          role: "member" as const,
-          canSolo: false,
-          canNightUse: false,
-          notes: "Firebase Authで登録済み。管理者によるメンバー権限設定待ちです。",
+          role: fallbackRole,
+          canSolo: fallbackCanOperate,
+          canNightUse: fallbackCanOperate,
+          notes:
+            fallbackRole === "admin"
+              ? "Bootstrap adminとして復旧しました。Firestoreのusers/organizationMembersにも同じメールを登録してください。"
+              : "Firebase Authで登録済み。管理者によるメンバー権限設定待ちです。",
           createdAt: new Date().toISOString(),
         }
       : undefined;
   const currentUser =
     authEmail || authUid
-      ? users.find((user) => user.email === authEmail) ??
+      ? resolvedMatchedUser ??
         users.find((user) => authUid && user.id === `auth-${authUid}`) ??
         authFallbackUser ??
         fallback.currentUser
       : users.find((user) => user.id === data.currentUserId) ??
-        users.find((user) => user.email === data.currentUser?.email) ??
+        users.find(
+          (user) =>
+            normalizeEmail(user.email) === normalizeEmail(data.currentUser?.email),
+        ) ??
         data.currentUser ??
         fallback.currentUser;
   const boats = sourceBoats.filter((boat) => boat.organizationId === organizationId);
@@ -135,14 +209,12 @@ function normalizeAppData(data: AppData, fallback: AppData): AppData {
     boat: selectedBoat,
     boats,
     users,
-    organizationMembers:
-      data.organizationMembers ?? fallback.organizationMembers ?? [],
+    organizationMembers,
     organizationRules:
       data.organizationRules ?? fallback.organizationRules ?? [],
     organizationInvites:
       data.organizationInvites ?? fallback.organizationInvites ?? [],
-    membershipApplications:
-      data.membershipApplications ?? fallback.membershipApplications ?? [],
+    membershipApplications,
     boatOwnerships:
       data.boatOwnerships ?? fallback.boatOwnerships ?? [],
     membershipPlans:

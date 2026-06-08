@@ -33,6 +33,8 @@ export const permissionTemplateLabels: Record<PermissionTemplate, string> = {
   custom: "カスタム",
 };
 
+const normalizeEmail = (email?: string | null) => email?.trim().toLowerCase() ?? "";
+
 export function hasActiveMembership(data: AppData) {
   if (data.currentUser.role === "admin" || data.currentUser.role === "owner") {
     return true;
@@ -43,7 +45,10 @@ export function hasActiveMembership(data: AppData) {
       member.isActive &&
       member.organizationId === data.organization.id &&
       (member.userId === data.currentUser.id ||
-        Boolean(data.currentUser.email && member.email === data.currentUser.email)),
+        Boolean(
+          data.currentUser.email &&
+            normalizeEmail(member.email) === normalizeEmail(data.currentUser.email),
+        )),
   );
 }
 
@@ -52,7 +57,11 @@ export function latestApplicationForCurrentUser(data: AppData) {
     .filter(
       (application) =>
         application.userId === data.currentUser.id ||
-        Boolean(data.currentUser.email && application.profile.email === data.currentUser.email),
+        Boolean(
+          data.currentUser.email &&
+            normalizeEmail(application.profile.email) ===
+              normalizeEmail(data.currentUser.email),
+        ),
     )
     .sort(
       (a, b) =>
